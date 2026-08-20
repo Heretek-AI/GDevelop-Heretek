@@ -11,14 +11,13 @@ on:
         required: true
         default: 'v5.5.215-byok.1'
 
+# Least-privilege permissions: write contents for releases only
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   build-web-app:
-    name: Build & Deploy Web IDE
+    name: Build Web IDE
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -40,7 +39,6 @@ jobs:
         run: |
           cd newIDE/app
           npm run build
-          # Package web build artifact
           mkdir -p ../../dist/web
           cp -r build/* ../../dist/web/
 
