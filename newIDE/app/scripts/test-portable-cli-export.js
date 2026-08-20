@@ -59,12 +59,14 @@ const CLI_TIMEOUT_MS = 10 * 60 * 1000;
  * @param {string} msg
  * @returns {never}
  */
-const fail = msg => {
+const fail = (msg) => {
   throw new Error(msg);
 };
 
 (async () => {
-  shell.echo(`ℹ️ GDevelop version (from electron-app/app/package.json): ${version}`);
+  shell.echo(
+    `ℹ️ GDevelop version (from electron-app/app/package.json): ${version}`
+  );
   shell.echo(`ℹ️ Branch: ${branch} — example: ${exampleSlug}`);
   shell.echo(`ℹ️ Work dir:      ${workDir}`);
   shell.echo(`ℹ️ Artifacts dir: ${artifactsDir}`);
@@ -124,7 +126,12 @@ const fail = msg => {
   shell.rm('-rf', exampleParentDir);
   shell.mkdir('-p', exampleParentDir);
   shell.echo(`🌐 Sparse-cloning ${exampleSlug} from GDevelop-examples ...`);
-  cloneExampleSparse(EXAMPLES_REPO, EXAMPLES_BRANCH, exampleSlug, exampleParentDir);
+  cloneExampleSparse(
+    EXAMPLES_REPO,
+    EXAMPLES_BRANCH,
+    exampleSlug,
+    exampleParentDir
+  );
   const exampleDir = path.join(exampleParentDir, 'examples', exampleSlug);
   const gameJsonPath = path.join(exampleDir, `${exampleSlug}.json`);
   if (!fs.existsSync(gameJsonPath)) {
@@ -174,7 +181,7 @@ const fail = msg => {
   );
 
   shell.echo('🎉 Portable CLI HTML5 export smoke test succeeded.');
-})().catch(err => {
+})().catch((err) => {
   shell.echo(`❌ ${err && err.stack ? err.stack : err}`);
   shell.exit(1);
 });
@@ -223,7 +230,31 @@ function findExecutable(root) {
  * @param {string} dest
  */
 function cloneExampleSparse(repoUrl, repoBranch, slug, dest) {
-  const sh = cmd => {
+  // Validate user-controlled inputs before they reach the shell. `slug`
+  // comes from --example=<value> on the CLI; the others are constants
+  // or path-derived, but we validate them anyway to close jssecurity:
+  // S8707 / S8701 / S8705 (LLM-CLI escape family).
+  if (!/^https:\/\/[A-Za-z0-9._:/-]+$/.test(repoUrl)) {
+    throw new Error(`Refusing cloneExampleSparse: bad repoUrl "${repoUrl}"`);
+  }
+  if (!/^[A-Za-z0-9._/-]+$/.test(repoBranch)) {
+    throw new Error(
+      `Refusing cloneExampleSparse: bad repoBranch "${repoBranch}"`
+    );
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(slug)) {
+    throw new Error(`Refusing cloneExampleSparse: bad slug "${slug}"`);
+  }
+  const destResolved = path.resolve(dest);
+  const cwdResolved = path.resolve('.');
+  if (
+    !destResolved.startsWith(cwdResolved + path.sep) &&
+    destResolved !== cwdResolved
+  ) {
+    throw new Error(`Refusing cloneExampleSparse: dest outside CWD: ${dest}`);
+  }
+
+  const sh = (cmd) => {
     const r = shell.exec(cmd, { cwd: dest, silent: false });
     if (r.code !== 0) {
       throw new Error(`Command failed (${r.code}): ${cmd}`);
@@ -262,7 +293,7 @@ function runCliExport(gdevelopBinary, gameJsonPath) {
       child.kill('SIGKILL');
     }, CLI_TIMEOUT_MS);
 
-    child.on('error', err => {
+    child.on('error', (err) => {
       clearTimeout(timer);
       reject(err);
     });

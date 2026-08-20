@@ -125,9 +125,9 @@ const uploadFileToAzureBlob = (fileUploadUrl, filePath) =>
           'Content-Length': fileSize,
         },
       },
-      response => {
+      (response) => {
         let body = '';
-        response.on('data', chunk => (body += chunk));
+        response.on('data', (chunk) => (body += chunk));
         response.on('end', () => {
           if (
             response.statusCode &&
@@ -149,14 +149,15 @@ const uploadFileToAzureBlob = (fileUploadUrl, filePath) =>
     fs.createReadStream(filePath).pipe(request);
   });
 
-const formatApiError = error => {
+const formatApiError = (error) => {
   if (error.response) {
     return `${error.response.status} ${JSON.stringify(error.response.data)}`;
   }
   return error.message || String(error);
 };
 
-const sleep = timeInMs => new Promise(resolve => setTimeout(resolve, timeInMs));
+const sleep = (timeInMs) =>
+  new Promise((resolve) => setTimeout(resolve, timeInMs));
 
 (async () => {
   shell.echo(`ℹ️ Getting an Azure AD access token...`);
@@ -185,14 +186,29 @@ const sleep = timeInMs => new Promise(resolve => setTimeout(resolve, timeInMs));
 
   // Check if there is already a pending (in progress) submission, as the API
   // refuses to create a new one in this case.
-  shell.echo(`ℹ️ Getting the app information (application id: ${applicationId})...`);
+  shell.echo(
+    `ℹ️ Getting the app information (application id: ${applicationId})...`
+  );
   try {
     const appResponse = await api.get('');
     const app = appResponse.data;
     shell.echo(`ℹ️ Found app "${app.primaryName}".`);
 
+    // Microsoft Graph returns GUIDs for all submission identifiers.
+    // We validate the shape here so a malformed API response (or a
+    // future proxy/MITM) cannot inject path components into the URLs
+    // we build later. Closes jssecurity:S7044 / S8476.
+    const GUID_RE =
+      /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    const assertGuid = (label, value) => {
+      if (typeof value !== 'string' || !GUID_RE.test(value)) {
+        throw new Error(`Expected ${label} to be a GUID, got: ${value}`);
+      }
+    };
+
     if (app.pendingApplicationSubmission) {
       const pendingSubmissionId = app.pendingApplicationSubmission.id;
+      assertGuid('pendingSubmissionId', pendingSubmissionId);
       if (!deletePendingSubmission) {
         shell.echo(
           `❌ There is already a pending submission (id: ${pendingSubmissionId}). Pass --deletePendingSubmission to delete it and create a new one (this only works if it was created by the API - a submission created or modified in the Partner Center interface must be deleted manually there).`
@@ -223,11 +239,12 @@ const sleep = timeInMs => new Promise(resolve => setTimeout(resolve, timeInMs));
     shell.exit(2);
   }
   const submissionId = submission.id;
+  assertGuid('submissionId', submissionId);
   shell.echo(`ℹ️ Created submission (id: ${submissionId}).`);
 
   // Replace the packages: mark the existing ones for deletion and add the new appx.
   const appxFileName = path.basename(appxFilePath);
-  submission.applicationPackages.forEach(applicationPackage => {
+  submission.applicationPackages.forEach((applicationPackage) => {
     applicationPackage.fileStatus = 'PendingDelete';
   });
   submission.applicationPackages.push({
@@ -282,12 +299,12 @@ const sleep = timeInMs => new Promise(resolve => setTimeout(resolve, timeInMs));
   // Print any errors/warnings reported for the submission. Warnings (for example,
   // about pricing and availability) can prevent the new Partner Center submission
   // experience from accepting the commit, leaving the submission stuck in draft.
-  const printStatusDetails = statusDetails => {
+  const printStatusDetails = (statusDetails) => {
     if (!statusDetails) return;
-    (statusDetails.errors || []).forEach(error => {
+    (statusDetails.errors || []).forEach((error) => {
       shell.echo(`   ❌ Error: [${error.code}] ${error.details}`);
     });
-    (statusDetails.warnings || []).forEach(warning => {
+    (statusDetails.warnings || []).forEach((warning) => {
       shell.echo(`   ⚠️ Warning: [${warning.code}] ${warning.details}`);
     });
   };

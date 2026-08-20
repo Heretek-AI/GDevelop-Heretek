@@ -1,6 +1,7 @@
 // @ts-check
 const fs = require('fs');
-const {default: axios} = require('axios');
+const path = require('path');
+const { default: axios } = require('axios');
 
 let temporaryFileCounter = 0;
 
@@ -15,7 +16,26 @@ let temporaryFileCounter = 0;
  * @returns {Promise<void>}
  */
 const downloadLocalFile = async (url, outputPath) => {
-  const temporaryPath = `${outputPath}.${process.pid}-${temporaryFileCounter++}.tmp`;
+  // The outputPath is a filename that originates from our own build scripts
+  // (they control it as a constant of the form 'public/libGD.wasm' or the
+  // like), not from untrusted CLI input. We still reject any outputPath that
+  // escapes the CWD (path traversal) so a malformed caller can't write
+  // outside the project. See jssecurity:S8707 "path canonicalized from
+  // CLI-controlled data must be validated".
+  const outputResolved = path.resolve(outputPath);
+  const cwdResolved = path.resolve('.');
+  if (
+    !outputResolved.startsWith(cwdResolved + path.sep) &&
+    outputResolved !== cwdResolved
+  ) {
+    throw new Error(
+      `Refusing to write outside the project directory: ${outputPath}`
+    );
+  }
+
+  const temporaryPath = `${outputPath}.${
+    process.pid
+  }-${temporaryFileCounter++}.tmp`;
   try {
     const response = await axios.get(url, {
       responseType: 'stream',
@@ -24,7 +44,7 @@ const downloadLocalFile = async (url, outputPath) => {
     await new Promise((resolve, reject) => {
       const writer = fs.createWriteStream(temporaryPath);
       let error = null;
-      const onError = err => {
+      const onError = (err) => {
         error = err;
         writer.close();
         reject(err);
