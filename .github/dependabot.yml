@@ -1,0 +1,114 @@
+# Dependabot configuration.
+#
+# One `npm` ecosystem entry per package manifest in this monorepo so each
+# lockfile is updated independently and PRs stay small/auditable.
+#
+# Grouped updates: a single "weekly-deps" PR per manifest collects all
+# patch/minor updates so reviewers see one diff per package instead of N.
+#
+# `open-pull-requests-limit: 5` keeps the queue bounded; bump if needed.
+#
+# Ignored updates: stay on `^32.x` for electron to avoid native-module
+# rebuild risk; remove when you're ready to bump to 33.x (see KNOWN_VULNS.md).
+
+version: 2
+updates:
+  # newIDE/app — main IDE
+  - package-ecosystem: "npm"
+    directory: "/newIDE/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # newIDE/electron-app — desktop shell
+  - package-ecosystem: "npm"
+    directory: "/newIDE/electron-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Stay in 32.x until ready for native-rebuild risk. See KNOWN_VULNS.md.
+      - dependency-name: "electron"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # newIDE/electron-app/app — main process of the desktop app
+  - package-ecosystem: "npm"
+    directory: "/newIDE/electron-app/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # newIDE/web-app — web build of the IDE
+  - package-ecosystem: "npm"
+    directory: "/newIDE/web-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GDJS — game engine library
+  - package-ecosystem: "npm"
+    directory: "/GDJS"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GDJS/tests — Karma/Mocha test suite for the engine
+  - package-ecosystem: "npm"
+    directory: "/GDJS/tests"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GDevelop.js — emscripten-built core
+  - package-ecosystem: "npm"
+    directory: "/GDevelop.js"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      weekly-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions workflows — keep action versions current.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      workflow-bumps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
