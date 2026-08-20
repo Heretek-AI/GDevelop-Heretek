@@ -31,7 +31,6 @@ jobs:
       matrix:
         include:
           - language: javascript-typescript
-            paths: newIDE/app/src newIDE/electron-app newIDE/web-app GDJS GDevelop.js SharedLibs Extensions
 
     steps:
       - name: Checkout repository
@@ -42,7 +41,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
-          paths: ${{ matrix.paths }}
+          config-file: .github/codeql-config.yml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

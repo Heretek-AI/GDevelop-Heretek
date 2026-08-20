@@ -88,23 +88,28 @@ function collectPinnedVersions(lockfileJson) {
   if (lockfileJson.packages) {
     for (const [pkgPath, info] of Object.entries(lockfileJson.packages)) {
       if (!pkgPath || !pkgPath.startsWith('node_modules/')) continue;
-      const pkgName = pkgPath.replace(/^node_modules\//, '');
+      // Take the segment after the final "node_modules/" so that nested
+      // installs (e.g. "node_modules/@scope/a/node_modules/b") are keyed
+      // by the inner package "b", not the path-prefixed string.
+      const pkgName = pkgPath.split('node_modules/').pop();
       if (!info || !info.version) continue;
       if (!pinned.has(pkgName)) pinned.set(pkgName, new Set());
       pinned.get(pkgName).add(info.version);
     }
   } else if (lockfileJson.dependencies) {
-    const walk = (deps, prefix) => {
+    // lockfileVersion 1: walk the dependency tree, keying each entry by
+    // its own package name (not the parent's path) so that nested
+    // transitive deps with the same name aggregate into one bucket.
+    const walk = (deps) => {
       for (const [name, info] of Object.entries(deps || {})) {
-        const fullName = prefix ? `${prefix}/${name}` : name;
         if (info.version) {
-          if (!pinned.has(fullName)) pinned.set(fullName, new Set());
-          pinned.get(fullName).add(info.version);
+          if (!pinned.has(name)) pinned.set(name, new Set());
+          pinned.get(name).add(info.version);
         }
-        if (info.dependencies) walk(info.dependencies, fullName);
+        if (info.dependencies) walk(info.dependencies);
       }
     };
-    walk(lockfileJson.dependencies, '');
+    walk(lockfileJson.dependencies);
   }
   return pinned;
 }

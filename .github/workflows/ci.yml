@@ -52,6 +52,9 @@ jobs:
       - name: Install
         working-directory: newIDE/app
         run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Audit production dependencies
+        working-directory: newIDE/app
+        run: npm audit --omit=dev --audit-level=high
       - name: Test
         working-directory: newIDE/app
         env:
@@ -72,6 +75,9 @@ jobs:
       - name: Install
         working-directory: GDevelop.js
         run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Audit production dependencies
+        working-directory: GDevelop.js
+        run: npm audit --omit=dev --audit-level=high
       - name: Test
         working-directory: GDevelop.js
         env:

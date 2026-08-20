@@ -12,7 +12,8 @@ ship in 33.4.x and later.
 
 Per the user's decision during Phase 2 planning, this fork stays on 32.x
 to avoid native-module rebuild risk. The trade-off is documented in the
-approved remediation plan (`/home/john/.claude/plans/using-the-github-mcp-enumerated-meerkat.md`).
+Phase 2 section of the approved remediation plan (linked from the PR
+description; the plan file itself lives outside the repo).
 
 ### When you're ready to bump
 1. Bump `electron` in three manifests at once:

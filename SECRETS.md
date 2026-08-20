@@ -34,9 +34,9 @@ when it tries to authenticate against the dummy placeholder.
 ## How operators should set these
 
 ```bash
-# Local development — copy and edit
-cp .env.example .env.local       # (create your own .env.example locally)
-# fill in the keys in .env.local
+# Local development — copy the tracked template and edit
+cp .env.example .env.local
+# fill in the keys in .env.local (do not commit .env.local — see .gitignore)
 
 # CI — set them as repository or organization secrets and inject via your
 # CI job's "env:" block, never inline in workflow YAML.
