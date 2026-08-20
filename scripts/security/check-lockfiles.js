@@ -32,6 +32,7 @@ const VULNERABLE_VERSIONS = {
 // (package, [list of "X.Y.Z" lower-bound comparisons]).
 // Currently only "< M.m.p" form is supported.
 const VULNERABLE_RANGES = {
+  // Critical / malware / high
   minimist: ['< 1.2.6'],                                // GHSA-xvch-5gv4-984h
   'gh-pages': ['< 5.0.0'],                             // GHSA-8mmm-9v2q-x3f9
   lodash: ['< 4.17.21'],                                // command injection + prototype pollution
@@ -42,6 +43,28 @@ const VULNERABLE_RANGES = {
   'follow-redirects': ['< 1.15.0'],                     // GHSA-74fj-2j2h-c42q
   async: ['< 3.0.0'],                                   // prototype pollution in 2.x
   minimatch: ['< 5.1.0'],                               // ReDoS in 3.x
+  // High-volume / medium-severity
+  axios: ['< 1.7.0'],                                   // prototype pollution, SSRF, etc.
+  'electron-updater': ['< 6.6.0'],                      // cross-origin redirect leaks
+  'extract-zip': ['< 2.0.0'],                           // unvalidated symlink path traversal
+  'form-data': ['< 4.0.0'],                             // CRLF injection in <4
+  '@xmldom/xmldom': ['< 0.9.0'],                         // prototype pollution
+  undici: ['< 6.0.0'],                                  // GHSA-cxrh-jh5x-9p9g etc.
+  'fast-uri': ['< 3.0.0'],                              // ReDoS
+  bodyparser: ['< 1.20.3'],                             // DoS
+  braces: ['< 3.0.3'],                                  // ReDoS in 2.x
+  picomatch: ['< 3.0.0'],                               // ReDoS in 2.x
+  cookie: ['< 0.7.0'],                                  // GHSA-pxg6-pf52-xh8x
+  qs: ['< 6.13.0'],                                     // GHSA-hrpp-h998-j3pp
+  tmp: ['< 0.2.4'],                                     // GHSA-52f5-j9jc-3726
+  ws: ['< 7.5.10'],                                     // GHSA-3h5v-q93c-6h6q
+  diff: ['< 5.2.0'],                                    // ReDoS in <5
+  'http-proxy': ['< 1.18.1'],                           // GHSA-6x8p-c9mf-4wrg
+  debug: ['< 2.6.9'],                                   // ReDoS in <2.6.9
+  chownr: ['< 1.1.4'],                                  // TOCTOU
+  ini: ['< 1.3.8'],                                     // ReDoS in <1.3.8
+  decodeuricomponent: ['< 0.2.2'],                      // GHSA-w7cr-mhqq-3fmw
+  esbuild: ['< 0.25.0'],                                // GHSA-67mh-4wv8-vw99 (dev-only)
 };
 
 const lockfiles = [
@@ -87,14 +110,17 @@ function collectPinnedVersions(lockfileJson) {
 }
 
 function rangeMatches(version, range) {
+  // Tiny semver "< M.m.p" matcher. Treats pre-release tags (e.g. 1.2.3-beta.1)
+  // as equal to 1.2.3 — good enough for our advisory-floor use case.
   const m = range.match(/^<\s*(\d+)\.(\d+)\.(\d+)$/);
   if (!m) return false;
-  const [major, minor, patch] = version.split('.').map(Number);
-  if (Number.isNaN(major) || Number.isNaN(minor) || Number.isNaN(patch)) return false;
-  const [tMaj, tMin, tPatch] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  if (major !== tMaj) return false;
-  if (minor !== tMin) return false;
-  return patch < tPatch;
+  const vParts = version.split('-')[0].split('.').map(Number);
+  if (vParts.length !== 3 || vParts.some(Number.isNaN)) return false;
+  const [vMaj, vMin, vPat] = vParts;
+  const [tMaj, tMin, tPat] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (vMaj !== tMaj) return vMaj < tMaj;
+  if (vMin !== tMin) return vMin < tMin;
+  return vPat < tPat;
 }
 
 const failures = [];
