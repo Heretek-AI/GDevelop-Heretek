@@ -392,7 +392,11 @@ const EditProfileDialog = ({
       if (!canDelete || isStudentAccount) {
         return;
       }
-      if (hasValidSubscriptionPlan(subscription)) {
+      if (
+        hasValidSubscriptionPlan(subscription) &&
+        subscription &&
+        subscription.pricingSystemId !== 'HERETEK_UNLOCKED'
+      ) {
         await showAlert({
           title: t`You have an active subscription`,
           message: t`You can't delete your account while you have an active subscription. Please cancel your subscription first.`,

@@ -128,16 +128,7 @@ export class DebuggerEditorContainer extends React.Component<
   }
 
   _checkUserHasSubscription() {
-    if (
-      this._subscriptionChecker &&
-      this.props.isActive &&
-      !this.state.subscriptionChecked
-    ) {
-      this._subscriptionChecker.checkUserHasSubscription();
-      this.setState({
-        subscriptionChecked: true,
-      });
-    }
+    // Unlocked in GDevelop-Heretek
   }
 
   render(): any {

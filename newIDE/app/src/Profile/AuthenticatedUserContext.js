@@ -23,6 +23,8 @@ import {
   type Subscription,
   type SubscriptionPlanPricingSystem,
   type UserEarningsBalance,
+  UNLOCKED_HERETEK_SUBSCRIPTION,
+  UNLOCKED_HERETEK_CAPABILITIES,
 } from '../Utils/GDevelopServices/Usage';
 import {
   type AssetShortHeader,
@@ -132,11 +134,20 @@ export const initialAuthenticatedUser = {
   coursePurchases: null,
   bundlePurchases: null,
   recommendations: null,
-  subscription: null,
+  subscription: UNLOCKED_HERETEK_SUBSCRIPTION,
   subscriptionPricingSystem: null,
   usages: null,
   userEarningsBalance: null,
-  limits: null,
+  limits: {
+    quotas: {},
+    capabilities: UNLOCKED_HERETEK_CAPABILITIES,
+    credits: {
+      userBalance: { amount: 999999 },
+      prices: {},
+      purchasableQuantities: [],
+    },
+    message: undefined,
+  },
   ...authenticatedUserPropertiesLoadingState,
   authenticationError: null,
   onLogin: async () => {},
@@ -190,11 +201,20 @@ export const authenticatedUserLoggedOutAttributes = {
   receivedAssetShortHeaders: ([]: Array<empty>), // Initialize to empty array to indicate that the loading is done.
   receivedGameTemplates: ([]: Array<empty>), // Initialize to empty array to indicate that the loading is done.
   receivedBundles: ([]: Array<empty>), // Initialize to empty array to indicate that the loading is done.
-  subscription: null,
+  subscription: UNLOCKED_HERETEK_SUBSCRIPTION,
   subscriptionPricingSystem: null,
   userEarningsBalance: null,
   usages: null,
-  limits: null,
+  limits: {
+    quotas: {},
+    capabilities: UNLOCKED_HERETEK_CAPABILITIES,
+    credits: {
+      userBalance: { amount: 999999 },
+      prices: {},
+      purchasableQuantities: [],
+    },
+    message: undefined,
+  },
 };
 
 const AuthenticatedUserContext: React.Context<AuthenticatedUser> = React.createContext<AuthenticatedUser>(

@@ -580,21 +580,59 @@ export const isSubscriptionComingFromTeam = (
   return !!subscription && subscription.pricingSystemId === 'TEAM_MEMBER';
 };
 
+export const UNLOCKED_HERETEK_SUBSCRIPTION: Subscription = {
+  userId: 'local-byok-user',
+  planId: 'gdevelop_startup',
+  pricingSystemId: 'HERETEK_UNLOCKED',
+  createdAt: 0,
+  updatedAt: 0,
+};
+
+export const UNLOCKED_HERETEK_CAPABILITIES: Capabilities = {
+  analytics: {
+    sessions: true,
+    players: true,
+    retention: true,
+    sessionsTimeStats: true,
+    platforms: true,
+  },
+  cloudProjects: {
+    maximumCount: 999,
+    canMaximumCountBeIncreased: true,
+    maximumGuestCollaboratorsPerProject: 99,
+    projectRestorationTimeWindowInSeconds: -1,
+    deletedProjectRetentionInDays: 365,
+  },
+  leaderboards: {
+    maximumCountPerGame: 999,
+    canMaximumCountPerGameBeIncreased: true,
+    themeCustomizationCapabilities: 'FULL',
+    canUseCustomCss: true,
+    canDisableLoginInLeaderboard: true,
+  },
+  multiplayer: {
+    lobbiesCount: 99,
+    maxPlayersPerLobby: 64,
+    themeCustomizationCapabilities: 'FULL',
+  },
+  versionHistory: {
+    enabled: true,
+    retentionDays: 365,
+  },
+  ai: {
+    availablePresets: [],
+    versionHistory: {
+      enabled: true,
+      retentionDays: 365,
+    },
+  },
+};
+
 export const hasValidSubscriptionPlan = (
   subscription: ?Subscription
 ): boolean => {
-  const hasValidSubscription =
-    !!subscription &&
-    !!subscription.planId &&
-    (!subscription.redemptionCodeValidUntil || // No redemption code
-      subscription.redemptionCodeValidUntil > Date.now()); // Redemption code is still valid
-
-  if (hasValidSubscription) {
-    // The user has a subscription registered in the backend (classic "Registered" user).
-    return true;
-  }
-
-  return false;
+  // In GDevelop-Heretek, all client-side and offline features are unlocked for all users.
+  return true;
 };
 
 type UploadType = 'build' | 'preview';
