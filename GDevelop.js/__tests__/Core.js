@@ -455,9 +455,13 @@ describe('libGD.js', function () {
       const project = new gd.ProjectHelper.createNewGDJSProject();
 
       // Prepare two containers, one with 3 objects and one empty
-      const objectsContainer1 = new gd.ObjectsContainer(gd.ObjectsContainer.Unknown);
+      const objectsContainer1 = new gd.ObjectsContainer(
+        gd.ObjectsContainer.Unknown
+      );
       const rootFolder1 = objectsContainer1.getRootFolder();
-      const objectsContainer2 = new gd.ObjectsContainer(gd.ObjectsContainer.Unknown);
+      const objectsContainer2 = new gd.ObjectsContainer(
+        gd.ObjectsContainer.Unknown
+      );
       const rootFolder2 = objectsContainer2.getRootFolder();
       const subFolder2 = rootFolder2.insertNewFolder('Folder', 1);
       const mySpriteObject = objectsContainer1.insertNewObject(
@@ -609,7 +613,9 @@ describe('libGD.js', function () {
       const project = new gd.ProjectHelper.createNewGDJSProject();
 
       // Prepare two containers, one with 3 objects and one empty
-      const objectsContainer = new gd.ObjectsContainer(gd.ObjectsContainer.Unknown);
+      const objectsContainer = new gd.ObjectsContainer(
+        gd.ObjectsContainer.Unknown
+      );
       const rootFolder = objectsContainer.getRootFolder();
       const folder = rootFolder.insertNewFolder('Folder 1', 0);
       const mySpriteObject = objectsContainer.insertNewObjectInFolder(
@@ -641,7 +647,8 @@ describe('libGD.js', function () {
       expect(folder.getChildrenCount()).toBe(2);
       expect(subFolder.getChildrenCount()).toBe(3);
 
-      const vectorObjectFolderOrObjects = objectsContainer.getAllObjectFolderOrObjects();
+      const vectorObjectFolderOrObjects =
+        objectsContainer.getAllObjectFolderOrObjects();
       expect(vectorObjectFolderOrObjects.size()).toBe(6);
       expect(gd.getPointer(vectorObjectFolderOrObjects.at(0))).toBe(
         gd.getPointer(folder)
@@ -2313,10 +2320,9 @@ describe('libGD.js', function () {
 
     it('can clone a gd.ObjectJsImplementation', function () {
       const object1 = createSampleObjectJsImplementation();
-      expect(
-        object1.getProperties().get('My first property').getValue() ==
-          'Initial value 1'
-      ).toBe('Initial value 1');
+      expect(object1.getProperties().get('My first property').getValue()).toBe(
+        'Initial value 1'
+      );
 
       object1.updateProperty('My first property', 'test1');
       const object2 = object1.clone().release();
@@ -2339,14 +2345,14 @@ describe('libGD.js', function () {
         // Check properties can be accessed.
         const propertiesObject1 = object1.getProperties();
         expect(propertiesObject1.has('My first property')).toBe(true);
-        expect(
-          propertiesObject1.get('My first property').getValue() == 'test1'
-        ).toBe('test1');
+        expect(propertiesObject1.get('My first property').getValue()).toBe(
+          'test1'
+        );
         const propertiesObject2 = object2.getProperties();
         expect(propertiesObject2.has('My first property')).toBe(true);
-        expect(
-          propertiesObject2.get('My first property').getValue() == 'test1'
-        ).toBe('test1');
+        expect(propertiesObject2.get('My first property').getValue()).toBe(
+          'test1'
+        );
 
         // Check the JavaScript objects are unchanged for now.
         expect(object1jsImplementation.content).toEqual({
@@ -2368,15 +2374,14 @@ describe('libGD.js', function () {
         object1.updateProperty('My first property', 'updated value');
         const propertiesObject1 = object1.getProperties();
         expect(propertiesObject1.has('My first property')).toBe(true);
-        expect(
-          propertiesObject1.get('My first property').getValue() ==
-            'updated value'
-        ).toBe('updated value');
+        expect(propertiesObject1.get('My first property').getValue()).toBe(
+          'updated value'
+        );
         const propertiesObject2 = object2.getProperties();
         expect(propertiesObject2.has('My first property')).toBe(true);
-        expect(
-          propertiesObject2.get('My first property').getValue() == 'test1'
-        ).toBe('test1');
+        expect(propertiesObject2.get('My first property').getValue()).toBe(
+          'test1'
+        );
 
         // Check the JavaScript objects are updated.
         expect(object1jsImplementation.content).toEqual({
@@ -2398,21 +2403,19 @@ describe('libGD.js', function () {
         object2.updateProperty('My first property', 'updated value object 2');
         const propertiesObject1 = object1.getProperties();
         expect(propertiesObject1.has('My first property')).toBe(true);
-        expect(
-          propertiesObject1.get('My first property').getValue() ==
-            'updated value'
-        ).toBe('updated value');
+        expect(propertiesObject1.get('My first property').getValue()).toBe(
+          'updated value'
+        );
         const propertiesObject2 = object2.getProperties();
         expect(propertiesObject2.has('My first property')).toBe(true);
-        expect(
-          propertiesObject2.get('My first property').getValue() ==
-            'updated value object 2'
-        ).toBe('updated value object 2');
+        expect(propertiesObject2.get('My first property').getValue()).toBe(
+          'updated value object 2'
+        );
         const propertiesObject3 = object3.getProperties();
         expect(propertiesObject3.has('My first property')).toBe(true);
-        expect(
-          propertiesObject3.get('My first property').getValue() == 'test1'
-        ).toBe('test1');
+        expect(propertiesObject3.get('My first property').getValue()).toBe(
+          'test1'
+        );
 
         // Check the JavaScript objects are updated.
         expect(object1jsImplementation.content).toEqual({
@@ -2622,10 +2625,11 @@ describe('libGD.js', function () {
       action.setParametersCount(2);
       action.setParameter(0, 'MyCharacter');
 
-      let formattedTexts = gd.InstructionSentenceFormatter.get().getAsFormattedText(
-        action,
-        gd.MetadataProvider.getActionMetadata(gd.JsPlatform.get(), 'Delete')
-      );
+      let formattedTexts =
+        gd.InstructionSentenceFormatter.get().getAsFormattedText(
+          action,
+          gd.MetadataProvider.getActionMetadata(gd.JsPlatform.get(), 'Delete')
+        );
 
       expect(formattedTexts.size()).toBe(2);
       expect(formattedTexts.getString(0)).toBe('Delete ');
@@ -2643,10 +2647,14 @@ describe('libGD.js', function () {
       action.setType('SetFullScreen');
       action.setParametersCount(3);
 
-      let formattedTexts = gd.InstructionSentenceFormatter.get().getAsFormattedText(
-        action,
-        gd.MetadataProvider.getActionMetadata(gd.JsPlatform.get(), 'SetFullScreen')
-      );
+      let formattedTexts =
+        gd.InstructionSentenceFormatter.get().getAsFormattedText(
+          action,
+          gd.MetadataProvider.getActionMetadata(
+            gd.JsPlatform.get(),
+            'SetFullScreen'
+          )
+        );
 
       // An empty required parameter is rendered as "no"...
       expect(formattedTexts.getString(1)).toBe('no');
@@ -2664,16 +2672,17 @@ describe('libGD.js', function () {
     beforeAll(() => {
       project = new gd.ProjectHelper.createNewGDJSProject();
       layout = project.insertNewLayout('Scene', 0);
-      projectScopedContainers = gd.ProjectScopedContainers.makeNewProjectScopedContainersForProjectAndLayout(
-        project,
-        layout
-      );
+      projectScopedContainers =
+        gd.ProjectScopedContainers.makeNewProjectScopedContainersForProjectAndLayout(
+          project,
+          layout
+        );
     });
     afterAll(() => {
       project.delete();
     });
 
-    const validateVolumeParameter = value => {
+    const validateVolumeParameter = (value) => {
       // `PlaySoundOnChannel` has an optional "expression" parameter (Volume,
       // PARAM4) defaulting to "100".
       const action = new gd.Instruction();
@@ -3169,12 +3178,7 @@ describe('libGD.js', function () {
 
         expect(positionFinder.getPositions().size()).toBe(6);
         expect(positionFinder.getPositions().toJSArray()).toEqual([
-          1,
-          10,
-          9,
-          4,
-          6,
-          -1,
+          1, 10, 9, 4, 6, -1,
         ]);
 
         events.delete();
@@ -3626,7 +3630,8 @@ describe('libGD.js', function () {
         resourcesMergingHelper
       );
 
-      const oldAndNewFilenames = resourcesMergingHelper.getAllResourcesOldAndNewFilename();
+      const oldAndNewFilenames =
+        resourcesMergingHelper.getAllResourcesOldAndNewFilename();
       expect(oldAndNewFilenames.get('/my/project/MyResource.png')).toBe(
         'MyResource.png'
       );
@@ -4754,9 +4759,9 @@ describe('libGD.js', function () {
         'MyFunction',
         0
       );
-      expect(
-        freeEventsFunctions.hasEventsFunctionNamed('MyFunction')
-      ).toBe(true);
+      expect(freeEventsFunctions.hasEventsFunctionNamed('MyFunction')).toBe(
+        true
+      );
       expect(
         freeEventsFunctions.hasEventsFunctionNamed('MyNotExistingFunction')
       ).toBe(false);
@@ -5215,9 +5220,8 @@ describe('libGD.js', function () {
       );
       const objectFolderOrObject = subSubFolder.getChildAt(0);
       expect(objectFolderOrObject.isRootFolder()).toBe(false);
-      const objectFolderOrObjectFoundByName = rootFolder.getObjectNamed(
-        'MyObject'
-      );
+      const objectFolderOrObjectFoundByName =
+        rootFolder.getObjectNamed('MyObject');
       expect(objectFolderOrObjectFoundByName.isRootFolder()).toBe(false);
       expect(objectFolderOrObjectFoundByName).toBe(objectFolderOrObject);
     });
