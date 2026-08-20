@@ -16,9 +16,10 @@ project for where to obtain each key.
 |---|---|---|
 | `GD_FIREBASE_API_KEY` | `newIDE/app/src/Utils/GDevelopServices/ApiConfigs.js` (`GDevelopFirebaseConfig.apiKey`) | Upstream (`4ian/GDevelop`) |
 
-If `GD_FIREBASE_API_KEY` is unset, the app falls back to a string beginning
-with `AIzaSyDUMMY…`, which will not authenticate against Firebase. Build
-failures and sign-in errors when this happens are expected.
+If `GD_FIREBASE_API_KEY` is unset, the app falls back to a non-key-shaped
+placeholder string (`GD_FIREBASE_API_KEY-env-var-not-set-see-SECRETS.md`),
+which will not authenticate against Firebase. Build failures and sign-in
+errors when this happens are expected.
 
 ## Required for the Firebase extension end-to-end test
 
@@ -45,7 +46,8 @@ cp .env.example .env.local
 ## Reporting new leaks
 
 If you find a secret in this branch that should not be there, open a PR
-replacing it with a clearly-marked placeholder (`AIzaSyDUMMY…` for Google
-keys, `ghp_DUMMY…` for GitHub PATs, etc.) and add the corresponding env
+replacing it with a clearly-marked, non-key-shaped placeholder (e.g.
+`YOUR_GOOGLE_API_KEY_HERE` for Google keys, `YOUR_GITHUB_PAT_HERE` for
+GitHub PATs, etc.) and add the corresponding env
 var to this table. Do **not** rewrite git history for keys that aren't
 yours — flag the original owner instead.
