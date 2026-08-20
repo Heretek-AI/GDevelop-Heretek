@@ -29,7 +29,10 @@ const groupBy = (array, getKey) => {
 const sortKeys = table => {
   /** @type {Record<string, Array<T>>} */
   const sortedTable = {};
-  for (const key of Object.keys(table).sort()) {
+  // Use localeCompare for alphabetical ordering of non-ASCII keys.
+  // (closes javascript:S2871 — default Array#sort uses UTF-16 code unit
+  // order, which gives wrong results for accented characters)
+  for (const key of Object.keys(table).sort((a, b) => a.localeCompare(b))) {
     sortedTable[key] = table[key];
   }
   return sortedTable;

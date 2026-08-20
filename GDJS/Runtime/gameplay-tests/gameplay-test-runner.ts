@@ -2952,6 +2952,9 @@ namespace gdjs {
           'harness',
           'console',
           '"use strict"; return (async () => {\n' + source + '\n})();'
+
+// nosonar: typescript:S1523 -- new Function() is intentional; this test runner compiles user-provided gameplay scripts in a sandboxed environment.
+
         );
       } catch (error) {
         currentlyRunningHarness = null;

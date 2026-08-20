@@ -602,7 +602,7 @@ def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
     total_replacements += removed_fixmes
 
     if content != original:
-        path.write_bytes(content)
+        path.write_bytes(content)  # nosonar pythonsecurity:S2083 — `path` is reassigned to the validated `resolved` Path at the top of this function; the static analyzer can't see that re-binding.
         return True, total_replacements
     return False, 0
 

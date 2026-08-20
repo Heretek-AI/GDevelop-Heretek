@@ -1,3 +1,5 @@
+// nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
+
 /**
  * Generate the code from events (using GDJS platform)
  * and create a JavaScript function that runs it.

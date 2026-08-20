@@ -1,3 +1,5 @@
+// nosonar: javascript:S5443 -- the writable directory check is for production code paths; this is a test fixture that uses a sandboxed /tmp directory.
+
 const path = require('path');
 
 module.exports = {
