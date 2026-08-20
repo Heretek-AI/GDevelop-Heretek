@@ -3,6 +3,11 @@
 # Excludes paths we don't maintain (vendored bundles, codemod output,
 # generated test fixtures) so they don't pollute the static analysis
 # results. These mirror the .sonarcloud.properties exclusions.
+#
+# Per-rule/per-pattern suppression isn't a fallow config feature (it
+# uses inline `// fallow-ignore-next-line <kind>` markers instead). The
+# corresponding per-rule SonarCloud suppressions live in the
+# .sonarcloud.properties file (or its in-UI multicriteria block).
 
 ignorePatterns = [
   # Vendored / bundled JS (Emscripten, spine-pixi, monaco, three, pixi,
@@ -34,3 +39,7 @@ ignorePatterns = [
   # Generated localization files
   "newIDE/app/src/locales/**",
 ]
+
+# Inline markers used in source for per-line/per-file suppression:
+#   // fallow-ignore-next-line <kind>
+#   // fallow-ignore-file <kind>
