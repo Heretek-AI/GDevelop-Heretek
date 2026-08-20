@@ -68,3 +68,34 @@ jobs:
           path: fallow.log
           if-no-files-found: ignore
           retention-days: 7
+
+  sonarcloud-drift:
+    name: SonarCloud drift check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run drift check
+        run: node scripts/sonarcloud-drift.js
+      - name: Seed baseline if missing
+        if: steps.drift.outputs.outcome == 'skipped'
+        run: node scripts/sonarcloud-drift.js --update-baseline
+      - name: Threshold guard
+        # Phase 4 acceptance: open count should stay under 4,500. If it
+        # climbs above that, the suppressions need refreshing or new
+        # patterns are leaking in. Update SONARCLOUD_REMEDIATION_PLAN.md
+        # if the threshold moves.
+        run: |
+          TOTAL=$(curl -fs "https://sonarcloud.io/api/issues/search?componentKeys=Heretek-AI_GDevelop-Heretek&issueStatuses=OPEN&ps=1" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['total'])")
+          echo "Open SonarCloud issues: $TOTAL"
+          if [ "$TOTAL" -gt 4500 ]; then
+            echo "::error::SonarCloud open count $TOTAL exceeds 4,500 threshold"
+            exit 1
+          fi
