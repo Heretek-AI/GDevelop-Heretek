@@ -531,6 +531,15 @@ def _remove_stale_prop_missing_fixmes(content: bytes) -> Tuple[bytes, int]:
 
 
 def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
+    # `path` is supplied by SRC_DIR.rglob() in main() — both are derived
+    # from this file's directory, not user input. We still defensively
+    # confirm the resolved path is inside APP_DIR before reading or
+    # writing, to close pythonsecurity:S2083.
+    resolved = path.resolve()
+    if not resolved.is_file() or APP_DIR not in resolved.parents:
+        print(f"  Skipping {path}: outside APP_DIR ({APP_DIR})")
+        return False, 0
+
     original = path.read_bytes()
 
     # Quick pre-filter to avoid expensive AST parsing on unrelated files.

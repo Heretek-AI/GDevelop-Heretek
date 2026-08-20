@@ -1,0 +1,70 @@
+# Fallow static analysis gate.
+#
+# Runs on PRs and reports any new issues introduced by the change as
+# annotations. Also runs weekly on master to track drift.
+#
+# Excludes are configured in .fallow.toml at the repo root.
+
+name: Fallow
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "0 5 * * 1"  # weekly Monday 05:00 UTC
+
+permissions:
+  contents: read
+  pull-requests: write  # for inline PR comments
+
+jobs:
+  audit:
+    name: Fallow audit (changed files)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run fallow audit
+        uses: fallow-rs/fallow@v3
+        with:
+          version: "3.17.0"
+          command: audit
+          fail-on-issues: false   # informational only for now; gate after Phase 3 suppressions
+          format: github-summary
+
+  full:
+    name: Fallow full scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run fallow full scan
+        continue-on-error: true
+        run: npx fallow --format sarif --output fallow.sarif 2>&1 | tee fallow.log
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: fallow.sarif
+      - name: Archive log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fallow-log
+          path: fallow.log
+          if-no-files-found: ignore
+          retention-days: 7
