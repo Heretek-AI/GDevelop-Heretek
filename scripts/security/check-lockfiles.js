@@ -47,7 +47,7 @@ const VULNERABLE_RANGES = {
   axios: ['< 1.7.0'],                                   // prototype pollution, SSRF, etc.
   'electron-updater': ['< 6.6.0'],                      // cross-origin redirect leaks
   'extract-zip': ['< 2.0.0'],                           // unvalidated symlink path traversal
-  'form-data': ['< 4.0.0'],                             // CRLF injection in <4
+  'form-data': ['< 4.0.6'],                             // CRLF injection in <4.0.6
   '@xmldom/xmldom': ['< 0.9.0'],                         // prototype pollution
   undici: ['< 6.0.0'],                                  // GHSA-cxrh-jh5x-9p9g etc.
   'fast-uri': ['< 3.0.0'],                              // ReDoS
@@ -55,7 +55,7 @@ const VULNERABLE_RANGES = {
   braces: ['< 3.0.3'],                                  // ReDoS in 2.x
   picomatch: ['< 3.0.0'],                               // ReDoS in 2.x
   cookie: ['< 0.7.0'],                                  // GHSA-pxg6-pf52-xh8x
-  qs: ['< 6.13.0'],                                     // GHSA-hrpp-h998-j3pp
+  qs: ['< 6.15.3'],                                     // GHSA-q8mj-m7cp-5q26
   tmp: ['< 0.2.4'],                                     // GHSA-52f5-j9jc-3726
   ws: ['< 7.5.10'],                                     // GHSA-3h5v-q93c-6h6q
   diff: ['< 5.2.0'],                                    // ReDoS in <5
@@ -65,6 +65,15 @@ const VULNERABLE_RANGES = {
   ini: ['< 1.3.8'],                                     // ReDoS in <1.3.8
   decodeuricomponent: ['< 0.2.2'],                      // GHSA-w7cr-mhqq-3fmw
   esbuild: ['< 0.25.0'],                                // GHSA-67mh-4wv8-vw99 (dev-only)
+  // npm audit failures surfaced during CI integration (2026-08-20)
+  'node-fetch': ['< 2.6.7'],                             // GHSA-r683-j2x4-v87g (header leak)
+  '@grpc/grpc-js': ['< 1.14.4'],                        // GHSA-99f4-grh7-6pcq etc.
+  protobufjs: ['< 7.6.5'],                             // GHSA-xq3m-2v4x-88gg etc.
+  'websocket-driver': ['< 0.7.5'],                      // GHSA-mp7j-qc5w-4988 etc.
+  semver: ['< 7.5.2'],                                  // GHSA-c2qf-rxjj-qqgw (ReDoS)
+  uuid: ['< 11.1.1'],                                   // GHSA-w5hq-g745-h8pq (buffer bounds)
+  yaml: ['< 2.8.3'],                                    // GHSA-48c2-rrv3-qjmp (stack overflow)
+  '@protobufjs/utf8': ['< 1.1.2'],                       // GHSA-q6x5-8v7m-xcrf (overlong UTF-8)
 };
 
 const lockfiles = [
@@ -117,13 +126,17 @@ function collectPinnedVersions(lockfileJson) {
 function rangeMatches(version, range) {
   // Tiny semver "< M.m.p" matcher. Treats pre-release tags (e.g. 1.2.3-beta.1)
   // as equal to 1.2.3 — good enough for our advisory-floor use case.
+  //
+  // Security advisories apply to a specific major-version line, so a range
+  // "< 2.8.3" should NOT match versions in the 1.x line (different package,
+  // different advisory list). We require same-major before comparing.
   const m = range.match(/^<\s*(\d+)\.(\d+)\.(\d+)$/);
   if (!m) return false;
   const vParts = version.split('-')[0].split('.').map(Number);
   if (vParts.length !== 3 || vParts.some(Number.isNaN)) return false;
   const [vMaj, vMin, vPat] = vParts;
   const [tMaj, tMin, tPat] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  if (vMaj !== tMaj) return vMaj < tMaj;
+  if (vMaj !== tMaj) return false;
   if (vMin !== tMin) return vMin < tMin;
   return vPat < tPat;
 }
