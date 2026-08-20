@@ -14,6 +14,7 @@ on:
 
 jobs:
   update-translations:
+    if: github.repository == '4ian/GDevelop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
