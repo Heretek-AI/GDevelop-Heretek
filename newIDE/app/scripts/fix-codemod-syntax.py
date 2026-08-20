@@ -530,6 +530,21 @@ def _remove_stale_prop_missing_fixmes(content: bytes) -> Tuple[bytes, int]:
     return "".join(keep_lines).encode("utf-8"), removed
 
 
+def _is_candidate_for_replacement(content: bytes) -> bool:
+    """Quick pre-filter to avoid expensive AST parsing on unrelated files."""
+    has_componenttype_prop_missing = (
+        b"$FlowFixMe[prop-missing]" in content and b"React.ComponentType<" in content
+    )
+    return (
+        b"component(" in content
+        or b"renders " in content
+        or b" as " in content
+        or b"AbstractComponent" in content
+        or b"React$AbstractComponent" in content
+        or has_componenttype_prop_missing
+    )
+
+
 def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
     # `path` is supplied by SRC_DIR.rglob() in main() — both are derived
     # from this file's directory, not user input. We still defensively
@@ -541,19 +556,7 @@ def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
         return False, 0
 
     original = path.read_bytes()
-
-    # Quick pre-filter to avoid expensive AST parsing on unrelated files.
-    has_componenttype_prop_missing = (
-        b"$FlowFixMe[prop-missing]" in original and b"React.ComponentType<" in original
-    )
-    if (
-        b"component(" not in original
-        and b"renders " not in original
-        and b" as " not in original
-        and b"AbstractComponent" not in original
-        and b"React$AbstractComponent" not in original
-        and not has_componenttype_prop_missing
-    ):
+    if not _is_candidate_for_replacement(original):
         return False, 0
 
     try:

@@ -1,6 +1,6 @@
 // @ts-check
 const fs = require('fs');
-const path = require('path');
+const path = require('node:path');
 const { default: axios } = require('axios');
 
 let temporaryFileCounter = 0;
