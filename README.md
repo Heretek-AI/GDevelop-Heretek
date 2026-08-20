@@ -1,5 +1,42 @@
 ![GDevelop logo](https://raw.githubusercontent.com/4ian/GDevelop/master/newIDE/GDevelop%20banner.png "GDevelop logo")
 
+# GDevelop (BYOK Edition) 🚀
+
+> **A community fork of [GDevelop](https://github.com/4ian/GDevelop) featuring Bring Your Own Key (BYOK) & Local AI Model support.**  
+> Connect **Ollama**, **LM Studio**, **llama.cpp**, **OpenAI**, **OpenRouter**, **Azure OpenAI**, **Groq**, **DeepSeek**, or any OpenAI-compatible API endpoint directly to the GDevelop AI Assistant and Standalone Game Creator without subscription limits.
+
+---
+
+### ✨ Features of the BYOK Edition
+
+- 🧠 **Local & Offline AI**: Use **Ollama** (`qwen2.5-coder`, `llama3.2`, `mistral`, etc.) or **LM Studio** on your local machine for complete privacy with zero cloud fees.
+- 🔑 **Bring Your Own Key (BYOK)**: Use your own API keys for **OpenAI** (GPT-4o, o3-mini), **OpenRouter** (Claude 3.5 Sonnet, DeepSeek R1), **Azure OpenAI**, or **Groq**.
+- 🛠️ **Full Tool Calling**: Create scenes, spawn 2D/3D objects, configure behaviors, generate events, manage variables, and execute sandboxed scripts.
+- 🔒 **Privacy-First & Secure**: API keys are kept in session/memory only and never persisted in cleartext `localStorage`.
+- 🔄 **Always Up-to-Date**: Continuously synchronized with upstream [4ian/GDevelop](https://github.com/4ian/GDevelop).
+
+---
+
+### ⚡ Quick Start with Local AI (Ollama)
+
+1. **Install and run Ollama**:
+   ```bash
+   # Make sure CORS is enabled for GDevelop
+   OLLAMA_ORIGINS="*" ollama serve
+   ```
+2. **Pull a recommended model**:
+   ```bash
+   ollama pull qwen2.5-coder
+   ```
+3. **Configure in GDevelop**:
+   - Open **Preferences (Ctrl+, or ⚙️)** $\rightarrow$ **Custom / Local AI Endpoint (BYOK)**
+   - Toggle **Enable Custom / Local AI Endpoint**
+   - Base URL: `http://localhost:11434/v1`
+   - Model: `qwen2.5-coder` (or your chosen model)
+   - Click **Test Connection** $\rightarrow$ Done!
+
+---
+
 GDevelop is a **full-featured, no-code, open-source** game development software. You can build **2D, 3D and multiplayer games** for mobile (iOS, Android), desktop and the web. GDevelop is designed to be fast and incredibly intuitive: make games using an easy-to-understand yet powerful event-based system and modular behaviors. Create with AI that assists or builds alongside you.
 
 ![The GDevelop editor when editing a game level](https://raw.githubusercontent.com/4ian/GDevelop/master/newIDE/GDevelop%20screenshot.png "The GDevelop editor when editing a 3D game level")

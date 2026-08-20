@@ -1,0 +1,146 @@
+name: Build & Release BYOK
+
+on:
+  push:
+    tags:
+      - 'v*-byok'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v5.5.215-byok.1)'
+        required: true
+        default: 'v5.5.215-byok.1'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-web-app:
+    name: Build & Deploy Web IDE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: newIDE/app/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd newIDE/app
+          npm ci
+
+      - name: Build Web App
+        run: |
+          cd newIDE/app
+          npm run build
+          # Package web build artifact
+          mkdir -p ../../dist/web
+          cp -r build/* ../../dist/web/
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdevelop-web-byok
+          path: dist/web/
+
+  build-desktop:
+    name: Build Desktop App (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: newIDE/app/package-lock.json
+
+      - name: Install dependencies (app)
+        run: |
+          cd newIDE/app
+          npm ci
+
+      - name: Build App
+        run: |
+          cd newIDE/app
+          npm run build
+
+      - name: Install dependencies (electron-app)
+        run: |
+          cd newIDE/electron-app
+          npm ci
+
+      - name: Package Electron App
+        run: |
+          cd newIDE/electron-app
+          npx electron-builder --${{ matrix.platform }} --config=electron-builder-config.js
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Desktop Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdevelop-desktop-${{ matrix.platform }}
+          path: |
+            newIDE/electron-app/dist/*.exe
+            newIDE/electron-app/dist/*.AppImage
+            newIDE/electron-app/dist/*.deb
+            newIDE/electron-app/dist/*.dmg
+            newIDE/electron-app/dist/*.zip
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-web-app, build-desktop]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+
+      - name: Prepare Release Files
+        run: |
+          mkdir -p release-files
+          find dist-release -type f -exec cp {} release-files/ \;
+          ls -lh release-files/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          name: GDevelop BYOK ${{ github.event.inputs.release_tag || github.ref_name }}
+          body: |
+            ## GDevelop (BYOK Edition) Release
+            
+            This release includes full **Bring Your Own Key (BYOK)** and **Local AI Endpoint (Ollama / LM Studio / OpenAI / OpenRouter)** support.
+            
+            ### Quick Start
+            - **Local AI (Ollama)**: Start Ollama with `OLLAMA_ORIGINS="*" ollama serve` and set Base URL to `http://localhost:11434/v1`.
+            - **Local AI (LM Studio)**: Start Local Server and set Base URL to `http://localhost:1234/v1`.
+            - **Remote AI**: Configure your API key and Base URL in **Preferences -> Custom / Local AI Endpoint (BYOK)**.
+            
+            ### Downloads
+            Download the appropriate installer below for your operating system.
+          files: release-files/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

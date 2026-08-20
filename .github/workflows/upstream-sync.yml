@@ -1,0 +1,77 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # Daily at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git Identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add and fetch upstream
+        run: |
+          git remote add upstream https://github.com/4ian/GDevelop.git || true
+          git fetch upstream master --tags
+
+      - name: Merge upstream master
+        id: merge
+        run: |
+          git checkout master
+          if git merge upstream/master -m "chore(sync): merge upstream 4ian/GDevelop changes"; then
+            echo "merged=true" >> $GITHUB_OUTPUT
+          else
+            echo "merged=false" >> $GITHUB_OUTPUT
+            echo "Merge conflicts detected."
+          fi
+
+      - name: Setup Node.js
+        if: steps.merge.outputs.merged == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: newIDE/app/package-lock.json
+
+      - name: Run Tests
+        if: steps.merge.outputs.merged == 'true'
+        run: |
+          cd newIDE/app
+          npm ci
+          npm test -- --watchAll=false src/AI/ src/AiGeneration/ src/EditorFunctions/ src/Utils/GDevelopServices/
+
+      - name: Push to master
+        if: steps.merge.outputs.merged == 'true'
+        run: |
+          git push origin master
+
+      - name: Handle Merge Conflicts
+        if: steps.merge.outputs.merged == 'false'
+        run: |
+          BRANCH_NAME="sync/upstream-conflict-$(date +%Y%m%d%H%M%S)"
+          git checkout -b "$BRANCH_NAME"
+          git commit -am "chore(sync): upstream merge conflicts needing resolution" || true
+          git push origin "$BRANCH_NAME"
+          gh pr create \
+            --base master \
+            --head "$BRANCH_NAME" \
+            --title "chore(sync): resolve upstream merge conflicts" \
+            --body "Automated upstream sync encountered merge conflicts with 4ian/GDevelop. Please resolve manually."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
