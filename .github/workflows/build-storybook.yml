@@ -3,6 +3,11 @@
 # Note that only the Storybook is built and GDevelop.js is not rebuilt (for speed concerns),
 # so changes in the C++ source could not be reflected if the CI run by Travis-CI
 # did not upload a freshly built GDevelop.js.
+#
+# On this fork we don't have AWS / Chromatic secrets configured, so the
+# publish steps are gated on `env.SHOULD_PUBLISH` (set true when the
+# required secrets are present). The build itself always runs and
+# uploads the static output as a workflow artifact.
 
 name: Build Storybook
 
@@ -21,17 +26,35 @@ jobs:
   build-storybook:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 50
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: "newIDE/app/package-lock.json"
 
+      # Gate publish steps on whether this fork has configured the AWS
+      # secrets. Without the secrets we still run the build (and archive
+      # the result as a workflow artifact), but skip the S3 publish.
+      - name: Decide whether to publish
+        id: decide
+        env:
+          HAS_AWS: ${{ secrets.BUILD_STORYBOOK_AWS_ACCESS_KEY_ID != '' && secrets.BUILD_STORYBOOK_AWS_SECRET_ACCESS_KEY != '' }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ "$HAS_AWS" = "true" ] || [ "$IS_DISPATCH" = "true" ]; then
+            echo "should-publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should-publish=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "should-publish=${{ steps.decide.outputs.should-publish }}"
+
       - name: Configure AWS Credentials
+        if: steps.decide.outputs.should-publish == 'true'
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.BUILD_STORYBOOK_AWS_ACCESS_KEY_ID }}
@@ -39,33 +62,50 @@ jobs:
           aws-region: us-east-1
 
       - name: Install newIDE dependencies
-        run: npm install
+        run: npm ci --no-audit --no-fund
         working-directory: newIDE/app
 
       - name: Build Storybook
         run: npm run build-storybook
         working-directory: newIDE/app
 
+      - name: Upload Storybook artifact
+        # Always upload the build output so reviewers can download it
+        # without needing AWS credentials in the repo.
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-build
+          path: newIDE/app/build-storybook/
+          if-no-files-found: warn
+          retention-days: 7
+
       # Publish on S3 to allow quick testing of components.
       - name: Publish Storybook to S3 bucket (specific commit)
+        if: steps.decide.outputs.should-publish == 'true'
         run: aws s3 sync ./build-storybook/ s3://gdevelop-storybook/$(git rev-parse --abbrev-ref HEAD)/commit/$(git rev-parse HEAD)/ --delete
         working-directory: newIDE/app
 
       - name: Publish Storybook to S3 bucket (latest)
+        if: steps.decide.outputs.should-publish == 'true'
         run: aws s3 sync ./build-storybook/ s3://gdevelop-storybook/$(git rev-parse --abbrev-ref HEAD)/latest/ --delete
         working-directory: newIDE/app
 
       - name: Log urls to the Storybook
+        if: steps.decide.outputs.should-publish == 'true'
         run: |
           echo "Find the latest Storybook for this branch on https://gdevelop-storybook.s3.amazonaws.com/$(git rev-parse --abbrev-ref HEAD)/latest/index.html"
           echo "Find the Storybook for this commit on https://gdevelop-storybook.s3.amazonaws.com/$(git rev-parse --abbrev-ref HEAD)/commit/$(git rev-parse HEAD)/index.html"
 
       # Publish on Chromatic, only when manually launched (too costly to run on every commit).
       - name: Publish Storybook to Chromatic
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && env.SHOULD_PUBLISH_CHROMATIC == 'true'
+        continue-on-error: true
         uses: chromaui/action@v1
         with:
           workingDir: newIDE/app
           storybookBuildDir: "build-storybook"
           token: ${{ secrets.GITHUB_TOKEN }}
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+        env:
+          SHOULD_PUBLISH_CHROMATIC: ${{ secrets.CHROMATIC_PROJECT_TOKEN != '' }}
+
