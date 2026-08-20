@@ -27,7 +27,13 @@ export const GDevelopGamesPlatform = {
 };
 
 export const GDevelopFirebaseConfig = {
-  apiKey: 'AIzaSyAnX9QMacrIl3yo4zkVFEVhDppGVDDewBc',
+  // The Firebase Web API key is owned by the upstream project (4ian/GDevelop).
+  // It must be supplied at runtime via the GD_FIREBASE_API_KEY env var.
+  // See SECRETS.md at the repo root for the full list of required env vars.
+  // The string below is a clearly-marked placeholder and is NOT a real key.
+  apiKey:
+    process.env.GD_FIREBASE_API_KEY ||
+    'AIzaSyDUMMY-UPSTREAM-OWNED-KEY-REPLACE-WITH-YOUR-OWN-XXXXXXXX',
   authDomain: 'gdevelop-services.firebaseapp.com',
   databaseURL: 'https://gdevelop-services.firebaseio.com',
   projectId: 'gdevelop-services',

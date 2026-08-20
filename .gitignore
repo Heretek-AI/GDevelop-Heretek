@@ -35,3 +35,17 @@
 Thumbs.db
 .claude
 *.db
+
+# Local secrets — never commit. Operators must set these as env vars.
+# See SECRETS.md at the repo root for the canonical list.
+.env
+.env.*
+!.env.example
+*.env.local
+*.env.development
+*.env.production
+secrets.json
+*-credentials.json
+*-credentials.*.json
+gcp-credentials.json
+firebase-adminsdk-*.json
