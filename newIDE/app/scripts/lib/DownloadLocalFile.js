@@ -16,20 +16,25 @@ let temporaryFileCounter = 0;
  * @returns {Promise<void>}
  */
 const downloadLocalFile = async (url, outputPath) => {
-  // The outputPath is a filename that originates from our own build scripts
-  // (they control it as a constant of the form 'public/libGD.wasm' or the
-  // like), not from untrusted CLI input. We still reject any outputPath that
-  // escapes the CWD (path traversal) so a malformed caller can't write
-  // outside the project. See jssecurity:S8707 "path canonicalized from
-  // CLI-controlled data must be validated".
+  // Validate the outputPath is below the package root (newIDE/app/) to
+  // close jssecurity:S8707 (path canonicalized from CLI-controlled
+  // data must be validated before use). All legitimate callers in this
+  // repo pass paths like 'public/libGD.wasm' or
+  // '../public/external/piskel/piskel-editor.zip' which all resolve
+  // under the newIDE/app/ root.
+  //
+  // We don't hard-code newIDE/app/ — instead we resolve from the
+  // directory of THIS file (scripts/lib/), walk up to find the package
+  // root, and validate against that. Works regardless of CWD.
+  const fileDir = __dirname;
+  const packageRoot = path.resolve(fileDir, '..', '..');
   const outputResolved = path.resolve(outputPath);
-  const cwdResolved = path.resolve('.');
   if (
-    !outputResolved.startsWith(cwdResolved + path.sep) &&
-    outputResolved !== cwdResolved
+    outputResolved !== packageRoot &&
+    !outputResolved.startsWith(packageRoot + path.sep)
   ) {
     throw new Error(
-      `Refusing to write outside the project directory: ${outputPath}`
+      `Refusing to write outside the package directory: ${outputPath} (resolved=${outputResolved}, packageRoot=${packageRoot})`
     );
   }
 
@@ -44,7 +49,7 @@ const downloadLocalFile = async (url, outputPath) => {
     await new Promise((resolve, reject) => {
       const writer = fs.createWriteStream(temporaryPath);
       let error = null;
-      const onError = (err) => {
+      const onError = err => {
         error = err;
         writer.close();
         reject(err);
