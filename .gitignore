@@ -49,3 +49,4 @@ secrets.json
 *-credentials.*.json
 gcp-credentials.json
 firebase-adminsdk-*.json
+.sonar-issues-cache/

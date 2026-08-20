@@ -1,4 +1,11 @@
 // @flow
+
+// nosonar: javascript:S2245 — Math.random() is used
+// here only to generate non-cryptographic unique IDs
+// (callId, reqId, messageId, etc.) and for UI variant
+// selection. These values are not used as security tokens,
+// session keys, or anything that requires unpredictability.
+
 import * as React from 'react';
 import useStableValue from '../../Utils/useStableValue';
 import { ChatBubble } from './ChatBubble';
