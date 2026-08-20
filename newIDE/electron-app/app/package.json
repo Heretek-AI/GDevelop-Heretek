@@ -18,7 +18,7 @@
     "dotenv": "^4.0.0",
     "electron-editor-context-menu": "^1.1.1",
     "electron-is-dev": "^2.0.0",
-    "electron-log": "^4.1.1",
+    "electron-log": "^5.4.4",
     "electron-updater": "^6.6.0",
     "fs-extra": "^3.0.1",
     "five-server": "^0.3.1",
