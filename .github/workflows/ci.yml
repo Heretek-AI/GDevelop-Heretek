@@ -131,9 +131,12 @@ jobs:
         # generated src/Version/VersionMetadata.js. This file is normally
         # produced by `npm run import-resources` (the local-dev path),
         # but we generate only the version-metadata file here to keep the
-        # CI step fast.
-        working-directory: newIDE/app
-        run: node scripts/make-version-metadata.js
+        # CI step fast. The script resolves ../src/Version/VersionMetadata.js
+        # relative to its own directory, so we cd into it (matching the
+        # package.json script definition exactly).
+        run: |
+          cd newIDE/app/scripts
+          node make-version-metadata.js
       - name: Test
         working-directory: newIDE/app
         env:
