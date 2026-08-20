@@ -34,11 +34,13 @@ const variable = new gdjs.Variable().fromJSObject({
  * replace the placeholder with your own test-project key, e.g. via:
  *     export GD_TEST_FIREBASE_API_KEY="AIzaSy...your-key..."
  * The build pipeline will pick up GD_TEST_FIREBASE_API_KEY at test time.
+ * The placeholder is intentionally non-key-shaped so secret scanners
+ * don't flag it as a leaked credential.
  */
 const firebaseConfig = {
   apiKey:
     process.env.GD_TEST_FIREBASE_API_KEY ||
-    'AIzaSyDUMMY-UPSTREAM-OWNED-KEY-REPLACE-WITH-YOUR-OWN-XXXXXXXX',
+    'GD_TEST_FIREBASE_API_KEY-env-var-not-set-see-SECRETS.md',
   authDomain: 'gdtest-e11a5.firebaseapp.com',
   databaseURL: 'https://gdtest-e11a5.firebaseio.com',
   projectId: 'gdtest-e11a5',

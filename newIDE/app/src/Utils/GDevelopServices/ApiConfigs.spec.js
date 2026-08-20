@@ -57,8 +57,8 @@ describe('GDevelopFirebaseConfig (env-driven, no leaked keys)', () => {
     jest.isolateModules(() => {
       // eslint-disable-next-line global-require
       const { GDevelopFirebaseConfig: fresh } = require('./ApiConfigs');
-      expect(fresh.apiKey).toMatch(/^AIzaSyDUMMY/);
-      expect(fresh.apiKey).toMatch(/DUMMY|REPLACE|YOUR-OWN/);
+      expect(fresh.apiKey).toMatch(/GD_FIREBASE_API_KEY-env-var-not-set/);
+      expect(fresh.apiKey).toMatch(/not-set|REPLACE|SECRETS\.md/);
     });
   });
 
