@@ -6,7 +6,7 @@
   "author": "Florian Rival",
   "license": "MIT",
   "homepage": "http://gdevelop.io",
-  "repository": "github:4ian/GDevelop",
+  "repository": "github:Heretek-AI/GDevelop-Heretek",
   "private": true,
   "scripts": {
     "postinstall": "npm run import-zipped-electron-extensions && cd app && npm install && cd .. && npm run copy-electron-remote-to-app-resources",

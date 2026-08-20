@@ -255,7 +255,9 @@ const AboutDialog = ({ onClose, updateStatus }: Props) => {
   }, []);
 
   const openReleaseNote = () =>
-    Window.openExternalURL('https://github.com/4ian/GDevelop/releases');
+    Window.openExternalURL(
+      'https://github.com/Heretek-AI/GDevelop-Heretek/releases'
+    );
 
   const openLink = React.useCallback((link: string) => {
     if (!link) return;

@@ -6,6 +6,7 @@
   "author": "GDevelop Team <hello@gdevelop.io>",
   "license": "MIT",
   "homepage": "https://gdevelop.io",
+  "repository": "github:Heretek-AI/GDevelop-Heretek",
   "main": "main.js",
   "dependencies": {
     "@electron/remote": "2.1.2",

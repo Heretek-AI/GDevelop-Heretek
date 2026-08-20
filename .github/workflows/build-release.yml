@@ -104,6 +104,8 @@ jobs:
             newIDE/electron-app/dist/*.deb
             newIDE/electron-app/dist/*.dmg
             newIDE/electron-app/dist/*.zip
+            newIDE/electron-app/dist/*.yml
+            newIDE/electron-app/dist/*.blockmap
 
   publish-release:
     name: Publish GitHub Release

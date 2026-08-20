@@ -81,6 +81,8 @@ const config = {
   publish: [
     {
       provider: 'github',
+      owner: 'Heretek-AI',
+      repo: 'GDevelop-Heretek',
     },
   ],
 };

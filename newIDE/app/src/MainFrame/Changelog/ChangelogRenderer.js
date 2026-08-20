@@ -31,7 +31,9 @@ const ChangelogRenderer = ({
   currentReleaseName,
 }: Props): React.Node => {
   const openReleaseNote = () =>
-    Window.openExternalURL('https://github.com/4ian/GDevelop/releases');
+    Window.openExternalURL(
+      'https://github.com/Heretek-AI/GDevelop-Heretek/releases'
+    );
 
   if (error) {
     return (
