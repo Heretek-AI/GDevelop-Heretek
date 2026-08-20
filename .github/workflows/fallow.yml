@@ -95,7 +95,7 @@ jobs:
           TOTAL=$(curl -fs "https://sonarcloud.io/api/issues/search?componentKeys=Heretek-AI_GDevelop-Heretek&issueStatuses=OPEN&ps=1" \
             | python3 -c "import json,sys; print(json.load(sys.stdin)['total'])")
           echo "Open SonarCloud issues: $TOTAL"
-          if [ "$TOTAL" -gt 4500 ]; then
-            echo "::error::SonarCloud open count $TOTAL exceeds 4,500 threshold"
+          if [ "$TOTAL" -gt 1500 ]; then
+            echo "::error::SonarCloud open count $TOTAL exceeds 1,500 threshold"
             exit 1
           fi
