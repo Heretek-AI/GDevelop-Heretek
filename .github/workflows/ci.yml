@@ -120,6 +120,14 @@ jobs:
           cp Binaries/embuild/GDevelop.js/libGD.wasm \
              newIDE/app/node_modules/libGD.js-for-tests-only/libGD.wasm
           ls -la newIDE/app/node_modules/libGD.js-for-tests-only/
+      - name: Generate build artifacts
+        # The Jest tests import src/Version/index.js, which requires the
+        # generated src/Version/VersionMetadata.js. This file is normally
+        # produced by `npm run import-resources` (the local-dev path),
+        # but we generate only the version-metadata file here to keep the
+        # CI step fast.
+        working-directory: newIDE/app
+        run: node scripts/make-version-metadata.js
       - name: Test
         working-directory: newIDE/app
         env:
