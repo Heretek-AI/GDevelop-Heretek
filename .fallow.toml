@@ -1,0 +1,36 @@
+# Fallow configuration for the monorepo.
+#
+# Excludes paths we don't maintain (vendored bundles, codemod output,
+# generated test fixtures) so they don't pollute the static analysis
+# results. These mirror the .sonarcloud.properties exclusions.
+
+ignorePatterns = [
+  # Vendored / bundled JS (Emscripten, spine-pixi, monaco, three, pixi,
+  # howler, rbush, nanomarkdown, etc.)
+  "Extensions/Spine/spine-pixi-v7/**",
+  "GDJS/Runtime/libs/**",
+  "GDJS/Runtime/pixi-renderers/pixi.js",
+  "GDJS/Runtime/pixi-renderers/three.js",
+  "GDJS/Runtime/pixi-renderers/ThreeAddons.js",
+  "GDJS/Runtime/howler-sound-manager/howler.min.js",
+  "GDJS/Runtime/fontfaceobserver-font-manager/fontfaceobserver.js",
+  # Vendored editor assets shipped with newIDE/app
+  "newIDE/app/public/external/**",
+  # Generated codemod output and test fixtures
+  "newIDE/app/src/EditorFunctions/index.js",
+  "newIDE/app/src/EditorFunctions/SimplifiedProject/**",
+  "newIDE/app/src/stories/**",
+  "newIDE/app/resources/GDJS/Runtime-sources/**",
+  # Flow type definitions
+  "**/flow-typed/**",
+  "**/flow-libs/**",
+  # Build artifacts
+  "build/**",
+  "dist/**",
+  "node_modules/**",
+  "Binaries/**",
+  # Karma tests in GDJS (browser-based, not part of Jest)
+  "GDJS/tests/games/**",
+  # Generated localization files
+  "newIDE/app/src/locales/**",
+]
