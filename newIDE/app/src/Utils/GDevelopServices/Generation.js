@@ -4,10 +4,7 @@ import { GDevelopAiCdn, GDevelopGenerationApi } from './ApiConfigs';
 import { type MessageByLocale } from '../i18n/MessageByLocale';
 import { getIDEVersionWithHash } from '../../Version';
 import { extractNextPageUriFromLinkHeader } from './Play';
-import {
-  ensureIsArray,
-  ensureObjectHasProperty,
-} from '../DataValidator';
+import { ensureIsArray, ensureObjectHasProperty } from '../DataValidator';
 import {
   isCustomEndpointEnabled,
   customCreateAiRequest,

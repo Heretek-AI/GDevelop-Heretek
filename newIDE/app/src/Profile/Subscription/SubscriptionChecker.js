@@ -32,16 +32,7 @@ const SubscriptionChecker: React.ComponentType<{
   ...Props,
   +ref?: React.RefSetter<SubscriptionCheckerInterface>,
 }> = React.forwardRef<Props, SubscriptionCheckerInterface>(
-  (
-    {
-      mode,
-      id,
-      title,
-      onChangeSubscription,
-      placementId,
-    },
-    ref
-  ) => {
+  ({ mode, id, title, onChangeSubscription, placementId }, ref) => {
     const [dialogOpen, setDialogOpen] = React.useState<boolean>(false);
 
     const closeDialog = () => {
