@@ -555,6 +555,10 @@ def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
         print(f"  Skipping {path}: outside APP_DIR ({APP_DIR})")
         return False, 0
 
+    # Use the validated `resolved` Path for all subsequent operations so
+    # static analyzers can see that the path is constrained.
+    path = resolved
+
     original = path.read_bytes()
     if not _is_candidate_for_replacement(original):
         return False, 0

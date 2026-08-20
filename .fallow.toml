@@ -19,6 +19,15 @@ ignorePatterns = [
   "GDJS/Runtime/pixi-renderers/ThreeAddons.js",
   "GDJS/Runtime/howler-sound-manager/howler.min.js",
   "GDJS/Runtime/fontfaceobserver-font-manager/fontfaceobserver.js",
+  # Three.js examples (vendored from three/addons)
+  "SharedLibs/ThreeAddons/**",
+  # Pixi filter bundles (vendored)
+  "Extensions/Effects/pixi-filters/filter-color-gradient.js",
+  # Generated extension shells (codemod output, not maintained)
+  "Extensions/Physics3DBehavior/JsExtension.js",
+  # Generated Emscripten bindings
+  "GDevelop.js/Bindings/Wrapper.cpp",
+  "GDevelop.js/Bindings/postjs.js",
   # Vendored editor assets shipped with newIDE/app
   "newIDE/app/public/external/**",
   # Generated codemod output and test fixtures
