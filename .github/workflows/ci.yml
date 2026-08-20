@@ -127,16 +127,20 @@ jobs:
              newIDE/app/node_modules/libGD.js-for-tests-only/libGD.wasm
           ls -la newIDE/app/node_modules/libGD.js-for-tests-only/
       - name: Generate build artifacts
-        # The Jest tests import src/Version/index.js, which requires the
-        # generated src/Version/VersionMetadata.js. This file is normally
-        # produced by `npm run import-resources` (the local-dev path),
-        # but we generate only the version-metadata file here to keep the
-        # CI step fast. The script resolves ../src/Version/VersionMetadata.js
-        # relative to its own directory, so we cd into it (matching the
-        # package.json script definition exactly).
+        # Several Jest test suites require generated files that are
+        # normally produced by `npm run import-resources` (the local-dev
+        # path). We run only the generators we need to keep CI fast:
+        #   - make-version-metadata.js produces src/Version/VersionMetadata.js
+        #     (required by src/Version/index.js)
+        #   - build-theme-resources.js produces the UI Theme variable .js/.json
+        #     files (required by src/UI/Theme/DefaultLightTheme/index.js).
+        # We do NOT need import-libGD.js, import-GDJS-Runtime.js,
+        # import-monaco-editor.js, import-zipped-external-editors.js, etc.
+        # at test time, so we skip them.
         run: |
           cd newIDE/app/scripts
           node make-version-metadata.js
+          node build-theme-resources.js
       - name: Test
         working-directory: newIDE/app
         env:
