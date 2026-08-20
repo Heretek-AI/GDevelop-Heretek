@@ -106,12 +106,20 @@ jobs:
         working-directory: newIDE/app
         run: npm audit --omit=dev --audit-level=high
       - name: Copy libGD.js into newIDE/app
-        # `node scripts/import-libGD.js` would try to download from S3 when
-        # a local build isn't on disk; with the build artifact now
-        # restored, it takes the local-build branch and copies the file
-        # into node_modules/libGD.js-for-tests-only for the Jest setup.
-        working-directory: newIDE/app
-        run: node scripts/import-libGD.js
+        # The Jest setup pulls in a pre-built C++ core compiled to JS via
+        # Emscripten. The build-libgd job produced libGD.js/libGD.wasm
+        # and uploaded them as an artifact; we copy them straight into
+        # node_modules/libGD.js-for-tests-only so setupTests.js can
+        # require() them. Using a direct cp here is simpler than invoking
+        # scripts/import-libGD.js (which prefers to download from S3 when
+        # it can't see the build output for any reason).
+        run: |
+          mkdir -p newIDE/app/node_modules/libGD.js-for-tests-only
+          cp Binaries/embuild/GDevelop.js/libGD.js \
+             newIDE/app/node_modules/libGD.js-for-tests-only/index.js
+          cp Binaries/embuild/GDevelop.js/libGD.wasm \
+             newIDE/app/node_modules/libGD.js-for-tests-only/libGD.wasm
+          ls -la newIDE/app/node_modules/libGD.js-for-tests-only/
       - name: Test
         working-directory: newIDE/app
         env:
