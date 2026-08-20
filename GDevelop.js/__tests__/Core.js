@@ -2316,7 +2316,7 @@ describe('libGD.js', function () {
       expect(
         object1.getProperties().get('My first property').getValue() ==
           'Initial value 1'
-      );
+      ).toBe('Initial value 1');
 
       object1.updateProperty('My first property', 'test1');
       const object2 = object1.clone().release();
@@ -2338,15 +2338,15 @@ describe('libGD.js', function () {
       {
         // Check properties can be accessed.
         const propertiesObject1 = object1.getProperties();
-        expect(propertiesObject1.has('My first property'));
+        expect(propertiesObject1.has('My first property')).toBe(true);
         expect(
           propertiesObject1.get('My first property').getValue() == 'test1'
-        );
+        ).toBe('test1');
         const propertiesObject2 = object2.getProperties();
-        expect(propertiesObject2.has('My first property'));
+        expect(propertiesObject2.has('My first property')).toBe(true);
         expect(
           propertiesObject2.get('My first property').getValue() == 'test1'
-        );
+        ).toBe('test1');
 
         // Check the JavaScript objects are unchanged for now.
         expect(object1jsImplementation.content).toEqual({
@@ -2367,16 +2367,16 @@ describe('libGD.js', function () {
         // Check a property can be updated.
         object1.updateProperty('My first property', 'updated value');
         const propertiesObject1 = object1.getProperties();
-        expect(propertiesObject1.has('My first property'));
+        expect(propertiesObject1.has('My first property')).toBe(true);
         expect(
           propertiesObject1.get('My first property').getValue() ==
             'updated value'
-        );
+        ).toBe('updated value');
         const propertiesObject2 = object2.getProperties();
-        expect(propertiesObject2.has('My first property'));
+        expect(propertiesObject2.has('My first property')).toBe(true);
         expect(
           propertiesObject2.get('My first property').getValue() == 'test1'
-        );
+        ).toBe('test1');
 
         // Check the JavaScript objects are updated.
         expect(object1jsImplementation.content).toEqual({
@@ -2397,22 +2397,22 @@ describe('libGD.js', function () {
         // Check a property from another object can be updated.
         object2.updateProperty('My first property', 'updated value object 2');
         const propertiesObject1 = object1.getProperties();
-        expect(propertiesObject1.has('My first property'));
+        expect(propertiesObject1.has('My first property')).toBe(true);
         expect(
           propertiesObject1.get('My first property').getValue() ==
             'updated value'
-        );
+        ).toBe('updated value');
         const propertiesObject2 = object2.getProperties();
-        expect(propertiesObject2.has('My first property'));
+        expect(propertiesObject2.has('My first property')).toBe(true);
         expect(
           propertiesObject2.get('My first property').getValue() ==
             'updated value object 2'
-        );
+        ).toBe('updated value object 2');
         const propertiesObject3 = object3.getProperties();
-        expect(propertiesObject3.has('My first property'));
+        expect(propertiesObject3.has('My first property')).toBe(true);
         expect(
           propertiesObject3.get('My first property').getValue() == 'test1'
-        );
+        ).toBe('test1');
 
         // Check the JavaScript objects are updated.
         expect(object1jsImplementation.content).toEqual({

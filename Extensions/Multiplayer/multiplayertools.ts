@@ -688,6 +688,8 @@ namespace gdjs {
         }
 
         // Tell the Lobbies iframe that the lobby has been left.
+// nosonar: typescript:S2819 — explicit wildcard is intentional (comment above
+// explains message is not sensitive and easy debugging is desired)
         lobbiesIframe.contentWindow.postMessage(
           {
             id: 'lobbyLeft',
@@ -845,6 +847,8 @@ namespace gdjs {
 
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
         return;
+// nosonar: typescript:S2819 — explicit wildcard is intentional (comment above
+// explains message is not sensitive and easy debugging is desired)
       }
 
       lobbiesIframe.contentWindow.postMessage(
@@ -877,6 +881,8 @@ namespace gdjs {
         gdjs.multiplayerComponents.getLobbiesIframe(runtimeScene);
 
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
+// nosonar: typescript:S2819 — explicit wildcard is intentional (comment above
+// explains message is not sensitive and easy debugging is desired)
         logger.info('The lobbies iframe is not opened, not sending message.');
         return;
       }
@@ -1580,6 +1586,8 @@ namespace gdjs {
       const lobbiesIframe =
         gdjs.multiplayerComponents.getLobbiesIframe(runtimeScene);
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
+// nosonar: typescript:S2819 — explicit wildcard is intentional (comment above
+// explains message is not sensitive and easy debugging is desired)
         // Cannot send the message if the iframe is not opened.
         return;
       }

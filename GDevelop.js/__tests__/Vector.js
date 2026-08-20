@@ -44,9 +44,9 @@ describe('libGD.js - gd.Vector* tests', function() {
       expect(vector2.size()).toBe(2);
       expect(vector2.get(1)).toBe('bar');
 
-      expect(vector.set(56, 'Modified hello world'));
+      expect(vector.set(56, 'Modified hello world')).toBe(true);
       expect(vector.get(34)).toBe('Hello world #34');
-      expect(vector2.set(1, 'baz'));
+      expect(vector2.set(1, 'baz')).toBe(true);
       expect(vector.get(56)).toBe('Modified hello world');
       expect(vector2.get(1)).toBe('baz');
       expect(vector2.get(0)).toBe('foo');

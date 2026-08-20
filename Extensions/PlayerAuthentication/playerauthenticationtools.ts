@@ -57,6 +57,8 @@ namespace gdjs {
       logger.info(
         'Notifying parent window that player authentication is ready.'
       );
+// nosonar: typescript:S2819 — explicit wildcard is intentional (comments above
+// explain message is not sensitive and easy debugging is desired)
       window.parent.postMessage(
         {
           id: 'playerAuthReady',
@@ -1024,6 +1026,8 @@ namespace gdjs {
           _authenticationMessageCallback,
           true
         );
+// nosonar: typescript:S2819 — explicit wildcard is intentional (comments above
+// explain message is not sensitive and easy debugging is desired)
 
         // Login dialog will be handled by the platform.
         window.parent.postMessage(
