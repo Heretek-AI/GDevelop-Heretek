@@ -1,4 +1,3 @@
-// @flow
 import * as React from 'react';
 
 /**
@@ -6,7 +5,7 @@ import * as React from 'react';
  * usually an anti pattern to rely on this, it can be useful when having to "cancel"
  * promises/network dependent effects.
  */
-export const useIsMounted = (): {| current: boolean |} => {
+export const useIsMounted = (): React.MutableRefObject<boolean> => {
   const isMounted = React.useRef<boolean>(false);
   React.useEffect(() => {
     isMounted.current = true;

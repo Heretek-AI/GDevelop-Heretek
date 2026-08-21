@@ -1,4 +1,3 @@
-// @flow
 export const mergeArraysPerGroup = <T>(
   arr1: Array<T>,
   arr2: Array<T>,
@@ -7,7 +6,7 @@ export const mergeArraysPerGroup = <T>(
 ): Array<T> => {
   let arr1Index = 0;
   let arr2Index = 0;
-  const result = [];
+  const result: Array<T> = [];
 
   while (arr1Index < arr1.length || arr2Index < arr2.length) {
     const picks1 = arr1.slice(arr1Index, arr1Index + howManyPerGroup1);
