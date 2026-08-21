@@ -802,7 +802,6 @@ namespace gdjs {
         return;
       }
 
-      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
       lobbiesIframe.contentWindow.postMessage(
         {
           id: 'lobbyJoined',

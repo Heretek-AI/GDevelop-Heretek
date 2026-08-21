@@ -1,5 +1,3 @@
-// nosonar: javascript:S5443 -- the writable directory check is for production code paths; this is a test fixture that uses a sandboxed /tmp directory.
-
 const path = require('path');
 
 module.exports = {
@@ -14,6 +12,7 @@ module.exports = {
     const fs = new gd.AbstractFileSystemJS();
     fs.mkDir = fs.clearDir = function () {};
     fs.getTempDir = function (path) {
+      // nosonar: javascript:S5443 -- the writable directory check is for production code paths; this is a test fixture that uses a sandboxed /tmp directory.
       return '/tmp/';
     };
     fs.fileNameFrom = function (fullPath) {

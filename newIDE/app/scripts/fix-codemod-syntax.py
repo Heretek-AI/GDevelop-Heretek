@@ -28,12 +28,14 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-APP_DIR = os.environ.get(
-    "APP_DIR",
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
-SRC_DIR = pathlib.Path(APP_DIR) / "src"
-FLOW_BIN = pathlib.Path(APP_DIR) / "node_modules" / ".bin" / "flow"
+APP_DIR = pathlib.Path(
+    os.environ.get(
+        "APP_DIR",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+).resolve()
+SRC_DIR = APP_DIR / "src"
+FLOW_BIN = APP_DIR / "node_modules" / ".bin" / "flow"
 FLOW_AST_CMD = [str(FLOW_BIN), "ast"] if FLOW_BIN.exists() else ["npx", "flow", "ast"]
 
 

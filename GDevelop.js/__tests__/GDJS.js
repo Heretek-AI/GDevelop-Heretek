@@ -759,12 +759,14 @@ describe('libGD.js - GDJS related tests', function () {
   describe('TextEntryObject', function () {
     it('should expose TextEntryObject', function () {
       var object = new gd.TextEntryObject('MyTextEntryObject');
-    expect(object).toBeDefined();
+      expect(object).toBeDefined();
+    });
   });
   describe('ParticleEmitterObject', function () {
     it('should expose ParticleEmitterObject', function () {
       var object = new gd.ParticleEmitterObject('MyParticleEmitterObject');
-    expect(object).toBeDefined();
+      expect(object).toBeDefined();
+    });
   });
   describe('JsCodeEvent', function () {
     it('can store its code', function () {

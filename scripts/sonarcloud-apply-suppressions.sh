@@ -33,12 +33,15 @@ $(awk '/^sonar.exclusions=/,/^$/' "$PROPS" | head -50 | tr -d '\\\n' | sed 's/^s
 Step 2 — Per-rule multicriteria suppressions
   Open: https://sonarcloud.io/project/settings?category=exclusions&id=Heretek-AI_GDevelop-Heretek
   Section: "Issues Exclusions" → "Multi-criteria" → "Add"
-  For each entry in the comment block below, click "Add" and paste
-  the ruleKey + resourceKey lines as a new criterion.
+  The criteria to add are:
 
-  (The entries are documented in $PROPS as commented-out lines
-  starting with "sonar.issue.ignore.multicriteria.eN.ruleKey=". Uncomment
-  each line to see what to paste.)
+$(awk '
+  /^[[:space:]]*#?[[:space:]]*sonar\.issue\.ignore\.multicriteria\.e[0-9]+\.(ruleKey|resourceKey)=/ {
+    line = $0
+    sub(/^[[:space:]]*#?[[:space:]]*/, "", line)
+    print "  " line
+  }
+' "$PROPS")
 
 Step 3 — Verify
   After pasting, run:

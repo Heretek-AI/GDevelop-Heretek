@@ -23,8 +23,13 @@ ignorePatterns = [
   "SharedLibs/ThreeAddons/**",
   # Pixi filter bundles (vendored)
   "Extensions/Effects/pixi-filters/filter-color-gradient.js",
+  "Extensions/Effects/pixi-filters/filter-glitch.js",
+  # Bundled Firebase JS
+  "Extensions/Firebase/B_firebasetools/**",
   # Generated extension shells (codemod output, not maintained)
   "Extensions/Physics3DBehavior/JsExtension.js",
+  "Extensions/TileMap/JsExtension.js",
+  "Extensions/NavMeshPathfinding/JsExtension.js",
   # Generated Emscripten bindings
   "GDevelop.js/Bindings/Wrapper.cpp",
   "GDevelop.js/Bindings/postjs.js",

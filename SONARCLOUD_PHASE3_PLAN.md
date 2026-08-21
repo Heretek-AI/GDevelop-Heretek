@@ -56,7 +56,7 @@ These are all mechanical and small. 8 of 9 are test fixes that prevent a real BU
 | Count | Type | Rule | Example | Action |
 |---:|---|---|---|---|
 | 8 | VULN | `typescript:S2819` | postMessage wildcard target origin (5 files) | **Already fixed in Phase 2** but the `// nosonar` placement was wrong. Phase 3 commit 9ba765c moves the comments to the right line. Re-analyze to confirm. |
-| 2 | VULN | `typescript:S1523` | `GDJS/Runtime/gameplay-tests/gameplay-test-runner.ts:2951,3096` | Add `// nosonar` with rationale (test runner code, sandboxed) |
+| 1 | VULN | `typescript:S1523` | `GDJS/Runtime/gameplay-tests/gameplay-test-runner.ts:2951` | Add `// nosonar` with rationale (test runner code, sandboxed) |
 | 6 | VULN | `javascript:S1523` | `GDevelop.js/TestUtils/CodeGenerationHelpers.js:82,93,108,161,227,463` | Same — test utility code |
 | 1 | VULN | `javascript:S5443` | `GDevelop.js/TestUtils/FakeAbstractFileSystem.js:15` | Investigate: writable-dir safety in test fixture |
 | 1 | VULN | `typescript:S4335` | `GDJS/Runtime/CustomRuntimeObject.ts:22` | Add `// nosonar: typescript:S4335` with rationale (cross-type assignment intentional for runtimeobject) |
@@ -295,11 +295,11 @@ curl -s "https://sonarcloud.io/api/issues/search?componentKeys=Heretek-AI_GDevel
 
 ## Critical files quick-reference
 
-- `/home/john/Projects/GDevelop/SONARCLOUD_REMEDIATION_PLAN.md` — Phase 1 plan (executed)
-- `/home/john/Projects/GDevelop/SONARCLOUD_PHASE2_PLAN.md` — Phase 2 plan (executed, suppressions waiting for operator)
-- `/home/john/Projects/GDevelop/SONARCLOUD_PHASE3_PLAN.md` — **this file** (Phase 3)
-- `/home/john/Projects/GDevelop/.sonarcloud.properties` — path exclusions + e1-e63 (server-side pending)
-- `/home/john/Projects/GDevelop/.fallow.toml` — mirror exclusions
-- `/home/john/Projects/GDevelop/.sonar-issues-cache/phase-3-p*.json` — raw cache (3,029 issues, ignored by git)
-- `/home/john/Projects/GDevelop/scripts/sonarcloud-drift.js` — drift detection
+- `SONARCLOUD_REMEDIATION_PLAN.md` — Phase 1 plan (executed)
+- `SONARCLOUD_PHASE2_PLAN.md` — Phase 2 plan (executed, suppressions waiting for operator)
+- `SONARCLOUD_PHASE3_PLAN.md` — **this file** (Phase 3)
+- `.sonarcloud.properties` — path exclusions + e1-e88 (server-side pending)
+- `.fallow.toml` — mirror exclusions
+- `.sonar-issues-cache/phase-3-p*.json` — raw cache (3,029 issues, ignored by git)
+- `scripts/sonarcloud-drift.js` — drift detection
 - PR #50 — merged Phase 2 PR
