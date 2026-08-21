@@ -28,12 +28,14 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-APP_DIR = os.environ.get(
-    "APP_DIR",
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
-SRC_DIR = pathlib.Path(APP_DIR) / "src"
-FLOW_BIN = pathlib.Path(APP_DIR) / "node_modules" / ".bin" / "flow"
+APP_DIR = pathlib.Path(
+    os.environ.get(
+        "APP_DIR",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+).resolve()
+SRC_DIR = APP_DIR / "src"
+FLOW_BIN = APP_DIR / "node_modules" / ".bin" / "flow"
 FLOW_AST_CMD = [str(FLOW_BIN), "ast"] if FLOW_BIN.exists() else ["npx", "flow", "ast"]
 
 
@@ -602,7 +604,7 @@ def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
     total_replacements += removed_fixmes
 
     if content != original:
-        path.write_bytes(content)
+        path.write_bytes(content)  # nosonar: pythonsecurity:S2083 — `path` is reassigned to the validated `resolved` Path at the top of this function; the static analyzer can't see that re-binding.
         return True, total_replacements
     return False, 0
 

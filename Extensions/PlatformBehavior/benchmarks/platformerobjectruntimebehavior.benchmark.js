@@ -10,7 +10,7 @@ describe('gdjs.PlatformerObjectRuntimeBehavior Benchmark', function () {
     objects = new Array(duplicateCount);
     for (let i = 0; i < duplicateCount; ++i) {
       // Put a platformer object on a platform
-      object = new gdjs.RuntimeObject(runtimeScene, {
+      const object = new gdjs.RuntimeObject(runtimeScene, {
         name: 'obj1',
         type: '',
         behaviors: [

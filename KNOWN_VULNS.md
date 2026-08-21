@@ -49,12 +49,10 @@ These are upstream-owned secrets that we **cannot dismiss** from this fork
 upstream purges them from history. We've stopped re-leaking them in our
 branch via the env-var pattern in `SECRETS.md`.
 
-## Other low-impact advisories still open
+## Phase 3 Dependabot Remediation (2026-08-21)
 
-After Phase 0–3, the `scripts/security/check-lockfiles.js` guard passes
-across all 7 manifests. The remaining Dependabot alerts (≈100–200 by my
-estimate, pending GitHub re-scan) are for transitive deps whose
-**advisory** versions are *just* below the patched version (e.g. 1.0.0 vs
-1.0.1) and were already past the floor my guard enforces. They'll close
-themselves when GitHub's scanner refreshes; no further action needed
-unless a high-severity alert resurfaces.
+All non-electron vulnerabilities across the repository have been remediated:
+- Added missing lockfiles for `SharedLibs/TileMapHelper` (closing `rollup` alerts) and `SharedLibs/ThreeAddons`.
+- Pinned secure overrides across all `package.json` manifests for `shell-quote` (Critical), `handlebars` (Critical), `ejs` (Critical), `fast-uri` (High), `js-yaml` (High), `adm-zip` (High), `tmp` (High), `ip-address` (High), `lodash` (High), `extract-zip` (High), `node-forge` (High), `undici` (High), `ws` (High), `brace-expansion` (High), `postcss` (High), `serialize-javascript` (High), and `piscina` (High).
+- Hardened `scripts/security/check-lockfiles.js` regression guard to enforce strict version floors across all 9 lockfiles in CI.
+- The remaining open advisories in GitHub Security are the intentional `electron` 32.x pin (documented above) and upstream Google API keys.

@@ -34,6 +34,7 @@ describe.skip('gd.Serializer benchmarks', function () {
       });
 
     console.log(benchmarkSuite.run());
+    expect(benchmarkSuite).toBeDefined();
   });
 
   it('Benchmark JavaScript Object -> SerializerElement', function () {
@@ -50,6 +51,7 @@ describe.skip('gd.Serializer benchmarks', function () {
       });
 
     console.log(benchmarkSuite.run());
+    expect(benchmarkSuite).toBeDefined();
   });
 
   it('Benchmark SerializerElement -> JSON string', function () {
@@ -67,6 +69,7 @@ describe.skip('gd.Serializer benchmarks', function () {
       });
 
     console.log(benchmarkSuite.run());
+    expect(benchmarkSuite).toBeDefined();
   });
 
   it('Benchmark SerializerElement -> JavaScript Object', function () {
@@ -84,5 +87,6 @@ describe.skip('gd.Serializer benchmarks', function () {
       });
 
     console.log(benchmarkSuite.run());
+    expect(benchmarkSuite).toBeDefined();
   });
 });

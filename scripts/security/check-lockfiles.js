@@ -36,13 +36,16 @@ const VULNERABLE_RANGES = {
   minimist: ['< 1.2.6'],                                // GHSA-xvch-5gv4-984h
   'gh-pages': ['< 5.0.0'],                             // GHSA-8mmm-9v2q-x3f9
   lodash: ['< 4.17.21'],                                // command injection + prototype pollution
-  'brace-expansion': ['< 2.0.1'],                      // ReDoS in 1.x
+  'brace-expansion': ['< 2.0.2'],                      // ReDoS in 1.x / 2.0.1
   tar: ['< 6.2.1'],                                     // various CVEs
   shelljs: ['< 0.9.0'],                                 // privilege management
-  'js-yaml': ['< 4.0.0'],                               // safeLoad removal in 3.x
+  'js-yaml': ['< 4.3.1'],                               // safeLoad removal in 3.x, quadratic DoS
   'follow-redirects': ['< 1.15.0'],                     // GHSA-74fj-2j2h-c42q
   async: ['< 3.0.0'],                                   // prototype pollution in 2.x
   minimatch: ['< 5.1.0'],                               // ReDoS in 3.x
+  'shell-quote': ['< 1.8.4'],                           // GHSA-w7jw-789q-3m8p
+  handlebars: ['< 4.7.9'],                              // GHSA-2699-9764-gw49
+  ejs: ['< 3.1.10'],                                    // GHSA-x2rg-2cr9-2m93
   // High-volume / medium-severity
   axios: ['< 1.7.0'],                                   // prototype pollution, SSRF, etc.
   'electron-updater': ['< 6.6.0'],                      // cross-origin redirect leaks
@@ -50,13 +53,13 @@ const VULNERABLE_RANGES = {
   'form-data': ['< 4.0.6'],                             // CRLF injection in <4.0.6
   '@xmldom/xmldom': ['< 0.9.0'],                         // prototype pollution
   undici: ['< 6.0.0'],                                  // GHSA-cxrh-jh5x-9p9g etc.
-  'fast-uri': ['< 3.0.0'],                              // ReDoS
+  'fast-uri': ['< 3.1.5'],                              // ReDoS
   bodyparser: ['< 1.20.3'],                             // DoS
   braces: ['< 3.0.3'],                                  // ReDoS in 2.x
   picomatch: ['< 3.0.0'],                               // ReDoS in 2.x
   cookie: ['< 0.7.0'],                                  // GHSA-pxg6-pf52-xh8x
   qs: ['< 6.15.3'],                                     // GHSA-q8mj-m7cp-5q26
-  tmp: ['< 0.2.4'],                                     // GHSA-52f5-j9jc-3726
+  tmp: ['< 0.2.7'],                                     // GHSA-52f5-j9jc-3726
   ws: ['< 7.5.10'],                                     // GHSA-3h5v-q93c-6h6q
   diff: ['< 5.2.0'],                                    // ReDoS in <5
   'http-proxy': ['< 1.18.1'],                           // GHSA-6x8p-c9mf-4wrg
@@ -65,6 +68,11 @@ const VULNERABLE_RANGES = {
   ini: ['< 1.3.8'],                                     // ReDoS in <1.3.8
   decodeuricomponent: ['< 0.2.2'],                      // GHSA-w7cr-mhqq-3fmw
   esbuild: ['< 0.25.0'],                                // GHSA-67mh-4wv8-vw99 (dev-only)
+  'adm-zip': ['< 0.6.0'],                               // GHSA-4gg4-h6c6-9cw9
+  'ip-address': ['< 10.5.0'],                           // GHSA-3k65-mwh4-6c84
+  'node-forge': ['< 1.3.1'],                            // CVE-2022-24771 etc
+  rollup: ['< 2.79.2'],                                 // GHSA-gcx4-mw6x-p8f3
+  piscina: ['< 4.8.0'],                                 // CVE-2024-52804
   // npm audit failures surfaced during CI integration (2026-08-20)
   'node-fetch': ['< 2.6.7'],                             // GHSA-r683-j2x4-v87g (header leak)
   '@grpc/grpc-js': ['< 1.14.4'],                        // GHSA-99f4-grh7-6pcq etc.
@@ -84,6 +92,8 @@ const lockfiles = [
   'newIDE/electron-app/package-lock.json',
   'newIDE/electron-app/app/package-lock.json',
   'newIDE/web-app/package-lock.json',
+  'SharedLibs/TileMapHelper/package-lock.json',
+  'SharedLibs/ThreeAddons/package-lock.json',
 ];
 
 function readLockfile(relPath) {

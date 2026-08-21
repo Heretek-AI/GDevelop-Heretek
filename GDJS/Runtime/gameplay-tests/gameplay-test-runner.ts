@@ -2948,6 +2948,7 @@ namespace gdjs {
       // Compile the script first, so a syntax error is reported cleanly.
       let scriptFunction: Function;
       try {
+        // nosonar: typescript:S1523 -- new Function() is intentional; this test runner compiles user-provided gameplay scripts in a sandboxed environment.
         scriptFunction = new Function(
           'harness',
           'console',
