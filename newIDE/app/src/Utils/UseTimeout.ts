@@ -1,7 +1,6 @@
-// @flow
 import { useEffect } from 'react';
 
-export const useTimeout = (callback: any, delay: number) => {
+export const useTimeout = (callback: () => void, delay: number): void => {
   useEffect(
     () => {
       const id = setTimeout(callback, delay);

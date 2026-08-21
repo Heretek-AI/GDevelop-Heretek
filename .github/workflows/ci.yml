@@ -199,8 +199,6 @@ jobs:
       - name: Format check
         working-directory: newIDE/app
         run: npm run check-format
-      # Flow check intentionally removed: the local Flow server is
-      # broken by ~80 unannotated `// $FlowFixMe` comments introduced
-      # by BYOK work (1e0c0a4e7e, c3989ddd56). Newer Flow requires
-      # `$FlowFixMe[<CODE>]` syntax. Tracked separately; not in scope
-      # for this security PR.
+      - name: TypeScript type check
+        working-directory: newIDE/app
+        run: npm run check-types
