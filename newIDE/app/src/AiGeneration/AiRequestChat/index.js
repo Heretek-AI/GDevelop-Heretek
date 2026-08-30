@@ -63,10 +63,14 @@ import Stop from '../../UI/CustomSvgIcons/Stop';
 import AutoEditButton from './AutoEditButton';
 import { EditApprovalRow } from './EditApprovalRow';
 import { type EditApprovalRequest } from '../Utils';
+<<<<<<< HEAD
 import {
   isCustomEndpointEnabled,
   getCustomEndpointConfig,
 } from '../../AI/CustomAIClient';
+=======
+import { canPayForAiRequest } from './Utils';
+>>>>>>> upstream/master
 
 const TOO_MANY_USER_MESSAGES_WARNING_COUNT = 15;
 const TOO_MANY_USER_MESSAGES_ERROR_COUNT = 20;
@@ -369,6 +373,9 @@ type Props = {|
   ) => Promise<void>,
   editorFunctionCallResults: Array<EditorFunctionCallResult> | null,
   editorCallbacks: EditorCallbacks,
+  // Continues a request that stopped on an error, from where it stopped.
+  // Absent in contexts that can't resume a request (e.g. the standalone form).
+  onRetryAfterError?: ?() => Promise<void>,
   // Error that occurred while sending the last request.
   lastSendError: ?Error,
 
@@ -436,6 +443,7 @@ export const AiRequestChat: React.ComponentType<{
       onIsAutoEditEnabledChange,
       pendingEditApproval,
       onResolveEditApproval,
+      onRetryAfterError,
     }: Props,
     ref
   ) => {
@@ -499,13 +507,13 @@ export const AiRequestChat: React.ComponentType<{
     const { openCreditsPackageDialog } = React.useContext(
       CreditsPackageStoreContext
     );
+    // True once the user tried to send something while they could not pay for it.
+    // On its own it says nothing about whether they still can't: always use
+    // `hasStartedRequestButCannotContinue` below, which also looks at whether
+    // they can pay *now*.
     const [
-      hasStartedRequestButCannotContinue,
-      setHasStartedRequestButCannotContinue,
-    ] = React.useState<boolean>(false);
-    const [
-      hasSwitchedToGDevelopCreditsMidChat,
-      setHasSwitchedToGDevelopCreditsMidChat,
+      hasTriedToSendWhileBlocked,
+      setHasTriedToSendWhileBlocked,
     ] = React.useState<boolean>(false);
     const [isButtonLoading, setIsButtonLoading] = React.useState<boolean>(
       false
@@ -586,6 +594,15 @@ export const AiRequestChat: React.ComponentType<{
         if (pendingEditApproval) scrollToBottom();
       },
       [pendingEditApproval, scrollToBottom]
+    );
+
+    const retryAfterErrorAndScroll = React.useCallback(
+      async () => {
+        if (!onRetryAfterError) return;
+        scrollToBottom();
+        await onRetryAfterError();
+      },
+      [onRetryAfterError, scrollToBottom]
     );
 
     const onScroll = React.useCallback(
@@ -761,6 +778,7 @@ export const AiRequestChat: React.ComponentType<{
       [isWorking]
     );
 
+<<<<<<< HEAD
     const doesNotHaveEnoughCreditsToContinue =
       !!price && availableCredits < price.priceInCredits;
     const cannotContinue =
@@ -769,6 +787,19 @@ export const AiRequestChat: React.ComponentType<{
       quota.limitReached &&
       (!automaticallyUseCreditsForAiRequests ||
         doesNotHaveEnoughCreditsToContinue);
+=======
+    const cannotContinue = !canPayForAiRequest({
+      quota,
+      price,
+      availableCredits,
+      automaticallyUseCreditsForAiRequests,
+    });
+    // Derived, never stored: buying credits, subscribing, switching to GDevelop
+    // credits or the allowance resetting all unblock the chat as soon as the
+    // limits say so - the user doesn't have to close and reopen it.
+    const hasStartedRequestButCannotContinue =
+      hasTriedToSendWhileBlocked && cannotContinue;
+>>>>>>> upstream/master
 
     const isForAnotherProject =
       !!requiredGameId &&
@@ -776,19 +807,12 @@ export const AiRequestChat: React.ComponentType<{
     const isForking =
       forkingState && aiRequest && forkingState.aiRequestId === aiRequest.id;
     const shouldDisableButton =
-      (hasStartedRequestButCannotContinue &&
-        !hasSwitchedToGDevelopCreditsMidChat) ||
+      hasStartedRequestButCannotContinue ||
       isWorking ||
       isForking ||
       !userRequestTextPerAiRequestId[aiRequestId];
     const shouldReplaceFormWithCreditsOrSubscriptionPrompt =
-      // Cannot continue because either no AI credits or has not
-      // automatically switched to GDevelop credits.
       hasStartedRequestButCannotContinue &&
-      // If the user accepts to switch to GDevelop credits, then we hide it,
-      // except if they still cannot continue because they don't have enough GDevelop credits.
-      (!hasSwitchedToGDevelopCreditsMidChat ||
-        doesNotHaveEnoughCreditsToContinue) &&
       // We only replace the form if no Ai Request exists yet (Editor or StandAlone form),
       // If a request is ongoing, the ChatMessages.js will show the prompt instead.
       !aiRequest;
@@ -799,7 +823,7 @@ export const AiRequestChat: React.ComponentType<{
       async () => {
         scrollToBottom();
 
-        setHasStartedRequestButCannotContinue(cannotContinue);
+        setHasTriedToSendWhileBlocked(cannotContinue);
         if (cannotContinue) return;
 
         if (hasOpenedProject && standAloneForm) {
@@ -836,7 +860,7 @@ export const AiRequestChat: React.ComponentType<{
       () => {
         scrollToBottom();
 
-        setHasStartedRequestButCannotContinue(cannotContinue);
+        setHasTriedToSendWhileBlocked(cannotContinue);
         if (cannotContinue) return;
 
         return onSendUserMessage({
@@ -1019,10 +1043,9 @@ export const AiRequestChat: React.ComponentType<{
                             <FlatButton
                               leftIcon={<Coin fontSize="small" />}
                               primary
-                              onClick={() => {
-                                setAutomaticallyUseCreditsForAiRequests(true);
-                                setHasSwitchedToGDevelopCreditsMidChat(true);
-                              }}
+                              onClick={() =>
+                                setAutomaticallyUseCreditsForAiRequests(true)
+                              }
                               label={<Trans>Use GDevelop Credits</Trans>}
                               noBackground
                             />
@@ -1051,7 +1074,11 @@ export const AiRequestChat: React.ComponentType<{
                             <RaisedButton
                               icon={<Coin fontSize="small" />}
                               primary
-                              onClick={() => openCreditsPackageDialog()}
+                              onClick={() =>
+                                openCreditsPackageDialog({
+                                  placementId: 'ai-requests',
+                                })
+                              }
                               label={<Trans>Get more credits</Trans>}
                             />
                           )}
@@ -1177,10 +1204,10 @@ export const AiRequestChat: React.ComponentType<{
             hasStartedRequestButCannotContinue={
               hasStartedRequestButCannotContinue
             }
-            onSwitchedToGDevelopCredits={() =>
-              setHasSwitchedToGDevelopCreditsMidChat(true)
-            }
             onStartOrOpenChat={onStartOrOpenChat}
+            onRetryAfterError={
+              onRetryAfterError ? retryAfterErrorAndScroll : null
+            }
             isSending={isSendingUserMessage}
             isWaitingForEditApproval={!!pendingEditApproval}
             savingProjectForMessageId={savingProjectForMessageId}
