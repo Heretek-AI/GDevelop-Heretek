@@ -2175,6 +2175,7 @@ export class WholeProjectRefactorer extends EmscriptenObject {
   static applyRefactoringForObjectVariablesContainer(project: Project, objectVariablesContainer: VariablesContainer, initialInstancesContainer: InitialInstancesContainer, objectName: string, changeset: VariablesChangeset, originalSerializedVariables: SerializerElement): void;
   static applyRefactoringForGroupVariablesContainer(project: Project, globalObjectsContainer: ObjectsContainer, objectsContainer: ObjectsContainer, initialInstancesContainer: InitialInstancesContainer, groupVariablesContainer: VariablesContainer, objectGroup: ObjectGroup, changeset: VariablesChangeset, originalSerializedVariables: SerializerElement): void;
   static renameEventsFunctionsExtension(project: Project, eventsFunctionsExtension: EventsFunctionsExtension, oldName: string, newName: string): void;
+  static updateExtensionNameInExtension(project: Project, eventsFunctionsExtension: EventsFunctionsExtension, sourceExtensionName: string): void;
   static updateExtensionNameInEventsBasedBehavior(project: Project, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedBehavior: EventsBasedBehavior, sourceExtensionName: string): void;
   static updateExtensionNameInEventsBasedObject(project: Project, eventsFunctionsExtension: EventsFunctionsExtension, eventsBasedObject: EventsBasedObject, sourceExtensionName: string): void;
   static renameEventsFunction(project: Project, eventsFunctionsExtension: EventsFunctionsExtension, oldName: string, newName: string): void;
@@ -2380,7 +2381,7 @@ export class VectorExpressionParserError extends EmscriptenObject {
 export class ExpressionParser2NodeWorker extends EmscriptenObject {}
 
 export class ExpressionValidator extends EmscriptenObject {
-  constructor(platform: Platform, projectScopedContainers: ProjectScopedContainers, rootType: string, extraInfo: string);
+  constructor(platform: Platform, projectScopedContainers: ProjectScopedContainers, rootType: string, rootObjectName: string, extraInfo: string);
   getAllErrors(): VectorExpressionParserError;
   getFatalErrors(): VectorExpressionParserError;
   getDeprecationWarnings(): VectorExpressionParserError;

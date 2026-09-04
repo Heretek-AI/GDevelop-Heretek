@@ -121,6 +121,15 @@ type AiRequestToolOptions = {
   watchPollingIntervalInMs?: number,
 };
 
+/**
+ * Why an AI request failed, as reported by the API. The code is used to tell
+ * the user what happened and what they can do about it (see AiRequestErrorRow).
+ */
+export type AiRequestError = {
+  code: string,
+  message: string,
+};
+
 export type AiRequest = {
   id: string,
   createdAt: string,
@@ -138,10 +147,13 @@ export type AiRequest = {
   forkedAfterNewMessageId?: string | null,
   parentAiRequestId?: string | null,
 
-  error: {
-    code: string,
-    message: string,
-  } | null,
+  error: AiRequestError | null,
+
+  // How many times the request was continued after a failure without making
+  // any progress in between, and the number of messages it had then: the API
+  // refuses to continue it again past MAX_AI_REQUEST_RETRIES_IN_A_ROW.
+  retriesInARowCount?: number,
+  retriedAfterMessagesCount?: number,
 
   output?: Array<AiRequestMessage>,
 
@@ -237,7 +249,6 @@ export type AiGeneratedEvent = {
   eventBatches: Array<AiGeneratedEventBatch> | null,
   extensionNamesList: string,
   objectsList: string,
-  existingEventsAsText: string,
   existingEventsJson: string | null,
   existingEventsJsonUserRelativeKey: string | null,
 
@@ -587,6 +598,27 @@ export const addMessageToAiRequest = async (
   });
 };
 
+/**
+ * Continue a failed AI request from where it stopped: nothing is added to the
+ * conversation, the AI picks up from the last message it managed to write.
+ */
+export const retryAiRequest = async (
+  getAuthorizationHeader: () => Promise<string>,
+  { userId, aiRequestId }: {| userId: string, aiRequestId: string |}
+): Promise<AiRequest> => {
+  const authorizationHeader = await getAuthorizationHeader();
+  const response = await apiClient.post(
+    `/ai-request/${aiRequestId}/action/retry`,
+    {},
+    { params: { userId }, headers: { Authorization: authorizationHeader } }
+  );
+  return ensureObjectHasProperty({
+    data: response.data,
+    propertyName: 'id',
+    endpointName: '/ai-request/{id}/action/retry of Generation API',
+  });
+};
+
 export const suspendAiRequest = async (
   getAuthorizationHeader: () => Promise<string>,
   { userId, aiRequestId }: {| userId: string, aiRequestId: string |}
@@ -763,7 +795,6 @@ export const createAiGeneratedEvent = async (
     eventBatches,
     extensionNamesList,
     objectsList,
-    existingEventsAsText,
     existingEventsJson,
     existingEventsJsonUserRelativeKey,
     placementHint,
@@ -780,7 +811,6 @@ export const createAiGeneratedEvent = async (
     eventBatches: ?EventsBatchToGenerate,
     extensionNamesList: string,
     objectsList: string,
-    existingEventsAsText: string,
     existingEventsJson: string | null,
     existingEventsJsonUserRelativeKey: string | null,
     placementHint: string | null,
@@ -813,7 +843,6 @@ export const createAiGeneratedEvent = async (
       eventBatches,
       extensionNamesList,
       objectsList,
-      existingEventsAsText,
       existingEventsJson,
       existingEventsJsonUserRelativeKey,
       placementHint,
