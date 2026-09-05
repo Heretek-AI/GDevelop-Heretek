@@ -166,11 +166,18 @@
     "start": "npm run import-resources && concurrently \"react-app-rewired start\" \"node scripts/watch-serve-GDJS-runtime.js\" -n \"editor,game engine\" --kill-others",
     "start:vite": "npm run import-resources && vite",
     "electron-app": "cd ../electron-app && npm run start",
+<<<<<<< HEAD
     "build": "npm run import-resources && react-app-rewired build",
     "build:vite": "npm run import-resources && vite build",
     "build:dev": "npm run import-resources && REACT_APP_ENV=development react-app-rewired build && node scripts/copy-GDJS-Runtime-to-build.js",
     "format": "prettier --write \"src/!(locales)/**/*.{js,ts,tsx}\"",
     "check-format": "prettier --list-different \"src/!(locales)/**/*.{js,ts,tsx}\"",
+=======
+    "build": "npm run import-resources && react-app-rewired build && node scripts/check-build-output.js",
+    "build:dev": "npm run import-resources && REACT_APP_ENV=development react-app-rewired build && node scripts/check-build-output.js && node scripts/copy-GDJS-Runtime-to-build.js",
+    "format": "prettier --write \"src/!(locales)/**/*.js\"",
+    "check-format": "prettier --list-different \"src/!(locales)/**/*.js\"",
+>>>>>>> upstream/master
     "lint": "eslint src/ --max-warnings=0",
     "check-types": "tsc --noEmit",
     "test": "react-app-rewired test --env=node",
