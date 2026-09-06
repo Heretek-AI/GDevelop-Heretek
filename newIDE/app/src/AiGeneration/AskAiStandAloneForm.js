@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { type I18n as I18nType } from '@lingui/core';
 import { AiRequestChat, type AiRequestChatInterface } from './AiRequestChat';
+import { canPayForAiRequest } from './AiRequestChat/Utils';
 import {
   addMessageToAiRequest,
   createAiRequest,
@@ -303,15 +304,18 @@ export const AskAiStandAloneForm = ({
           !isCustomEndpointEnabled()
         ) {
           payWithCredits = true;
-          const doesNotHaveEnoughCreditsToContinue =
-            availableCredits < aiRequestPriceInCredits;
-          const cannotContinue =
-            !automaticallyUseCreditsForAiRequests ||
-            doesNotHaveEnoughCreditsToContinue;
-
-          if (cannotContinue) {
-            return;
-          }
+        }
+        // The same rule as the one enabling the send button, so the button
+        // can't offer to send a request this would silently drop.
+        if (
+          !canPayForAiRequest({
+            quota,
+            price: aiRequestPrice,
+            availableCredits,
+            automaticallyUseCreditsForAiRequests,
+          })
+        ) {
+          return;
         }
 
         // Request is now ready to be started.
@@ -408,6 +412,7 @@ export const AskAiStandAloneForm = ({
       })();
     },
     [
+      aiRequestPrice,
       aiRequestPriceInCredits,
       availableCredits,
       getAuthorizationHeader,
