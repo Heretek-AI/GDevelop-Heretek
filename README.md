@@ -22,6 +22,7 @@ GDevelop is a powerful, no-code, open-source game engine. **GDevelop (BYOK Editi
 - **Full Autonomous Capabilities**: The AI Agent can inspect scene trees, create 2D/3D objects, configure physics and platformer behaviors, write event sheets, and execute sandboxed code.
 - **Privacy-First & Secure**: API keys are kept in session memory only and never written in cleartext to `localStorage`.
 
+<<<<<<< HEAD
 ### 🔓 2. Unlocked Client-Side & Offline Features
 - **No Watermark & Custom Splash Screen**: Freely disable the GDevelop startup splash logo and in-game watermark in exported games.
 - **0-Second Instant Startup**: Removed artificial loading screen delay clamps—exported games start immediately.
@@ -29,6 +30,10 @@ GDevelop is a powerful, no-code, open-source game engine. **GDevelop (BYOK Editi
 - **Network Preview (Over Wi-Fi/LAN)**: Test your games across your local network and on mobile devices (phones/tablets).
 - **Advanced In-Game Debugger**: Full access to memory profiler, variable inspector, pause, and step execution.
 - **Creator Profile Customization**: Custom bio, social links, and Discord role perks unlocked for all users.
+=======
+- Find GDevelop games on [gd.games](https://gd.games), the gaming platform for games powered by GDevelop.
+- See the [showcase of games](https://gdevelop.io/games) created with GDevelop and published on Steam, iOS (App Store), Android (Google Play), Itch.io, Newgrounds, CrazyGames, Poki...
+>>>>>>> upstream/master
 
 ### 🔄 3. In-App Background Auto-Updater
 - Desktop builds automatically check for updates against [Heretek-AI/GDevelop-Heretek Releases](https://github.com/Heretek-AI/GDevelop-Heretek/releases).
