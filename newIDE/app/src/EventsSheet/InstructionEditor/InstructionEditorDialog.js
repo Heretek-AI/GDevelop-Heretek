@@ -70,10 +70,7 @@ type Props = {|
   onCancel: () => void,
   onSubmit: () => void,
   open: boolean,
-  openInstructionOrExpression: (
-    extension: gdPlatformExtension,
-    type: string
-  ) => void,
+  openInstructionOrExpression: (type: string) => void,
   i18n: I18nType,
   anchorEl?: any, // Unused
   canPasteInstructions: boolean, // Unused
@@ -582,7 +579,11 @@ const InstructionEditorDialog = ({
           }}
           onCreateNewExtensionWithBehavior={
             onCreateNewExtensionWithBehavior
-              ? () => onCreateNewExtensionWithBehavior(project, chosenObject)
+              ? () => {
+                  onCreateNewExtensionWithBehavior(project, chosenObject);
+                  setNewBehaviorDialogOpen(false);
+                  onCancel();
+                }
               : null
           }
           shouldShowCapabilityBehaviors={
