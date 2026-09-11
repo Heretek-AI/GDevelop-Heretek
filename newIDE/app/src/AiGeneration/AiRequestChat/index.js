@@ -17,7 +17,6 @@ import {
   type CompactTextAreaFieldWithControlsInterface,
 } from '../../UI/CompactTextAreaFieldWithControls';
 import { Column, Line, Spacer } from '../../UI/Grid';
-import Tooltip from '@material-ui/core/Tooltip';
 import ScrollView, { type ScrollViewInterface } from '../../UI/ScrollView';
 import AlertMessage from '../../UI/AlertMessage';
 import classes from './AiRequestChat.module.css';
@@ -44,14 +43,16 @@ import {
   getDefaultAiConfigurationPresetId,
 } from '../AiConfiguration';
 import { ReasoningLevelSelector } from './ReasoningLevelSelector';
-import { AiRequestContext } from '../AiRequestContext';
+import {
+  AiRequestContext,
+  type AiRequestLoadingState,
+} from '../AiRequestContext';
+import PlaceholderError from '../../UI/PlaceholderError';
+import DelayedPlaceholderLoader from '../../UI/DelayedPlaceholderLoader';
 import PreferencesContext from '../../MainFrame/Preferences/PreferencesContext';
 import { useStickyVisibility } from './UseStickyVisibility';
 import { useResponsiveWindowSize } from '../../UI/Responsive/ResponsiveWindowMeasurer';
-import GDevelopThemeContext from '../../UI/Theme/GDevelopThemeContext';
-import CircledInfo from '../../UI/CustomSvgIcons/CircledInfo';
 import Coin from '../../Credits/Icons/Coin';
-import LinearProgress from '../../UI/LinearProgress';
 import FlatButton from '../../UI/FlatButton';
 import GoldCompact from '../../Profile/Subscription/Icons/GoldCompact';
 import { SubscriptionContext } from '../../Profile/Subscription/SubscriptionContext';
@@ -63,10 +64,15 @@ import Stop from '../../UI/CustomSvgIcons/Stop';
 import AutoEditButton from './AutoEditButton';
 import { EditApprovalRow } from './EditApprovalRow';
 import { type EditApprovalRequest } from '../Utils';
+<<<<<<< HEAD
 import {
   isCustomEndpointEnabled,
   getCustomEndpointConfig,
 } from '../../AI/CustomAIClient';
+=======
+import { canPayForAiRequest } from './Utils';
+import { AiUsageIndicator } from './AiUsageIndicator';
+>>>>>>> upstream/master
 
 const TOO_MANY_USER_MESSAGES_WARNING_COUNT = 15;
 const TOO_MANY_USER_MESSAGES_ERROR_COUNT = 20;
@@ -88,36 +94,6 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
   },
-  quotaContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    overflow: 'hidden',
-    gap: 4,
-    width: '100%',
-  },
-  quotaInfoIconSpan: {
-    flexShrink: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-  },
-  quotaInfoIcon: {
-    fontSize: 18,
-  },
-  quotaProgressBarWrapper: {
-    width: 30,
-  },
-  quotaProgressBar: {
-    height: 4,
-    borderRadius: 2,
-  },
-  quotaCoinSpan: {
-    verticalAlign: 'middle',
-    display: 'inline-block',
-    marginRight: 4,
-  },
-  quotaPlaceholder: {
-    height: 29,
-  },
 };
 
 const getRowsAndHeight = ({
@@ -131,6 +107,7 @@ const getRowsAndHeight = ({
   return { rows, height };
 };
 
+<<<<<<< HEAD
 const getPriceAndRequestsTextAndTooltip = ({
   quota,
   price,
@@ -301,6 +278,8 @@ const getPriceAndRequestsTextAndTooltip = ({
   );
 };
 
+=======
+>>>>>>> upstream/master
 const getSendButtonIcon = (): React.Node => <Send fontSize="small" />;
 
 const actionsToCreateAProject = [
@@ -332,6 +311,10 @@ type Props = {|
   fileMetadata: ?FileMetadata,
   i18n: I18nType,
   aiRequest: AiRequest | null,
+  // Set when the chat to show is not loaded yet (it was opened from the
+  // history, which only has its summary), or failed to load.
+  aiRequestLoadingState?: ?AiRequestLoadingState,
+  onRetryLoadingAiRequest?: () => void,
 
   isSending: boolean,
   isSendingUserMessage?: boolean,
@@ -369,6 +352,9 @@ type Props = {|
   ) => Promise<void>,
   editorFunctionCallResults: Array<EditorFunctionCallResult> | null,
   editorCallbacks: EditorCallbacks,
+  // Continues a request that stopped on an error, from where it stopped.
+  // Absent in contexts that can't resume a request (e.g. the standalone form).
+  onRetryAfterError?: ?() => Promise<void>,
   // Error that occurred while sending the last request.
   lastSendError: ?Error,
 
@@ -410,6 +396,8 @@ export const AiRequestChat: React.ComponentType<{
       project: nullableProject,
       fileMetadata,
       aiRequest,
+      aiRequestLoadingState,
+      onRetryLoadingAiRequest,
       isSending,
       isSendingUserMessage,
       onStartNewAiRequest,
@@ -436,6 +424,7 @@ export const AiRequestChat: React.ComponentType<{
       onIsAutoEditEnabledChange,
       pendingEditApproval,
       onResolveEditApproval,
+      onRetryAfterError,
     }: Props,
     ref
   ) => {
@@ -490,22 +479,17 @@ export const AiRequestChat: React.ComponentType<{
         onResolveEditApproval,
       ]
     );
-    const gdevelopTheme = React.useContext(GDevelopThemeContext);
-    const progressBarColor =
-      gdevelopTheme.palette.type === 'light' ? '#7046EC' : '#9979F1';
-    const progressTrackColor =
-      gdevelopTheme.palette.type === 'light' ? '#D9D9DE' : '#32323B';
     const { openSubscriptionDialog } = React.useContext(SubscriptionContext);
     const { openCreditsPackageDialog } = React.useContext(
       CreditsPackageStoreContext
     );
+    // True once the user tried to send something while they could not pay for it.
+    // On its own it says nothing about whether they still can't: always use
+    // `hasStartedRequestButCannotContinue` below, which also looks at whether
+    // they can pay *now*.
     const [
-      hasStartedRequestButCannotContinue,
-      setHasStartedRequestButCannotContinue,
-    ] = React.useState<boolean>(false);
-    const [
-      hasSwitchedToGDevelopCreditsMidChat,
-      setHasSwitchedToGDevelopCreditsMidChat,
+      hasTriedToSendWhileBlocked,
+      setHasTriedToSendWhileBlocked,
     ] = React.useState<boolean>(false);
     const [isButtonLoading, setIsButtonLoading] = React.useState<boolean>(
       false
@@ -586,6 +570,15 @@ export const AiRequestChat: React.ComponentType<{
         if (pendingEditApproval) scrollToBottom();
       },
       [pendingEditApproval, scrollToBottom]
+    );
+
+    const retryAfterErrorAndScroll = React.useCallback(
+      async () => {
+        if (!onRetryAfterError) return;
+        scrollToBottom();
+        await onRetryAfterError();
+      },
+      [onRetryAfterError, scrollToBottom]
     );
 
     const onScroll = React.useCallback(
@@ -684,24 +677,32 @@ export const AiRequestChat: React.ComponentType<{
       value: !!isRefreshingLimits,
     });
 
-    const priceAndRequestsText = getPriceAndRequestsTextAndTooltip({
-      quota,
-      price,
-      availableCredits,
-      automaticallyUseCreditsForAiRequests,
-      isRefreshingLimits: isRefreshingLimitsStable,
-      progressBarColor,
-      progressTrackColor,
-      hideLabel: isMobile,
-      onOpenSubscriptionDialog: () =>
-        openSubscriptionDialog({
-          analyticsMetadata: {
-            reason: 'AI requests (subscribe)',
-            recommendedPlanId: 'gdevelop_gold',
-            placementId: 'ai-requests',
-          },
-        }),
-    });
+    const priceAndRequestsText = (
+      <AiUsageIndicator
+        quota={quota}
+        price={price}
+        availableCredits={availableCredits}
+        automaticallyUseCreditsForAiRequests={
+          automaticallyUseCreditsForAiRequests
+        }
+        isRefreshingLimits={isRefreshingLimitsStable}
+        hideLabel={isMobile}
+        contextUsedRatio={
+          aiRequest && aiRequest.contextStats
+            ? aiRequest.contextStats.usedPercentage
+            : null
+        }
+        onOpenSubscriptionDialog={() =>
+          openSubscriptionDialog({
+            analyticsMetadata: {
+              reason: 'AI requests (subscribe)',
+              recommendedPlanId: 'gdevelop_gold',
+              placementId: 'ai-requests',
+            },
+          })
+        }
+      />
+    );
 
     const chosenOrDefaultAiConfigurationPresetId =
       aiConfigurationPresetId ||
@@ -761,6 +762,7 @@ export const AiRequestChat: React.ComponentType<{
       [isWorking]
     );
 
+<<<<<<< HEAD
     const doesNotHaveEnoughCreditsToContinue =
       !!price && availableCredits < price.priceInCredits;
     const cannotContinue =
@@ -769,6 +771,19 @@ export const AiRequestChat: React.ComponentType<{
       quota.limitReached &&
       (!automaticallyUseCreditsForAiRequests ||
         doesNotHaveEnoughCreditsToContinue);
+=======
+    const cannotContinue = !canPayForAiRequest({
+      quota,
+      price,
+      availableCredits,
+      automaticallyUseCreditsForAiRequests,
+    });
+    // Derived, never stored: buying credits, subscribing, switching to GDevelop
+    // credits or the allowance resetting all unblock the chat as soon as the
+    // limits say so - the user doesn't have to close and reopen it.
+    const hasStartedRequestButCannotContinue =
+      hasTriedToSendWhileBlocked && cannotContinue;
+>>>>>>> upstream/master
 
     const isForAnotherProject =
       !!requiredGameId &&
@@ -776,19 +791,12 @@ export const AiRequestChat: React.ComponentType<{
     const isForking =
       forkingState && aiRequest && forkingState.aiRequestId === aiRequest.id;
     const shouldDisableButton =
-      (hasStartedRequestButCannotContinue &&
-        !hasSwitchedToGDevelopCreditsMidChat) ||
+      hasStartedRequestButCannotContinue ||
       isWorking ||
       isForking ||
       !userRequestTextPerAiRequestId[aiRequestId];
     const shouldReplaceFormWithCreditsOrSubscriptionPrompt =
-      // Cannot continue because either no AI credits or has not
-      // automatically switched to GDevelop credits.
       hasStartedRequestButCannotContinue &&
-      // If the user accepts to switch to GDevelop credits, then we hide it,
-      // except if they still cannot continue because they don't have enough GDevelop credits.
-      (!hasSwitchedToGDevelopCreditsMidChat ||
-        doesNotHaveEnoughCreditsToContinue) &&
       // We only replace the form if no Ai Request exists yet (Editor or StandAlone form),
       // If a request is ongoing, the ChatMessages.js will show the prompt instead.
       !aiRequest;
@@ -799,7 +807,7 @@ export const AiRequestChat: React.ComponentType<{
       async () => {
         scrollToBottom();
 
-        setHasStartedRequestButCannotContinue(cannotContinue);
+        setHasTriedToSendWhileBlocked(cannotContinue);
         if (cannotContinue) return;
 
         if (hasOpenedProject && standAloneForm) {
@@ -836,7 +844,7 @@ export const AiRequestChat: React.ComponentType<{
       () => {
         scrollToBottom();
 
-        setHasStartedRequestButCannotContinue(cannotContinue);
+        setHasTriedToSendWhileBlocked(cannotContinue);
         if (cannotContinue) return;
 
         return onSendUserMessage({
@@ -893,6 +901,27 @@ export const AiRequestChat: React.ComponentType<{
       showDelayMs: 1000,
       hideDelayMs: 300,
     });
+
+    if (!aiRequest && aiRequestLoadingState) {
+      return (
+        <div
+          className={classNames({
+            [classes.aiRequestChatContainer]: true,
+          })}
+        >
+          {aiRequestLoadingState.error ? (
+            <PlaceholderError onRetry={onRetryLoadingAiRequest}>
+              <Trans>
+                This chat could not be loaded. Verify your internet connection
+                or try again later.
+              </Trans>
+            </PlaceholderError>
+          ) : (
+            <DelayedPlaceholderLoader />
+          )}
+        </div>
+      );
+    }
 
     if (!aiRequest || standAloneForm) {
       return (
@@ -1019,10 +1048,9 @@ export const AiRequestChat: React.ComponentType<{
                             <FlatButton
                               leftIcon={<Coin fontSize="small" />}
                               primary
-                              onClick={() => {
-                                setAutomaticallyUseCreditsForAiRequests(true);
-                                setHasSwitchedToGDevelopCreditsMidChat(true);
-                              }}
+                              onClick={() =>
+                                setAutomaticallyUseCreditsForAiRequests(true)
+                              }
                               label={<Trans>Use GDevelop Credits</Trans>}
                               noBackground
                             />
@@ -1051,7 +1079,11 @@ export const AiRequestChat: React.ComponentType<{
                             <RaisedButton
                               icon={<Coin fontSize="small" />}
                               primary
-                              onClick={() => openCreditsPackageDialog()}
+                              onClick={() =>
+                                openCreditsPackageDialog({
+                                  placementId: 'ai-requests',
+                                })
+                              }
                               label={<Trans>Get more credits</Trans>}
                             />
                           )}
@@ -1177,10 +1209,10 @@ export const AiRequestChat: React.ComponentType<{
             hasStartedRequestButCannotContinue={
               hasStartedRequestButCannotContinue
             }
-            onSwitchedToGDevelopCredits={() =>
-              setHasSwitchedToGDevelopCreditsMidChat(true)
-            }
             onStartOrOpenChat={onStartOrOpenChat}
+            onRetryAfterError={
+              onRetryAfterError ? retryAfterErrorAndScroll : null
+            }
             isSending={isSendingUserMessage}
             isWaitingForEditApproval={!!pendingEditApproval}
             savingProjectForMessageId={savingProjectForMessageId}
