@@ -37,6 +37,8 @@ GDevelop is a powerful, no-code, open-source game engine. **GDevelop (BYOK Editi
 ### 🛡️ 4. Upstream Synchronized & Secure
 - Continuously synchronized with upstream [4ian/GDevelop](https://github.com/4ian/GDevelop).
 - Automated PR-only sync workflow with workflow locking to protect against supply-chain attacks (e.g. Shai-Hulud).
+- Find GDevelop games on [gd.games](https://gd.games), the gaming platform for games powered by GDevelop.
+- See the [showcase of games](https://gdevelop.io/games) created with GDevelop and published on Steam, iOS (App Store), Android (Google Play), Itch.io, Newgrounds, CrazyGames, Poki...
 
 ---
 
