@@ -23,7 +23,7 @@
     "@electron/notarize": "^2.1.0",
     "adm-zip": "^0.6.0",
     "dotenv": "^16.4.5",
-    "electron": "32.3.3",
+    "electron": "44.4.3",
     "electron-builder": "26.15.3",
     "minimist": "^1.2.8",
     "prettier": "1.15.3",
