@@ -21,7 +21,7 @@ import PreferencesContext, {
 } from './PreferencesContext';
 import Text from '../../UI/Text';
 import EmptyMessage from '../../UI/EmptyMessage';
-import { ColumnStackLayout } from '../../UI/Layout';
+import { ColumnStackLayout, LineStackLayout } from '../../UI/Layout';
 import { Tabs } from '../../UI/Tabs';
 import SettingsRow, { useSettingsRowControlIds } from '../../UI/SettingsRow';
 import VerticalTabButton from '../../UI/VerticalTabButton';
