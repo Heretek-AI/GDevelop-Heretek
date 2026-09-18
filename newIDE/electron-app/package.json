@@ -20,7 +20,7 @@
     "copy-electron-remote-to-app-resources": "node scripts/copy-electron-remote-to-app-resources.js"
   },
   "devDependencies": {
-    "@electron/notarize": "^2.1.0",
+    "@electron/notarize": "^3.1.1",
     "adm-zip": "^0.6.0",
     "dotenv": "^16.4.5",
     "electron": "32.3.3",
