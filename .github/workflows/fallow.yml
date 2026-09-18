@@ -36,7 +36,7 @@ jobs:
       - name: Run fallow audit
         uses: fallow-rs/fallow@v3
         with:
-          version: "3.17.0"
+          version: "3.27.0"
           command: audit
           fail-on-issues: false   # informational only for now; gate after Phase 3 suppressions
           format: github-summary
