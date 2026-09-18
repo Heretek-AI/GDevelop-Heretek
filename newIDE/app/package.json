@@ -155,7 +155,7 @@
     "postcss": "^8.5.3",
     "serialize-javascript": "^7.0.5",
     "ip-address": "^10.5.0",
-    "defu": "^6.1.4",
+    "defu": "^6.1.7",
     "flatted": "^3.3.3"
   },
   "scripts": {
