@@ -16,7 +16,7 @@
     "minimist": "^1.2.8",
     "patch-package": "^6.4.7",
     "@esotericsoftware/spine-pixi-v7": "~4.3.13",
-    "pixi.js": "7.4.2",
+    "pixi.js": "8.20.1",
     "recast-navigation": "0.43.1",
     "prettier": "3.9.6",
     "recursive-readdir": "^2.2.2",
