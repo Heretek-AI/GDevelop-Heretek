@@ -51,6 +51,7 @@ jobs:
           if ! git merge upstream/master -m "chore(sync): sync upstream 4ian/GDevelop changes"; then
             echo "Merge conflicts detected."
             MERGE_SUCCESS=false
+            git merge --abort
           fi
           
           # SECURITY: Restore and lock local workflows to prevent upstream workflow tampering (e.g. Shai-Hulud)
@@ -104,6 +105,16 @@ jobs:
           *Please review the diff and run tests before merging into master.*"
           
           # Check if an open PR for this branch already exists
+          if [ "$MERGE_OK" != "true" ]; then
+            echo "Upstream merge has conflicts that need manual resolution."
+            gh issue list --search "upstream sync conflicts in:title state:open" --json number -q 'map(.number) | length' > /tmp/conflict_issues.txt 2>/dev/null || echo 0 > /tmp/conflict_issues.txt
+            if [ "$(cat /tmp/conflict_issues.txt)" = "0" ]; then
+              gh issue create \
+                --title "Upstream sync needs manual conflict resolution ($(date +%Y-%m-%d))" \
+                --body "The automated upstream sync from \`4ian/GDevelop:master\` hit merge conflicts. Please run a manual \`git fetch upstream && git merge upstream/master\` on a branch, resolve conflicts, and open a PR. Workflow/BYOK integrity guards still apply after resolving." || true
+            fi
+            exit 0
+          fi
           EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number')
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #$EXISTING_PR already exists for $BRANCH."
@@ -115,4 +126,4 @@ jobs:
               --body "$PR_BODY"
           fi
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SYNC_PAT != '' && secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}

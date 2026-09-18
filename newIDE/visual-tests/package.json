@@ -12,9 +12,9 @@
     "test-editor": "node run.js --suite=editor"
   },
   "dependencies": {
-    "adm-zip": "^0.5.10",
-    "minimist": "1.2.5",
+    "adm-zip": "^0.6.1",
+    "minimist": "1.2.6",
     "puppeteer": "^24.15.0",
-    "serve-handler": "6.1.6"
+    "serve-handler": "6.1.7"
   }
 }
