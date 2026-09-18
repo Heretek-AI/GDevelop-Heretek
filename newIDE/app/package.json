@@ -64,7 +64,7 @@
     "classnames": "2.2.5",
     "date-fns": "2.16.1",
     "element-closest": "3.0.2",
-    "firebase": "9.0.0-beta.2",
+    "firebase": "10.9.0",
     "fontfaceobserver": "2.0.13",
     "fuse.js": "^6.5.3",
     "js-worker-search": "^1.4.1",
