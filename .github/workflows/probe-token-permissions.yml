@@ -1,0 +1,39 @@
+name: GITHUB_TOKEN permission probe
+
+# Throwaway validation: does the default GITHUB_TOKEN actually have
+# write access in this repo right now? Creates self-verified issue,
+# closes it, then deletes itself. On PRs it stays inert.
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - '**'
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe issue creation via GITHUB_TOKEN
+        if: github.repository == 'Heretek-AI/GDevelop-Heretek'
+        run: |
+          set -e
+          echo "Token actor: $GITHUB_ACTOR"
+          ISSUE=$(gh issue create --title '[probe] GITHUB_TOKEN write check (self-deleting)' \
+            --body 'Automated probe to validate default GITHUB_TOKEN Write permissions. Will be closed immediately.' || echo FAIL)
+          if [ "$ISSUE" = "FAIL" ]; then
+            echo "probe-issue=failed" >> "$GITHUB_OUTPUT"
+            echo "::error::GITHUB_TOKEN cannot create issues"
+            exit 1
+          fi
+          NUM=$(basename "$ISSUE")
+          gh issue close "$NUM" --comment "Probe passed; closing."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Report success
+        run: echo "GITHUB_TOKEN write permissions WORK"
