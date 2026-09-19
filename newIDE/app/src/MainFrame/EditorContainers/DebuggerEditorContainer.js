@@ -13,6 +13,7 @@ import {
   type ObjectsOutsideEditorChanges,
   type ObjectGroupsOutsideEditorChanges,
   type WillDeleteObjectChanges,
+  type ExtensionsOutsideEditorChanges,
 } from '../../EditorFunctions/OutsideEditorChanges';
 import SubscriptionChecker, {
   type SubscriptionCheckerInterface,
@@ -112,6 +113,10 @@ export class DebuggerEditorContainer extends React.Component<
     // No thing to be done.
   }
 
+  onExtensionsModifiedOutsideEditor(changes: ExtensionsOutsideEditorChanges) {
+    // No thing to be done.
+  }
+
   onObjectGroupsModifiedOutsideEditor(
     changes: ObjectGroupsOutsideEditorChanges
   ) {
@@ -128,16 +133,7 @@ export class DebuggerEditorContainer extends React.Component<
   }
 
   _checkUserHasSubscription() {
-    if (
-      this._subscriptionChecker &&
-      this.props.isActive &&
-      !this.state.subscriptionChecked
-    ) {
-      this._subscriptionChecker.checkUserHasSubscription();
-      this.setState({
-        subscriptionChecked: true,
-      });
-    }
+    // Unlocked in GDevelop-Heretek
   }
 
   render(): any {

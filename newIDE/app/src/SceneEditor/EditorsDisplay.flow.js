@@ -91,8 +91,8 @@ export type SceneEditorsDisplayProps = {|
     objectWithContext: ObjectWithContext,
     hasResourceChanged: boolean
   ) => void,
-  onObjectFolderOrObjectWithContextSelected: (
-    ?ObjectFolderOrObjectWithContext
+  onObjectFolderOrObjectsWithContextSelected: (
+    Array<ObjectFolderOrObjectWithContext>
   ) => void,
   onSetAsGlobalObject: (object: gdObject) => void,
   onExportAssets: () => void,
@@ -215,6 +215,7 @@ export type SceneEditorsDisplayInterface = {|
       layer: string
     ) => Array<gdInitialInstance>,
     clearHighlightedInstance: () => void,
+    cancelClickInterception: () => boolean,
     resetInstanceRenderersFor: (objectName: string) => void,
     forceRemountInstancesRenderers: () => void,
     addSerializedInstances: ({|

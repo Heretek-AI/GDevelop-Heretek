@@ -57,6 +57,7 @@ namespace gdjs {
       logger.info(
         'Notifying parent window that player authentication is ready.'
       );
+      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
       window.parent.postMessage(
         {
           id: 'playerAuthReady',
@@ -1026,6 +1027,7 @@ namespace gdjs {
         );
 
         // Login dialog will be handled by the platform.
+        // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
         window.parent.postMessage(
           {
             id: 'openGameAuthenticationDialog',

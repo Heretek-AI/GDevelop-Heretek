@@ -39,11 +39,23 @@
     "karma-typescript": "5.5.4",
     "mocha": "6.2.3",
     "prettier": "2.1.2",
-    "rollup": "2.79.1",
+    "rollup": "^2.79.2",
     "rollup-plugin-terser": "7.0.2",
     "ts-loader": "9.5.1",
     "tslib": "2.6.2",
     "typescript": "5.4.5"
+  },
+  "overrides": {
+    "minimist": "^1.2.8",
+    "lodash": "^4.18.1",
+    "minimatch": "^5.1.0",
+    "brace-expansion": "^2.0.2",
+    "tar": "^6.2.1",
+    "shelljs": "^0.9.0",
+    "js-yaml": "^4.3.2",
+    "picomatch": "^3.0.1",
+    "tmp": "^0.2.7",
+    "rollup": "^2.79.2"
   },
   "repository": {
     "type": "git",

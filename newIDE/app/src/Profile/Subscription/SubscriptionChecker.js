@@ -1,19 +1,11 @@
 // @flow
-
 import * as React from 'react';
 import { Trans } from '@lingui/macro';
 import FlatButton from '../../UI/FlatButton';
 import Dialog from '../../UI/Dialog';
-import AuthenticatedUserContext from '../AuthenticatedUserContext';
 import { Column } from '../../UI/Grid';
-import {
-  sendSubscriptionCheckDialogShown,
-  sendSubscriptionCheckDismiss,
-} from '../../Utils/Analytics/EventSender';
+import { sendSubscriptionCheckDismiss } from '../../Utils/Analytics/EventSender';
 import Text from '../../UI/Text';
-import { hasValidSubscriptionPlan } from '../../Utils/GDevelopServices/Usage';
-import { isNativeMobileApp } from '../../Utils/Platform';
-import InAppTutorialContext from '../../InAppTutorial/InAppTutorialContext';
 import GetSubscriptionCard from './GetSubscriptionCard';
 import { ColumnStackLayout } from '../../UI/Layout';
 import { type SubscriptionPlacementId } from '../../Utils/Analytics/EventSender';
@@ -40,18 +32,7 @@ const SubscriptionChecker: React.ComponentType<{
   ...Props,
   +ref?: React.RefSetter<SubscriptionCheckerInterface>,
 }> = React.forwardRef<Props, SubscriptionCheckerInterface>(
-  (
-    {
-      mode,
-      id,
-      title,
-      onChangeSubscription,
-      placementId,
-      isNotShownDuringInAppTutorial,
-    },
-    ref
-  ) => {
-    const authenticatedUser = React.useContext(AuthenticatedUserContext);
+  ({ mode, id, title, onChangeSubscription, placementId }, ref) => {
     const [dialogOpen, setDialogOpen] = React.useState<boolean>(false);
 
     const closeDialog = () => {
@@ -59,31 +40,13 @@ const SubscriptionChecker: React.ComponentType<{
       setDialogOpen(false);
     };
 
-    const { currentlyRunningInAppTutorial } = React.useContext(
-      InAppTutorialContext
-    );
-
     const checkUserHasSubscription = () => {
-      if (
-        hasValidSubscriptionPlan(authenticatedUser.subscription) ||
-        (isNotShownDuringInAppTutorial && currentlyRunningInAppTutorial)
-      ) {
-        setDialogOpen(false);
-        return true;
-      }
-
-      if (isNativeMobileApp()) {
-        // Would present App Store screen.
-      } else {
-        setDialogOpen(true);
-        sendSubscriptionCheckDialogShown({ mode, id });
-      }
-
-      return false;
+      setDialogOpen(false);
+      return true;
     };
 
     const hasUserSubscription = () => {
-      return hasValidSubscriptionPlan(authenticatedUser.subscription);
+      return true;
     };
 
     React.useImperativeHandle(ref, () => ({

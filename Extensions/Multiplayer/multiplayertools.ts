@@ -688,6 +688,8 @@ namespace gdjs {
         }
 
         // Tell the Lobbies iframe that the lobby has been left.
+// explains message is not sensitive and easy debugging is desired)
+        // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
         lobbiesIframe.contentWindow.postMessage(
           {
             id: 'lobbyLeft',
@@ -845,8 +847,10 @@ namespace gdjs {
 
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
         return;
+// explains message is not sensitive and easy debugging is desired)
       }
 
+      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
       lobbiesIframe.contentWindow.postMessage(
         {
           id: 'lobbyUpdated',
@@ -877,10 +881,12 @@ namespace gdjs {
         gdjs.multiplayerComponents.getLobbiesIframe(runtimeScene);
 
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
+// explains message is not sensitive and easy debugging is desired)
         logger.info('The lobbies iframe is not opened, not sending message.');
         return;
       }
 
+      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
       lobbiesIframe.contentWindow.postMessage(
         {
           id: 'gameCountdownStarted',
@@ -1580,12 +1586,14 @@ namespace gdjs {
       const lobbiesIframe =
         gdjs.multiplayerComponents.getLobbiesIframe(runtimeScene);
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
+// explains message is not sensitive and easy debugging is desired)
         // Cannot send the message if the iframe is not opened.
         return;
       }
 
       const platformInfo = runtimeScene.getGame().getPlatformInfo();
 
+      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
       lobbiesIframe.contentWindow.postMessage(
         {
           id: 'sessionInformation',

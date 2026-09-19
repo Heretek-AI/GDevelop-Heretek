@@ -1,0 +1,204 @@
+# Continuous Integration for the JS/TS portions of this fork.
+#
+# What this runs:
+#   1. Lockfile security guard (scripts/security/check-lockfiles.js).
+#   2. libGD.js (Emscripten) build, once, then shared via artifact.
+#   3. Jest test suites in newIDE/app and GDevelop.js, both consuming the
+#      build output.
+#   4. Lint + Flow type checks for newIDE/app.
+#
+# Karma/Mocha tests for GDJS and SharedLibs/TileMapHelper require a
+# headless browser and are run in the dedicated CI jobs in
+# .circleci/config.yml (kept from upstream).
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Read-only token: checkout + report test results.
+# `actions/upload-artifact` and `download-artifact` are still available
+# with `contents: read` because they use the OIDC token, not the GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same branch — saves CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile-guard:
+    name: Lockfile security guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run guard
+        run: node scripts/security/check-lockfiles.js
+
+  build-libgd:
+    name: Build libGD.js (Emscripten)
+    # Slow step (~5–10 min on cold cache). Builds the C++ core via
+    # grunt + emcmake + emmake and uploads the output so the two test
+    # jobs can consume it without each doing the build themselves.
+    runs-on: ubuntu-latest
+    needs: lockfile-guard
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: GDevelop.js/package-lock.json
+      - name: Install Emscripten SDK
+        # We install 3.1.21 from the original juj/emsdk fork (the version
+        # upstream CircleCI uses). The emscripten-core consolidation no
+        # longer ships the 3.x line as tagged releases.
+        run: |
+          git clone https://github.com/juj/emsdk.git /tmp/emsdk
+          cd /tmp/emsdk
+          ./emsdk install 3.1.21
+          ./emsdk activate 3.1.21
+        shell: bash
+      - name: Install GDevelop.js deps
+        working-directory: GDevelop.js
+        run: npm ci --no-audit --no-fund
+      - name: Build libGD.js
+        # Source emsdk env so emcmake/emmake/cmake are on PATH.
+        working-directory: GDevelop.js
+        run: |
+          source /tmp/emsdk/emsdk_env.sh
+          npm run build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libgd-build
+          path: Binaries/embuild/GDevelop.js/
+          if-no-files-found: error
+          retention-days: 1
+
+  test-newide-app:
+    name: newIDE/app (Jest)
+    runs-on: ubuntu-latest
+    needs: build-libgd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: newIDE/app/package-lock.json
+      - name: Download libGD.js build
+        uses: actions/download-artifact@v4
+        with:
+          name: libgd-build
+          path: Binaries/embuild/GDevelop.js/
+      - name: Install
+        working-directory: newIDE/app
+        run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Audit production dependencies
+        working-directory: newIDE/app
+        run: npm audit --omit=dev --audit-level=high
+      - name: Copy libGD.js into newIDE/app
+        # The Jest setup pulls in a pre-built C++ core compiled to JS via
+        # Emscripten. The build-libgd job produced libGD.js/libGD.wasm
+        # and uploaded them as an artifact; we copy them straight into
+        # node_modules/libGD.js-for-tests-only so setupTests.js can
+        # require() them. Using a direct cp here is simpler than invoking
+        # scripts/import-libGD.js (which prefers to download from S3 when
+        # it can't see the build output for any reason).
+        run: |
+          mkdir -p newIDE/app/node_modules/libGD.js-for-tests-only
+          cp Binaries/embuild/GDevelop.js/libGD.js \
+             newIDE/app/node_modules/libGD.js-for-tests-only/index.js
+          cp Binaries/embuild/GDevelop.js/libGD.wasm \
+             newIDE/app/node_modules/libGD.js-for-tests-only/libGD.wasm
+          ls -la newIDE/app/node_modules/libGD.js-for-tests-only/
+      - name: Generate build artifacts
+        # Several Jest test suites require generated files that are
+        # normally produced by `npm run import-resources` (the local-dev
+        # path). We run only the generators we need to keep CI fast:
+        #   - make-version-metadata.js produces src/Version/VersionMetadata.js
+        #     (required by src/Version/index.js)
+        #   - build-theme-resources.js produces the UI Theme variable .js/.json
+        #     files (required by src/UI/Theme/DefaultLightTheme/index.js).
+        # We do NOT need import-libGD.js, import-GDJS-Runtime.js,
+        # import-monaco-editor.js, import-zipped-external-editors.js, etc.
+        # at test time, so we skip them.
+        run: |
+          cd newIDE/app/scripts
+          node make-version-metadata.js
+          node build-theme-resources.js
+      - name: Test
+        working-directory: newIDE/app
+        env:
+          CI: "true"
+        run: npm test -- --watchAll=false --ci
+
+  test-gdevelopjs:
+    name: GDevelop.js (Jest)
+    runs-on: ubuntu-latest
+    needs: build-libgd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: GDevelop.js/package-lock.json
+      - name: Download libGD.js build
+        uses: actions/download-artifact@v4
+        with:
+          name: libgd-build
+          path: Binaries/embuild/GDevelop.js/
+      - name: Install
+        working-directory: GDevelop.js
+        run: npm ci --no-audit --no-fund
+      - name: Audit production dependencies
+        working-directory: GDevelop.js
+        run: npm audit --omit=dev --audit-level=high
+      - name: Test
+        working-directory: GDevelop.js
+        env:
+          CI: "true"
+        run: npm test
+
+  lint-newide-app:
+    name: newIDE/app (lint + format)
+    runs-on: ubuntu-latest
+    needs: lockfile-guard
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: newIDE/app/package-lock.json
+      - name: Install
+        working-directory: newIDE/app
+        run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Lint
+        working-directory: newIDE/app
+        run: npm run lint
+      - name: Format check
+        working-directory: newIDE/app
+        run: npm run check-format
+      - name: TypeScript type check
+        working-directory: newIDE/app
+        run: npm run check-types

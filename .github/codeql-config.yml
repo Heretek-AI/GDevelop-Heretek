@@ -1,0 +1,31 @@
+# CodeQL configuration for this fork.
+#
+# Paths to analyse live here (not in the workflow file) because
+# `paths` is a setting of the CodeQL config file, not a direct input to
+# `github/codeql-action/init`. See
+# https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/customizing-code-scanning
+# for the supported inputs.
+#
+# Only the JS/TS sources that ship user-facing code are scanned. The C++
+# tree (Core/, GDJS/Runtime/Cpp*, etc.) is covered by separate tools in
+# .circleci/config.yml and excluded here to avoid duplicate findings.
+
+name: "GDevelop Heretek JS/TS security-and-quality"
+paths:
+  - newIDE/app/src
+  - newIDE/electron-app
+  - newIDE/web-app
+  - GDJS
+  - GDevelop.js
+  - SharedLibs
+  - Extensions
+
+paths-ignore:
+  - "**/*.test.js"
+  - "**/*.spec.js"
+  - "**/*.spec.ts"
+  - "**/__tests__/**"
+  - "**/node_modules/**"
+  - "**/build/**"
+  - "**/dist/**"
+  - "**/.storybook/**"

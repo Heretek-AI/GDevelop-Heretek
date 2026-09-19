@@ -11,14 +11,18 @@ on:
         required: true
         default: 'v5.5.215-byok.1'
 
+# Least-privilege permissions: write contents for releases only
 permissions:
   contents: write
-  pages: write
-  id-token: write
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=8192"
+  GENERATE_SOURCEMAP: "false"
+  CI: "false"
 
 jobs:
   build-web-app:
-    name: Build & Deploy Web IDE
+    name: Build Web IDE
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,20 +31,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: newIDE/app/package-lock.json
+          node-version: 20
 
       - name: Install dependencies
         run: |
           cd newIDE/app
-          npm ci
+          npm install --no-audit --no-fund
 
       - name: Build Web App
         run: |
           cd newIDE/app
           npm run build
-          # Package web build artifact
           mkdir -p ../../dist/web
           cp -r build/* ../../dist/web/
 
@@ -70,31 +71,34 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: newIDE/app/package-lock.json
+          node-version: 20
 
-      - name: Install dependencies (app)
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y icnsutils graphicsmagick rsync
+
+      - name: Install dependencies (app) & Build
         run: |
           cd newIDE/app
-          npm ci
-
-      - name: Build App
-        run: |
-          cd newIDE/app
+          npm install --no-audit --no-fund
           npm run build
 
       - name: Install dependencies (electron-app)
         run: |
           cd newIDE/electron-app
-          npm ci
+          npm install --no-audit --no-fund
 
       - name: Package Electron App
         run: |
           cd newIDE/electron-app
+          mkdir -p app/www
+          cp -r ../app/build/* app/www/
           npx electron-builder --${{ matrix.platform }} --config=electron-builder-config.js
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GD_PORTABLE_BUILD: 'true'
 
       - name: Upload Desktop Artifacts
         uses: actions/upload-artifact@v4
@@ -106,6 +110,8 @@ jobs:
             newIDE/electron-app/dist/*.deb
             newIDE/electron-app/dist/*.dmg
             newIDE/electron-app/dist/*.zip
+            newIDE/electron-app/dist/*.yml
+            newIDE/electron-app/dist/*.blockmap
 
   publish-release:
     name: Publish GitHub Release

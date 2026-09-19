@@ -381,12 +381,17 @@ const InnerDialog = (props: InnerDialogProps) => {
           openBehaviorEvents={askConfirmationAndOpenBehaviorEvents}
           onWillInstallExtension={onWillInstallExtension}
           onExtensionInstalled={onExtensionInstalled}
-          onCreateNewExtensionWithBehavior={onCreateNewExtensionWithBehavior}
+          onCreateNewExtensionWithBehavior={(project, object) => {
+            if (onCreateNewExtensionWithBehavior) {
+              onApply();
+              onCreateNewExtensionWithBehavior(project, object);
+            }
+          }}
           isListLocked={isBehaviorListLocked}
         />
       )}
       {currentTab === 'variables' && (
-        <Column expand noMargin>
+        <Column expand noMargin noOverflowParent>
           {object.getVariables().count() > 0 && DismissableTutorialMessage && (
             <Line>
               <Column noMargin expand>

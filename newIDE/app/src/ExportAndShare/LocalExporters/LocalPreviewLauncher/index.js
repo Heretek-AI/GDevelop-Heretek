@@ -438,12 +438,6 @@ export default class LocalPreviewLauncher extends React.Component<
         });
       }
       if (!previewOptions.isForInGameEdition) {
-        if (
-          this.state.hotReloadsCount % 16 === 0 &&
-          this._hotReloadSubscriptionChecker
-        ) {
-          this._hotReloadSubscriptionChecker.checkUserHasSubscription();
-        }
         this.setState(state => ({
           hotReloadsCount: state.hotReloadsCount + 1,
         }));
@@ -461,6 +455,12 @@ export default class LocalPreviewLauncher extends React.Component<
         // reload the game when the same preview is re-exported.
         setGameplayTestFramePreviewLocation({
           previewIndexHtmlLocation: `file://${outputDir}/index.html?previewId=${previewId}`,
+          // The game window of the frame is fixed at the project
+          // resolution: the frame only zooms its display.
+          gameResolution: {
+            width: project.getGameResolutionWidth(),
+            height: project.getGameResolutionHeight(),
+          },
         });
       } else if (previewOptions.numberOfWindows >= 1) {
         this._openPreviewWindow(project, outputDir, previewOptions);
@@ -482,9 +482,7 @@ export default class LocalPreviewLauncher extends React.Component<
   }
 
   _checkSubscriptionForNetworkPreview = (): any => {
-    if (!this._networkPreviewSubscriptionChecker) return true;
-
-    return this._networkPreviewSubscriptionChecker.checkUserHasSubscription();
+    return true;
   };
 
   render(): any {

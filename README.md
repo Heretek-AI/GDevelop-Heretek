@@ -1,115 +1,174 @@
-![GDevelop logo](https://raw.githubusercontent.com/4ian/GDevelop/master/newIDE/GDevelop%20banner.png "GDevelop logo")
+![GDevelop banner](https://raw.githubusercontent.com/4ian/GDevelop/master/newIDE/GDevelop%20banner.png "GDevelop banner")
 
 # GDevelop (BYOK Edition) 🚀
 
-> **A community fork of [GDevelop](https://github.com/4ian/GDevelop) featuring Bring Your Own Key (BYOK) & Local AI Model support.**  
-> Connect **Ollama**, **LM Studio**, **llama.cpp**, **OpenAI**, **OpenRouter**, **Azure OpenAI**, **Groq**, **DeepSeek**, or any OpenAI-compatible API endpoint directly to the GDevelop AI Assistant and Standalone Game Creator without subscription limits.
+[![GitHub Release](https://img.shields.io/github/v/release/Heretek-AI/GDevelop-Heretek?include_prereleases&color=blue&label=Release)](https://github.com/Heretek-AI/GDevelop-Heretek/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Upstream Sync](https://img.shields.io/badge/Upstream%20Sync-4ian%2FGDevelop-blueviolet)](https://github.com/4ian/GDevelop)
+[![Local AI: Ollama / LM Studio](https://img.shields.io/badge/Local%20AI-Ollama%20%7C%20LM%20Studio-orange)](https://github.com/Heretek-AI/GDevelop-Heretek#quick-start-guides)
+[![No Watermark](https://img.shields.io/badge/Branding-No%20Watermark-success)](https://github.com/Heretek-AI/GDevelop-Heretek#unlocked-client-side-features)
+
+> **The open-source 2D, 3D, and multiplayer game engine with Bring Your Own Key (BYOK) AI, Local LLMs (Ollama, LM Studio, DeepSeek), unlocked offline features, and seamless in-app auto-updates.**
 
 ---
 
-### ✨ Features of the BYOK Edition
+## 🌟 Why GDevelop (BYOK Edition)?
 
-- 🧠 **Local & Offline AI**: Use **Ollama** (`qwen2.5-coder`, `llama3.2`, `mistral`, etc.) or **LM Studio** on your local machine for complete privacy with zero cloud fees.
-- 🔑 **Bring Your Own Key (BYOK)**: Use your own API keys for **OpenAI** (GPT-4o, o3-mini), **OpenRouter** (Claude 3.5 Sonnet, DeepSeek R1), **Azure OpenAI**, or **Groq**.
-- 🛠️ **Full Tool Calling**: Create scenes, spawn 2D/3D objects, configure behaviors, generate events, manage variables, and execute sandboxed scripts.
-- 🔒 **Privacy-First & Secure**: API keys are kept in session/memory only and never persisted in cleartext `localStorage`.
-- 🔄 **Always Up-to-Date**: Continuously synchronized with upstream [4ian/GDevelop](https://github.com/4ian/GDevelop).
+GDevelop is a powerful, no-code, open-source game engine. **GDevelop (BYOK Edition)** enhances the engine with complete AI freedom, local model support, and unlocks all client-side features without artificial subscription paywalls:
+
+### 🤖 1. Bring Your Own Key (BYOK) AI Agent
+- **Zero Subscription Limits**: Generate games, scenes, objects, behaviors, and event logic using your own AI keys or local models.
+- **Provider Agnostic**: Connect to **Ollama**, **LM Studio**, **OpenAI** (GPT-4o, o3-mini), **OpenRouter** (Claude 3.5 Sonnet, DeepSeek R1), **Azure OpenAI**, **Groq**, **DeepSeek**, **vLLM**, or any OpenAI-compatible API.
+- **Full Autonomous Capabilities**: The AI Agent can inspect scene trees, create 2D/3D objects, configure physics and platformer behaviors, write event sheets, and execute sandboxed code.
+- **Privacy-First & Secure**: API keys are kept in session memory only and never written in cleartext to `localStorage`.
+
+### 🔓 2. Unlocked Client-Side & Offline Features
+- **No Watermark & Custom Splash Screen**: Freely disable the GDevelop startup splash logo and in-game watermark in exported games.
+- **0-Second Instant Startup**: Removed artificial loading screen delay clamps—exported games start immediately.
+- **Live Preview Hot Reloading**: Unlocked real-time live preview code and scene updates without periodic paywall interruptions.
+- **Network Preview (Over Wi-Fi/LAN)**: Test your games across your local network and on mobile devices (phones/tablets).
+- **Advanced In-Game Debugger**: Full access to memory profiler, variable inspector, pause, and step execution.
+- **Creator Profile Customization**: Custom bio, social links, and Discord role perks unlocked for all users.
+
+### 🔄 3. In-App Background Auto-Updater
+- Desktop builds automatically check for updates against [Heretek-AI/GDevelop-Heretek Releases](https://github.com/Heretek-AI/GDevelop-Heretek/releases).
+- Downloads updates in the background and prompts to restart when a new version is available.
+
+### 🛡️ 4. Upstream Synchronized & Secure
+- Continuously synchronized with upstream [4ian/GDevelop](https://github.com/4ian/GDevelop).
+- Automated PR-only sync workflow with workflow locking to protect against supply-chain attacks (e.g. Shai-Hulud).
+- Find GDevelop games on [gd.games](https://gd.games), the gaming platform for games powered by GDevelop.
+- See the [showcase of games](https://gdevelop.io/games) created with GDevelop and published on Steam, iOS (App Store), Android (Google Play), Itch.io, Newgrounds, CrazyGames, Poki...
 
 ---
 
-### ⚡ Quick Start with Local AI (Ollama)
+## ⚡ Quick Start Guides
+
+### 🦙 A. Local AI with Ollama (100% Free & Offline)
 
 1. **Install and run Ollama**:
    ```bash
-   # Make sure CORS is enabled for GDevelop
+   # Enable CORS for GDevelop
    OLLAMA_ORIGINS="*" ollama serve
    ```
-2. **Pull a recommended model**:
+2. **Pull a recommended coding model**:
    ```bash
    ollama pull qwen2.5-coder
    ```
 3. **Configure in GDevelop**:
-   - Open **Preferences (Ctrl+, or ⚙️)** $\rightarrow$ **Custom / Local AI Endpoint (BYOK)**
-   - Toggle **Enable Custom / Local AI Endpoint**
-   - Base URL: `http://localhost:11434/v1`
-   - Model: `qwen2.5-coder` (or your chosen model)
-   - Click **Test Connection** $\rightarrow$ Done!
+   - Open **Preferences (Ctrl+, or ⚙️)** $\rightarrow$ **Custom / Local AI Endpoint (BYOK)**.
+   - Toggle **Enable Custom / Local AI Endpoint**.
+   - Set **Base URL**: `http://localhost:11434/v1`
+   - Set **Model Name**: `qwen2.5-coder` (or `llama3.2`, `mistral`, `deepseek-r1`)
+   - Click **Test Connection** $\rightarrow$ Start building!
 
 ---
 
-GDevelop is a **full-featured, no-code, open-source** game development software. You can build **2D, 3D and multiplayer games** for mobile (iOS, Android), desktop and the web. GDevelop is designed to be fast and incredibly intuitive: make games using an easy-to-understand yet powerful event-based system and modular behaviors. Create with AI that assists or builds alongside you.
+### 🧪 B. Local AI with LM Studio
 
-![The GDevelop editor when editing a game level](https://raw.githubusercontent.com/4ian/GDevelop/master/newIDE/GDevelop%20screenshot.png "The GDevelop editor when editing a 3D game level")
+1. Open **LM Studio** and download your model of choice (e.g. `Qwen 2.5 Coder 7B/14B` or `DeepSeek-Coder`).
+2. Go to the **Local Server** tab (`<->`), set **Cross-Origin-Resource-Sharing (CORS)** to `ON`, and click **Start Server**.
+3. In GDevelop Preferences:
+   - Set **Base URL**: `http://localhost:1234/v1`
+   - Set **Model Name**: Enter the identifier shown in LM Studio (or leave default).
+   - Click **Test Connection**.
 
-![The GDevelop editor when editing a game level](./newIDE/GDevelop%202D%20screenshot.png "The GDevelop editor when editing a 2D game level")
+---
 
-## Getting started
+### 🌐 C. Cloud Providers (OpenRouter / DeepSeek / OpenAI / Groq)
 
-| ❔ I want to...                                   | 🚀 What to do                                                                                                                                                     |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🎮 Use GDevelop to make games                     | Go to [GDevelop homepage](https://gdevelop.io) to download the app!                                                                                               |
-| ⚙️ Create/improve an extension                    | Read about [creating an extension](https://wiki.gdevelop.io/gdevelop5/extensions/create), with no-code or code.                                                   |
-| 🧑‍💻 Contribute to the editor or game engine        | Follow this [README](newIDE/README.md).                                                                                                                           |
-| 👾 Create or sell a game template                 | Submit a [free example or a paid template on the Asset Store](https://wiki.gdevelop.io/gdevelop5/community/guide-for-submitting-an-example/).                     |
-| 🎨 Share or sell an asset pack                    | Submit a [free or paid asset pack on the Asset Store](https://wiki.gdevelop.io/gdevelop5/community/sell-asset-pack-store).                                        |
-| 🌐 Help translate GDevelop                        | Go on the [GDevelop project on Crowdin](https://crowdin.com/project/gdevelop) or translate [in-app tutorials](https://github.com/GDevelopApp/GDevelop-tutorials). |
-| 👥 Get online game services or commercial support | See offers for [professionals, teams or individual creators](https://gdevelop.io/pricing).                                                                        |
+| Provider | Base URL | Recommended Models |
+| :--- | :--- | :--- |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet`, `deepseek/deepseek-r1` |
+| **DeepSeek** | `https://api.deepseek.com/v1` | `deepseek-chat`, `deepseek-reasoner` |
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4o-mini`, `o3-mini` |
+| **Groq** | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile`, `qwen-2.5-coder-32b` |
 
-> Are you interested in contributing to GDevelop for the first time? Take a look at the list of **[good first issues](https://github.com/4ian/GDevelop/issues?q=is%3Aissue+is%3Aopen+label%3A%22%F0%9F%91%8Cgood+first+issue%22)**, **[good first contributions](https://github.com/4ian/GDevelop/discussions/categories/good-first-contribution)** or the **["🏐 not too hard" cards](https://trello.com/b/qf0lM7k8/gdevelop-roadmap?menu=filter&filter=label:Not%20too%20hard%20%E2%9A%BD%EF%B8%8F)** on the Roadmap.
+1. In GDevelop Preferences, paste your **API Key** and **Base URL**.
+2. Enter your desired **Model Name**.
+3. Click **Test Connection**.
 
-## Games made with GDevelop
+---
 
-- Find GDevelop games on [gd.games](https://gd.games), the gaming platform for games powered by GDevelop.
-- See the [showcase of games](https://gdevelop.io/games) created with GDevelop and published on Steam, iOS (App Store), Android (Google Play), Itch.io, Newgrounds, CrazyGames, Poki...
-  - Suggest your game to be [added to the showcase here](https://docs.google.com/forms/d/e/1FAIpQLSfjiOnkbODuPifSGuzxYY61vB5kyMWdTZSSqkJsv3H6ePRTQA/viewform).
+## 📊 Feature Comparison
 
-[![Some games made with GDevelop](https://raw.githubusercontent.com/4ian/GDevelop/master/newIDE/GDevelop%20games.png "Some games made with GDevelop")](https://gdevelop.io/games)
+| Feature | Upstream GDevelop (Free) | Upstream GDevelop (Subscribed) | **GDevelop (BYOK Edition)** |
+| :--- | :---: | :---: | :---: |
+| **AI Assistant & Game Creator** | ❌ Limited Credits / Day | ⚠️ Monthly Credit Quota | **✅ Unlimited (Local AI & BYOK)** |
+| **Local LLMs (Ollama, LM Studio)** | ❌ Not Supported | ❌ Not Supported | **✅ 100% Free & Offline** |
+| **Remove GDevelop Startup Logo** | ❌ Locked | ✅ Silver / Gold ($) | **✅ 100% Free & Unlocked** |
+| **Remove GDevelop Watermark** | ❌ Locked | ✅ Silver / Gold ($) | **✅ 100% Free & Unlocked** |
+| **0s Instant Splash Duration** | ❌ Forced Delay | ✅ Silver / Gold ($) | **✅ 100% Free & Unlocked** |
+| **Live Preview (Hot Reloading)** | ⚠️ Paywall Popups | ✅ Unrestricted | **✅ 100% Free & Unrestricted** |
+| **Preview over Wi-Fi / LAN** | ❌ Locked | ✅ Silver / Gold ($) | **✅ 100% Free & Unlocked** |
+| **In-Game Debugger & Profiler** | ❌ Locked | ✅ Silver / Gold ($) | **✅ 100% Free & Unlocked** |
+| **Custom Creator Profile** | ❌ Locked | ✅ Subscribed ($) | **✅ 100% Free & Unlocked** |
+| **Local HTML5/Desktop Exports** | ✅ Free | ✅ Free | **✅ Free & Unrestricted** |
 
-## Technical architecture
+---
 
-GDevelop is composed of an **editor**, a **game engine**, an **ecosystem** of extensions as well as **online services** and commercial support.
+## 📦 Downloads & Installation
 
-| Directory     | ℹ️ Description                                                                                                                                                                                                                                                                                           |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Core`        | Core classes, describing the structure of a game and tools to implement the IDE and work with GDevelop games.                                                                                                                                                                                            |
-| `GDJS`        | The game engine, written in TypeScript, using PixiJS and Three.js for 2D and 3D rendering (WebGL), powering all GDevelop games.                                                                                                                                                                          |
-| `GDevelop.js` | Bindings of `Core`, `GDJS` and `Extensions` to JavaScript (with WebAssembly), used by the IDE.                                                                                                                                                                                                           |
-| `newIDE`      | The game editor, written in JavaScript with React, Electron, PixiJS and Three.js.                                                                                                                                                                                                                        |
-| `Extensions`  | Built-in extensions for the game engine, providing objects, behaviors and new features. For example, this includes the physics engines running in WebAssembly (Box2D or Jolt Physics for 3D). All the [official and experimental extensions are on this repository](https://github.com/GDevelopApp/GDevelop-extensions). [Community extensions are available here](https://github.com/GDevelopApp/GDevelop-community-list). |
+Download the latest installer or package for your operating system from the **[Releases Page](https://github.com/Heretek-AI/GDevelop-Heretek/releases)**:
 
-To learn more about GDevelop Architecture, read the [architecture overview here](Core/GDevelop-Architecture-Overview.md).
+- 🪟 **Windows**: `GDevelop-5-Setup-*.exe` (Installer) or `GDevelop-5-*-win.zip` (Portable)
+- 🐧 **Linux**: `GDevelop-5-*.AppImage` or `gdevelop-5_*.deb`
+- 🍎 **macOS**: `GDevelop-5-*.dmg` (Universal binary for Intel & Apple Silicon)
+- 🌐 **Web**: Run directly in your browser or host via static hosting.
 
-Pre-generated documentation of the game engine is [available here](https://docs.gdevelop.io).
+---
 
-Status of the tests and builds: [![macOS and Linux build status](https://circleci.com/gh/4ian/GDevelop.svg?style=shield)](https://app.circleci.com/pipelines/github/4ian/GDevelop) [![Fast tests status](https://gdevelop.semaphoreci.com/badges/GDevelop/branches/master.svg?style=shields)](https://gdevelop.semaphoreci.com/projects/GDevelop) [![Windows Build status](https://ci.appveyor.com/api/projects/status/84uhtdox47xp422x/branch/master?svg=true)](https://ci.appveyor.com/project/4ian/gdevelop/branch/master) [![https://good-labs.github.io/greater-good-affirmation/assets/images/badge.svg](https://good-labs.github.io/greater-good-affirmation/assets/images/badge.svg)](https://good-labs.github.io/greater-good-affirmation)
+## 🛠️ Building from Source
 
-## Links
+### Prerequisites
+- [Node.js](https://nodejs.org) (v18 or v20 LTS recommended)
+- `npm` (v9 or v10)
+- `git`
 
-### Community
+### 1. Clone the repository
+```bash
+git clone https://github.com/Heretek-AI/GDevelop-Heretek.git
+cd GDevelop-Heretek
+```
 
-- [GDevelop forums](https://forum.gdevelop.io) and [Discord chat](https://discord.gg/gdevelop).
-- [GDevelop homepage](https://gdevelop.io).
-- [GDevelop wiki (documentation)](https://wiki.gdevelop.io/gdevelop5/start).
-- Help translate GDevelop in your language: [GDevelop project on Crowdin](https://crowdin.com/project/gdevelop).
-- Open-source [extensions (official or experimental)](https://github.com/GDevelopApp/GDevelop-extensions), [community extensions](https://github.com/GDevelopApp/GDevelop-community-list), [examples](https://github.com/GDevelopApp/GDevelop-examples), [tutorials](https://github.com/GDevelopApp/GDevelop-tutorials) are on GitHub.
+### 2. Install dependencies & build Web IDE
+```bash
+cd newIDE/app
+npm install
+npm run build
+```
 
-### Development Roadmap
+### 3. Run the Electron Desktop App
+```bash
+cd ../electron-app
+npm install
+npm start
+```
 
-- [GDevelop Roadmap on Trello.com](https://trello.com/b/qf0lM7k8/gdevelop-roadmap), for a global view of the features that could be added. Please vote and comment here for new features/requests.
-- [GitHub issue page](https://github.com/4ian/GDevelop/issues), for technical issues and bugs.
-- [Github discussions](https://github.com/4ian/GDevelop/discussions) to talk about new features and ideas.
+---
 
-## License
+## 🏗️ Technical Architecture
 
-- The Core library, the native and HTML5 game engines, the IDE, and all extensions (respectively `Core`, `GDJS`, `newIDE` and `Extensions` folders) are under the **MIT license**.
-- The name, GDevelop, and its logo are the exclusive property of Florian Rival.
+| Directory | Description |
+| :--- | :--- |
+| **`Core`** | Core C++ classes describing game structure, behaviors, and project data models. |
+| **`GDJS`** | The runtime game engine written in TypeScript with PixiJS and Three.js for 2D/3D WebGL rendering. |
+| **`GDevelop.js`** | WebAssembly / Emscripten bindings bridging `Core`, `GDJS`, and extensions to JavaScript. |
+| **`newIDE`** | The React & Electron game editor, containing the UI, AI Client, events editor, and scene canvas. |
+| **`Extensions`** | Built-in extensions for physics (Box2D, 3D Jolt Physics), pathfinding, lighting, particles, and input. |
 
-Games exported with GDevelop are based on the GDevelop game engine (see `Core` and `GDJS` folders): this engine is distributed under the MIT license so that you can **distribute, sell or do anything** with the games you created with GDevelop. In particular, you are not forced to make your game open-source.
+---
 
-[node.js]: https://nodejs.org
+## 🤝 Contributing
 
-## Star History
+Contributions, bug reports, and suggestions are welcome!
+- Check out [open issues](https://github.com/Heretek-AI/GDevelop-Heretek/issues) or submit a Pull Request.
+- For upstream engine contributions, please see [4ian/GDevelop](https://github.com/4ian/GDevelop).
 
-Help us spread the word about GDevelop by starring the repository on GitHub!
+---
 
-[![Star History Chart](https://api.star-history.com/svg?repos=4ian/gdevelop&type=Date)](https://star-history.com/#4ian/gdevelop&Date)
+## 📜 License
+
+- The Core library, native/HTML5 game engine, IDE, and built-in extensions are licensed under the **MIT License**.
+- Games exported with GDevelop are distributed under the MIT license: you own all rights to your games and can distribute, sell, or monetize them freely.
+- GDevelop name and original logos are property of Florian Rival.

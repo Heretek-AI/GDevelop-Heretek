@@ -1,0 +1,59 @@
+# Fallow configuration for the monorepo.
+#
+# Excludes paths we don't maintain (vendored bundles, codemod output,
+# generated test fixtures) so they don't pollute the static analysis
+# results. These mirror the .sonarcloud.properties exclusions.
+#
+# Per-rule/per-pattern suppression isn't a fallow config feature (it
+# uses inline `// fallow-ignore-next-line <kind>` markers instead). The
+# corresponding per-rule SonarCloud suppressions live in the
+# .sonarcloud.properties file (or its in-UI multicriteria block).
+
+ignorePatterns = [
+  # Vendored / bundled JS (Emscripten, spine-pixi, monaco, three, pixi,
+  # howler, rbush, nanomarkdown, etc.)
+  "Extensions/Spine/spine-pixi-v7/**",
+  "GDJS/Runtime/libs/**",
+  "GDJS/Runtime/pixi-renderers/pixi.js",
+  "GDJS/Runtime/pixi-renderers/three.js",
+  "GDJS/Runtime/pixi-renderers/ThreeAddons.js",
+  "GDJS/Runtime/howler-sound-manager/howler.min.js",
+  "GDJS/Runtime/fontfaceobserver-font-manager/fontfaceobserver.js",
+  # Three.js examples (vendored from three/addons)
+  "SharedLibs/ThreeAddons/**",
+  # Pixi filter bundles (vendored)
+  "Extensions/Effects/pixi-filters/filter-color-gradient.js",
+  "Extensions/Effects/pixi-filters/filter-glitch.js",
+  # Bundled Firebase JS
+  "Extensions/Firebase/B_firebasetools/**",
+  # Generated extension shells (codemod output, not maintained)
+  "Extensions/Physics3DBehavior/JsExtension.js",
+  "Extensions/TileMap/JsExtension.js",
+  "Extensions/NavMeshPathfinding/JsExtension.js",
+  # Generated Emscripten bindings
+  "GDevelop.js/Bindings/Wrapper.cpp",
+  "GDevelop.js/Bindings/postjs.js",
+  # Vendored editor assets shipped with newIDE/app
+  "newIDE/app/public/external/**",
+  # Generated codemod output and test fixtures
+  "newIDE/app/src/EditorFunctions/index.js",
+  "newIDE/app/src/EditorFunctions/SimplifiedProject/**",
+  "newIDE/app/src/stories/**",
+  "newIDE/app/resources/GDJS/Runtime-sources/**",
+  # Flow type definitions
+  "**/flow-typed/**",
+  "**/flow-libs/**",
+  # Build artifacts
+  "build/**",
+  "dist/**",
+  "node_modules/**",
+  "Binaries/**",
+  # Karma tests in GDJS (browser-based, not part of Jest)
+  "GDJS/tests/games/**",
+  # Generated localization files
+  "newIDE/app/src/locales/**",
+]
+
+# Inline markers used in source for per-line/per-file suppression:
+#   // fallow-ignore-next-line <kind>
+#   // fallow-ignore-file <kind>

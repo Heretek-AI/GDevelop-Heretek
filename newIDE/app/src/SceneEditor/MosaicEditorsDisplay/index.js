@@ -249,6 +249,9 @@ const MosaicEditorsDisplay: React.ComponentType<{
           clearHighlightedInstance: editor
             ? editor.clearHighlightedInstance
             : noop,
+          cancelClickInterception: editor
+            ? editor.cancelClickInterception
+            : () => false,
           resetInstanceRenderersFor: editor
             ? editor.resetInstanceRenderersFor
             : noop,
@@ -309,6 +312,9 @@ const MosaicEditorsDisplay: React.ComponentType<{
                   projectScopedContainersAccessor
                 }
                 instances={selectedInstances}
+                selectedObjectFolderOrObjectsCount={
+                  props.selectedObjectFolderOrObjectsWithContext.length
+                }
                 objects={selectedObjects}
                 layer={selectedLayer}
                 objectGroup={selectedObjectGroup}
@@ -506,8 +512,8 @@ const MosaicEditorsDisplay: React.ComponentType<{
                 }
                 onObjectCreated={props.onObjectCreated}
                 onObjectEdited={props.onObjectEdited}
-                onObjectFolderOrObjectWithContextSelected={
-                  props.onObjectFolderOrObjectWithContextSelected
+                onObjectFolderOrObjectsWithContextSelected={
+                  props.onObjectFolderOrObjectsWithContextSelected
                 }
                 onRenameObjectFolderOrObjectWithContextFinish={
                   props.onRenameObjectFolderOrObjectWithContextFinish

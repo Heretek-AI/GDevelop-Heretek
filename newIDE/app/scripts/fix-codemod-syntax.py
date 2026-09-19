@@ -28,12 +28,14 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-APP_DIR = os.environ.get(
-    "APP_DIR",
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-)
-SRC_DIR = pathlib.Path(APP_DIR) / "src"
-FLOW_BIN = pathlib.Path(APP_DIR) / "node_modules" / ".bin" / "flow"
+APP_DIR = pathlib.Path(
+    os.environ.get(
+        "APP_DIR",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    )
+).resolve()
+SRC_DIR = APP_DIR / "src"
+FLOW_BIN = APP_DIR / "node_modules" / ".bin" / "flow"
 FLOW_AST_CMD = [str(FLOW_BIN), "ast"] if FLOW_BIN.exists() else ["npx", "flow", "ast"]
 
 
@@ -530,21 +532,37 @@ def _remove_stale_prop_missing_fixmes(content: bytes) -> Tuple[bytes, int]:
     return "".join(keep_lines).encode("utf-8"), removed
 
 
-def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
-    original = path.read_bytes()
-
-    # Quick pre-filter to avoid expensive AST parsing on unrelated files.
+def _is_candidate_for_replacement(content: bytes) -> bool:
+    """Quick pre-filter to avoid expensive AST parsing on unrelated files."""
     has_componenttype_prop_missing = (
-        b"$FlowFixMe[prop-missing]" in original and b"React.ComponentType<" in original
+        b"$FlowFixMe[prop-missing]" in content and b"React.ComponentType<" in content
     )
-    if (
-        b"component(" not in original
-        and b"renders " not in original
-        and b" as " not in original
-        and b"AbstractComponent" not in original
-        and b"React$AbstractComponent" not in original
-        and not has_componenttype_prop_missing
-    ):
+    return (
+        b"component(" in content
+        or b"renders " in content
+        or b" as " in content
+        or b"AbstractComponent" in content
+        or b"React$AbstractComponent" in content
+        or has_componenttype_prop_missing
+    )
+
+
+def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
+    # `path` is supplied by SRC_DIR.rglob() in main() — both are derived
+    # from this file's directory, not user input. We still defensively
+    # confirm the resolved path is inside APP_DIR before reading or
+    # writing, to close pythonsecurity:S2083.
+    resolved = path.resolve()
+    if not resolved.is_file() or APP_DIR not in resolved.parents:
+        print(f"  Skipping {path}: outside APP_DIR ({APP_DIR})")
+        return False, 0
+
+    # Use the validated `resolved` Path for all subsequent operations so
+    # static analyzers can see that the path is constrained.
+    path = resolved
+
+    original = path.read_bytes()
+    if not _is_candidate_for_replacement(original):
         return False, 0
 
     try:
@@ -586,7 +604,7 @@ def _process_file(path: pathlib.Path) -> Tuple[bool, int]:
     total_replacements += removed_fixmes
 
     if content != original:
-        path.write_bytes(content)
+        path.write_bytes(content)  # nosonar: pythonsecurity:S2083 — `path` is reassigned to the validated `resolved` Path at the top of this function; the static analyzer can't see that re-binding.
         return True, total_replacements
     return False, 0
 

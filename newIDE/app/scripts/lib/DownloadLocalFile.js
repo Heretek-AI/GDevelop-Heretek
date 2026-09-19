@@ -1,6 +1,7 @@
 // @ts-check
 const fs = require('fs');
-const {default: axios} = require('axios');
+const path = require('node:path');
+const { default: axios } = require('axios');
 
 let temporaryFileCounter = 0;
 
@@ -15,7 +16,31 @@ let temporaryFileCounter = 0;
  * @returns {Promise<void>}
  */
 const downloadLocalFile = async (url, outputPath) => {
-  const temporaryPath = `${outputPath}.${process.pid}-${temporaryFileCounter++}.tmp`;
+  // Validate the outputPath is below the package root (newIDE/app/) to
+  // close jssecurity:S8707 (path canonicalized from CLI-controlled
+  // data must be validated before use). All legitimate callers in this
+  // repo pass paths like 'public/libGD.wasm' or
+  // '../public/external/piskel/piskel-editor.zip' which all resolve
+  // under the newIDE/app/ root.
+  //
+  // We don't hard-code newIDE/app/ — instead we resolve from the
+  // directory of THIS file (scripts/lib/), walk up to find the package
+  // root, and validate against that. Works regardless of CWD.
+  const fileDir = __dirname;
+  const packageRoot = path.resolve(fileDir, '..', '..');
+  const outputResolved = path.resolve(outputPath);
+  if (
+    outputResolved !== packageRoot &&
+    !outputResolved.startsWith(packageRoot + path.sep)
+  ) {
+    throw new Error(
+      `Refusing to write outside the package directory: ${outputPath} (resolved=${outputResolved}, packageRoot=${packageRoot})`
+    );
+  }
+
+  const temporaryPath = `${outputPath}.${
+    process.pid
+  }-${temporaryFileCounter++}.tmp`;
   try {
     const response = await axios.get(url, {
       responseType: 'stream',

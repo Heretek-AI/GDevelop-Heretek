@@ -33,6 +33,8 @@ import {
   type WillDeleteSceneChanges,
   type WillDeleteGameplayTestChanges,
   type WillDeleteObjectChanges,
+  type ExtensionsOutsideEditorChanges,
+  type WillDeleteExtensionItemChanges,
 } from '../EditorFunctions/OutsideEditorChanges';
 import { type NavigateToEventFromGlobalSearchParams } from '../Utils/Search';
 import { type ResourceManagementProps } from '../ResourcesList/ResourceSource';
@@ -184,10 +186,7 @@ export type EditorTabsPaneCommonProps = {|
       | 'extension-events-editor'
       | 'external-events-editor'
   ) => Promise<void>,
-  openInstructionOrExpression: (
-    extension: gdPlatformExtension,
-    type: string
-  ) => void,
+  openInstructionOrExpression: (type: string) => void,
   onOpenCustomObjectEditor: (
     eventsFunctionsExtension: gdEventsFunctionsExtension,
     eventsBasedObject: gdEventsBasedObject,
@@ -207,6 +206,24 @@ export type EditorTabsPaneCommonProps = {|
   onDeletedEventsBasedObject: (
     eventsFunctionsExtension: gdEventsFunctionsExtension,
     name: string
+  ) => void,
+  onEventsBasedObjectMoved: (
+    oldExtensionName: string,
+    newExtensionName: string,
+    oldObjectName: string,
+    newObjectName: string
+  ) => void,
+  onEventsBasedBehaviorMoved: (
+    oldExtensionName: string,
+    newExtensionName: string,
+    oldBehaviorName: string,
+    newBehaviorName: string
+  ) => void,
+  onEventsFunctionMoved: (
+    oldExtensionName: string,
+    newExtensionName: string,
+    oldFunctionName: string,
+    newFunctionName: string
   ) => void,
   openObjectEvents: (extensionName: string, objectName: string) => void,
   onNavigateToEventFromGlobalSearch: (
@@ -298,6 +315,12 @@ export type EditorTabsPaneCommonProps = {|
     changes: WillDeleteGameplayTestChanges
   ) => Promise<void>,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
+  onExtensionsModifiedOutsideEditor: (
+    changes: ExtensionsOutsideEditorChanges
+  ) => void,
+  onWillDeleteExtensionItem: (
+    changes: WillDeleteExtensionItemChanges
+  ) => Promise<void>,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
   onCreateNewExtensionWithBehavior:
@@ -381,6 +404,9 @@ const EditorTabsPane: React.ComponentType<{
     onOpenEventsFunctionsExtension,
     onRenamedEventsBasedObject,
     onDeletedEventsBasedObject,
+    onEventsBasedObjectMoved,
+    onEventsBasedBehaviorMoved,
+    onEventsFunctionMoved,
     openObjectEvents,
     onNavigateToEventFromGlobalSearch,
     onEditorTabClosing,
@@ -422,6 +448,8 @@ const EditorTabsPane: React.ComponentType<{
     onWillDeleteScene,
     onWillDeleteGameplayTest,
     onWillDeleteObject,
+    onExtensionsModifiedOutsideEditor,
+    onWillDeleteExtensionItem,
     onWillInstallExtension,
     onExtensionInstalled,
     onCreateNewExtensionWithBehavior,
@@ -770,6 +798,7 @@ const EditorTabsPane: React.ComponentType<{
                 >
                   {editorTab.renderEditorContainer({
                     editorId: editorTab.id,
+                    paneIdentifier,
                     gameEditorMode,
                     setGameEditorMode,
                     isActive: isCurrentTab,
@@ -814,6 +843,9 @@ const EditorTabsPane: React.ComponentType<{
                     onOpenEventsFunctionsExtension,
                     onRenamedEventsBasedObject: onRenamedEventsBasedObject,
                     onDeletedEventsBasedObject: onDeletedEventsBasedObject,
+                    onEventsBasedObjectMoved: onEventsBasedObjectMoved,
+                    onEventsBasedBehaviorMoved: onEventsBasedBehaviorMoved,
+                    onEventsFunctionMoved: onEventsFunctionMoved,
                     openObjectEvents,
                     onNavigateToEventFromGlobalSearch,
                     unsavedChanges: unsavedChanges,
@@ -897,6 +929,8 @@ const EditorTabsPane: React.ComponentType<{
                     onWillDeleteScene: onWillDeleteScene,
                     onWillDeleteGameplayTest: onWillDeleteGameplayTest,
                     onWillDeleteObject: onWillDeleteObject,
+                    onExtensionsModifiedOutsideEditor: onExtensionsModifiedOutsideEditor,
+                    onWillDeleteExtensionItem: onWillDeleteExtensionItem,
                     onWillInstallExtension: onWillInstallExtension,
                     onExtensionInstalled: onExtensionInstalled,
                     onCreateNewExtensionWithBehavior: onCreateNewExtensionWithBehavior,

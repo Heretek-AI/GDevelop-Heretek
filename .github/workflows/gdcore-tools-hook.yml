@@ -11,6 +11,7 @@ on:
 
 jobs:
   dispatch-event:
+    if: github.repository == '4ian/GDevelop'
     runs-on: ubuntu-latest
     steps:
       - name: Repository Dispatch

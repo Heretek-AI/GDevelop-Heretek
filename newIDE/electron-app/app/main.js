@@ -177,6 +177,13 @@ function createNewWindow(windowArgs = args) {
       // as we've not removed dependency on it and on "@electron/remote".
       nodeIntegration: true,
       contextIsolation: false,
+      // Keep timers and `requestAnimationFrame` running at full speed when
+      // the window is minimized or covered by another window (Chromium
+      // otherwise throttles timers to once a minute and stops animation
+      // frames entirely). The editor keeps working in the background: the
+      // AI agent keeps running its turns, and gameplay tests - which need
+      // animation frames to step the game - keep progressing.
+      backgroundThrottling: false,
     },
     enableLargerThanScreen: true,
     backgroundColor: '#000',
@@ -830,6 +837,19 @@ app.on('ready', function() {
   ipcMain.on(
     'run-npm-script',
     (event, { projectPath, npmScript, keepTerminalOpen }) => {
+      // Sanitize the IPC payloads before they reach a shell. `projectPath`
+      // comes from the renderer (user-controllable) and `npmScript` flows
+      // into a `cmd.exe` / osascript / bash command below, so we constrain
+      // both to a strict character set to close jssecurity:S2076.
+      if (typeof projectPath !== 'string' || !/^[A-Za-z0-9 _./:\\\-\\]+$/.test(projectPath)) {
+        log.error(`Rejected run-npm-script: invalid projectPath "${projectPath}"`);
+        return;
+      }
+      if (typeof npmScript !== 'string' || !/^[A-Za-z0-9_.\-:]+$/.test(npmScript)) {
+        log.error(`Rejected run-npm-script: invalid npmScript "${npmScript}"`);
+        return;
+      }
+
       log.info(`Running npm script "${npmScript}" in ${projectPath}`);
 
       const platform = process.platform;

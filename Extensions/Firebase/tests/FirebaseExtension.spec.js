@@ -27,9 +27,20 @@ const variable = new gdjs.Variable().fromJSObject({
 
 /**
  * A firebase configuration of a project made only for those tests.
+ *
+ * The apiKey below was originally a real, publicly-leaked upstream key. It is
+ * now a clearly-marked placeholder. The original key is owned by the
+ * upstream project (4ian/GDevelop); to run this end-to-end test suite,
+ * replace the placeholder with your own test-project key, e.g. via:
+ *     export GD_TEST_FIREBASE_API_KEY="AIzaSy...your-key..."
+ * The build pipeline will pick up GD_TEST_FIREBASE_API_KEY at test time.
+ * The placeholder is intentionally non-key-shaped so secret scanners
+ * don't flag it as a leaked credential.
  */
 const firebaseConfig = {
-  apiKey: 'AIzaSyBwPnGpfEBXDjwQrWfU0wqgp4m9qEt7YM8',
+  apiKey:
+    process.env.GD_TEST_FIREBASE_API_KEY ||
+    'GD_TEST_FIREBASE_API_KEY-env-var-not-set-see-SECRETS.md',
   authDomain: 'gdtest-e11a5.firebaseapp.com',
   databaseURL: 'https://gdtest-e11a5.firebaseio.com',
   projectId: 'gdtest-e11a5',

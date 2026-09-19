@@ -455,9 +455,13 @@ describe('libGD.js', function () {
       const project = new gd.ProjectHelper.createNewGDJSProject();
 
       // Prepare two containers, one with 3 objects and one empty
-      const objectsContainer1 = new gd.ObjectsContainer(gd.ObjectsContainer.Unknown);
+      const objectsContainer1 = new gd.ObjectsContainer(
+        gd.ObjectsContainer.Unknown
+      );
       const rootFolder1 = objectsContainer1.getRootFolder();
-      const objectsContainer2 = new gd.ObjectsContainer(gd.ObjectsContainer.Unknown);
+      const objectsContainer2 = new gd.ObjectsContainer(
+        gd.ObjectsContainer.Unknown
+      );
       const rootFolder2 = objectsContainer2.getRootFolder();
       const subFolder2 = rootFolder2.insertNewFolder('Folder', 1);
       const mySpriteObject = objectsContainer1.insertNewObject(
@@ -609,7 +613,9 @@ describe('libGD.js', function () {
       const project = new gd.ProjectHelper.createNewGDJSProject();
 
       // Prepare two containers, one with 3 objects and one empty
-      const objectsContainer = new gd.ObjectsContainer(gd.ObjectsContainer.Unknown);
+      const objectsContainer = new gd.ObjectsContainer(
+        gd.ObjectsContainer.Unknown
+      );
       const rootFolder = objectsContainer.getRootFolder();
       const folder = rootFolder.insertNewFolder('Folder 1', 0);
       const mySpriteObject = objectsContainer.insertNewObjectInFolder(
@@ -641,7 +647,8 @@ describe('libGD.js', function () {
       expect(folder.getChildrenCount()).toBe(2);
       expect(subFolder.getChildrenCount()).toBe(3);
 
-      const vectorObjectFolderOrObjects = objectsContainer.getAllObjectFolderOrObjects();
+      const vectorObjectFolderOrObjects =
+        objectsContainer.getAllObjectFolderOrObjects();
       expect(vectorObjectFolderOrObjects.size()).toBe(6);
       expect(gd.getPointer(vectorObjectFolderOrObjects.at(0))).toBe(
         gd.getPointer(folder)
@@ -2313,9 +2320,8 @@ describe('libGD.js', function () {
 
     it('can clone a gd.ObjectJsImplementation', function () {
       const object1 = createSampleObjectJsImplementation();
-      expect(
-        object1.getProperties().get('My first property').getValue() ==
-          'Initial value 1'
+      expect(object1.getProperties().get('My first property').getValue()).toBe(
+        'Initial value 1'
       );
 
       object1.updateProperty('My first property', 'test1');
@@ -2338,14 +2344,14 @@ describe('libGD.js', function () {
       {
         // Check properties can be accessed.
         const propertiesObject1 = object1.getProperties();
-        expect(propertiesObject1.has('My first property'));
-        expect(
-          propertiesObject1.get('My first property').getValue() == 'test1'
+        expect(propertiesObject1.has('My first property')).toBe(true);
+        expect(propertiesObject1.get('My first property').getValue()).toBe(
+          'test1'
         );
         const propertiesObject2 = object2.getProperties();
-        expect(propertiesObject2.has('My first property'));
-        expect(
-          propertiesObject2.get('My first property').getValue() == 'test1'
+        expect(propertiesObject2.has('My first property')).toBe(true);
+        expect(propertiesObject2.get('My first property').getValue()).toBe(
+          'test1'
         );
 
         // Check the JavaScript objects are unchanged for now.
@@ -2367,15 +2373,14 @@ describe('libGD.js', function () {
         // Check a property can be updated.
         object1.updateProperty('My first property', 'updated value');
         const propertiesObject1 = object1.getProperties();
-        expect(propertiesObject1.has('My first property'));
-        expect(
-          propertiesObject1.get('My first property').getValue() ==
-            'updated value'
+        expect(propertiesObject1.has('My first property')).toBe(true);
+        expect(propertiesObject1.get('My first property').getValue()).toBe(
+          'updated value'
         );
         const propertiesObject2 = object2.getProperties();
-        expect(propertiesObject2.has('My first property'));
-        expect(
-          propertiesObject2.get('My first property').getValue() == 'test1'
+        expect(propertiesObject2.has('My first property')).toBe(true);
+        expect(propertiesObject2.get('My first property').getValue()).toBe(
+          'test1'
         );
 
         // Check the JavaScript objects are updated.
@@ -2397,21 +2402,19 @@ describe('libGD.js', function () {
         // Check a property from another object can be updated.
         object2.updateProperty('My first property', 'updated value object 2');
         const propertiesObject1 = object1.getProperties();
-        expect(propertiesObject1.has('My first property'));
-        expect(
-          propertiesObject1.get('My first property').getValue() ==
-            'updated value'
+        expect(propertiesObject1.has('My first property')).toBe(true);
+        expect(propertiesObject1.get('My first property').getValue()).toBe(
+          'updated value'
         );
         const propertiesObject2 = object2.getProperties();
-        expect(propertiesObject2.has('My first property'));
-        expect(
-          propertiesObject2.get('My first property').getValue() ==
-            'updated value object 2'
+        expect(propertiesObject2.has('My first property')).toBe(true);
+        expect(propertiesObject2.get('My first property').getValue()).toBe(
+          'updated value object 2'
         );
         const propertiesObject3 = object3.getProperties();
-        expect(propertiesObject3.has('My first property'));
-        expect(
-          propertiesObject3.get('My first property').getValue() == 'test1'
+        expect(propertiesObject3.has('My first property')).toBe(true);
+        expect(propertiesObject3.get('My first property').getValue()).toBe(
+          'test1'
         );
 
         // Check the JavaScript objects are updated.
@@ -2477,6 +2480,87 @@ describe('libGD.js', function () {
       expect(container.has('Group2')).toBe(false);
       expect(container.has('Group3')).toBe(true);
       expect(container.count()).toBe(2);
+    });
+  });
+
+  describe('gd.ObjectsContainersList', function () {
+    it('lets a scene object group shadow a global object group with the same name', function () {
+      const project = gd.ProjectHelper.createNewGDJSProject();
+      const globalObject = project
+        .getObjects()
+        .insertNewObject(project, 'Sprite', 'GlobalObject', 0);
+      globalObject.addNewBehavior(
+        project,
+        'DraggableBehavior::Draggable',
+        'Draggable'
+      );
+      const globalGroup = project
+        .getObjects()
+        .getObjectGroups()
+        .insertNew('Group', 0);
+      globalGroup.addObject('GlobalObject');
+
+      const layout = project.insertNewLayout('Scene', 0);
+      // A scene group with the same name as the global group, empty for now.
+      const sceneGroup = layout
+        .getObjects()
+        .getObjectGroups()
+        .insertNew('Group', 0);
+
+      const objectsContainersList =
+        gd.ObjectsContainersList.makeNewObjectsContainersListForProjectAndLayout(
+          project,
+          layout
+        );
+
+      // The empty scene group is the only one considered: no type, no behaviors.
+      expect(objectsContainersList.getTypeOfObject('Group')).toBe('');
+      expect(
+        objectsContainersList.getBehaviorsOfObject('Group', true).size()
+      ).toBe(0);
+      expect(
+        objectsContainersList.getTypeOfBehaviorInObjectOrGroup(
+          'Group',
+          'Draggable',
+          true
+        )
+      ).toBe('');
+
+      // Once the scene group has an object, only this object is considered.
+      const sceneObject = layout
+        .getObjects()
+        .insertNewObject(project, 'TextObject::Text', 'SceneObject', 0);
+      sceneObject.addNewBehavior(
+        project,
+        'PlatformBehavior::PlatformerObjectBehavior',
+        'PlatformerObject'
+      );
+      sceneGroup.addObject('SceneObject');
+
+      expect(objectsContainersList.getTypeOfObject('Group')).toBe(
+        'TextObject::Text'
+      );
+      const behaviors = objectsContainersList
+        .getBehaviorsOfObject('Group', true)
+        .toJSArray();
+      expect(behaviors).toContain('PlatformerObject');
+      expect(behaviors).not.toContain('Draggable');
+      expect(
+        objectsContainersList.getTypeOfBehaviorInObjectOrGroup(
+          'Group',
+          'PlatformerObject',
+          true
+        )
+      ).toBe('PlatformBehavior::PlatformerObjectBehavior');
+      expect(
+        objectsContainersList.getTypeOfBehaviorInObjectOrGroup(
+          'Group',
+          'Draggable',
+          true
+        )
+      ).toBe('');
+
+      project.delete();
     });
   });
 
@@ -2622,10 +2706,11 @@ describe('libGD.js', function () {
       action.setParametersCount(2);
       action.setParameter(0, 'MyCharacter');
 
-      let formattedTexts = gd.InstructionSentenceFormatter.get().getAsFormattedText(
-        action,
-        gd.MetadataProvider.getActionMetadata(gd.JsPlatform.get(), 'Delete')
-      );
+      let formattedTexts =
+        gd.InstructionSentenceFormatter.get().getAsFormattedText(
+          action,
+          gd.MetadataProvider.getActionMetadata(gd.JsPlatform.get(), 'Delete')
+        );
 
       expect(formattedTexts.size()).toBe(2);
       expect(formattedTexts.getString(0)).toBe('Delete ');
@@ -2643,10 +2728,14 @@ describe('libGD.js', function () {
       action.setType('SetFullScreen');
       action.setParametersCount(3);
 
-      let formattedTexts = gd.InstructionSentenceFormatter.get().getAsFormattedText(
-        action,
-        gd.MetadataProvider.getActionMetadata(gd.JsPlatform.get(), 'SetFullScreen')
-      );
+      let formattedTexts =
+        gd.InstructionSentenceFormatter.get().getAsFormattedText(
+          action,
+          gd.MetadataProvider.getActionMetadata(
+            gd.JsPlatform.get(),
+            'SetFullScreen'
+          )
+        );
 
       // An empty required parameter is rendered as "no"...
       expect(formattedTexts.getString(1)).toBe('no');
@@ -2664,16 +2753,17 @@ describe('libGD.js', function () {
     beforeAll(() => {
       project = new gd.ProjectHelper.createNewGDJSProject();
       layout = project.insertNewLayout('Scene', 0);
-      projectScopedContainers = gd.ProjectScopedContainers.makeNewProjectScopedContainersForProjectAndLayout(
-        project,
-        layout
-      );
+      projectScopedContainers =
+        gd.ProjectScopedContainers.makeNewProjectScopedContainersForProjectAndLayout(
+          project,
+          layout
+        );
     });
     afterAll(() => {
       project.delete();
     });
 
-    const validateVolumeParameter = value => {
+    const validateVolumeParameter = (value) => {
       // `PlaySoundOnChannel` has an optional "expression" parameter (Volume,
       // PARAM4) defaulting to "100".
       const action = new gd.Instruction();
@@ -3169,12 +3259,7 @@ describe('libGD.js', function () {
 
         expect(positionFinder.getPositions().size()).toBe(6);
         expect(positionFinder.getPositions().toJSArray()).toEqual([
-          1,
-          10,
-          9,
-          4,
-          6,
-          -1,
+          1, 10, 9, 4, 6, -1,
         ]);
 
         events.delete();
@@ -3626,7 +3711,8 @@ describe('libGD.js', function () {
         resourcesMergingHelper
       );
 
-      const oldAndNewFilenames = resourcesMergingHelper.getAllResourcesOldAndNewFilename();
+      const oldAndNewFilenames =
+        resourcesMergingHelper.getAllResourcesOldAndNewFilename();
       expect(oldAndNewFilenames.get('/my/project/MyResource.png')).toBe(
         'MyResource.png'
       );
@@ -3917,6 +4003,54 @@ describe('libGD.js', function () {
         false
       );
     });
+    it('should reset the objects using a removed variant to the default variant', function () {
+      const project = new gd.ProjectHelper.createNewGDJSProject();
+      const extension = project.insertNewEventsFunctionsExtension('UI', 0);
+      const eventsBasedObject = extension
+        .getEventsBasedObjects()
+        .insertNew('Dialog', 0);
+      eventsBasedObject.getVariants().insertNewVariant('Dark', 0);
+      const parentEventsBasedObject = extension
+        .getEventsBasedObjects()
+        .insertNew('Parent', 1);
+
+      const layout = project.insertNewLayout('Scene', 0);
+      const objects = [
+        layout
+          .getObjects()
+          .insertNewObject(project, 'UI::Dialog', 'SceneObject', 0),
+        project
+          .getObjects()
+          .insertNewObject(project, 'UI::Dialog', 'GlobalObject', 0),
+        parentEventsBasedObject
+          .getObjects()
+          .insertNewObject(project, 'UI::Dialog', 'Child', 0),
+      ];
+      objects.forEach((object) =>
+        gd
+          .asCustomObjectConfiguration(object.getConfiguration())
+          .setVariantName('Dark')
+      );
+
+      gd.WholeProjectRefactorer.removeEventsBasedObjectVariant(
+        project,
+        extension,
+        eventsBasedObject,
+        'Dark'
+      );
+
+      expect(eventsBasedObject.getVariants().hasVariantNamed('Dark')).toBe(
+        false
+      );
+      objects.forEach((object) =>
+        expect(
+          gd
+            .asCustomObjectConfiguration(object.getConfiguration())
+            .getVariantName()
+        ).toBe('')
+      );
+      project.delete();
+    });
     // See other tests in WholeProjectRefactorer.cpp
   });
 
@@ -3949,6 +4083,7 @@ describe('libGD.js', function () {
           layout
         ),
         type,
+        '',
         ''
       );
       expressionNode.visit(expressionValidator);
@@ -4754,9 +4889,9 @@ describe('libGD.js', function () {
         'MyFunction',
         0
       );
-      expect(
-        freeEventsFunctions.hasEventsFunctionNamed('MyFunction')
-      ).toBe(true);
+      expect(freeEventsFunctions.hasEventsFunctionNamed('MyFunction')).toBe(
+        true
+      );
       expect(
         freeEventsFunctions.hasEventsFunctionNamed('MyNotExistingFunction')
       ).toBe(false);
@@ -5215,9 +5350,8 @@ describe('libGD.js', function () {
       );
       const objectFolderOrObject = subSubFolder.getChildAt(0);
       expect(objectFolderOrObject.isRootFolder()).toBe(false);
-      const objectFolderOrObjectFoundByName = rootFolder.getObjectNamed(
-        'MyObject'
-      );
+      const objectFolderOrObjectFoundByName =
+        rootFolder.getObjectNamed('MyObject');
       expect(objectFolderOrObjectFoundByName.isRootFolder()).toBe(false);
       expect(objectFolderOrObjectFoundByName).toBe(objectFolderOrObject);
     });

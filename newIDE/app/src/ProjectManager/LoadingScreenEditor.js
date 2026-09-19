@@ -105,16 +105,6 @@ export const LoadingScreenEditor = ({
                   }
                   checked={loadingScreen.isGDevelopLogoShownDuringLoadingScreen()}
                   onCheck={(e, checked) => {
-                    if (
-                      !checked &&
-                      !watermark.isGDevelopWatermarkShown() &&
-                      subscriptionChecker.current &&
-                      !subscriptionChecker.current.checkUserHasSubscription()
-                    ) {
-                      // If user wants to deactivate GDevelop splash screen although
-                      // watermark is hidden, we don't allow it if they have no subscription.
-                      return;
-                    }
                     loadingScreen.showGDevelopLogoDuringLoadingScreen(checked);
                     onUpdate();
                   }}
@@ -161,53 +151,7 @@ export const LoadingScreenEditor = ({
                   }
                   checked={watermark.isGDevelopWatermarkShown()}
                   onCheck={(e, checked) => {
-                    if (
-                      !checked &&
-                      !loadingScreen.isGDevelopLogoShownDuringLoadingScreen() &&
-                      subscriptionChecker.current &&
-                      !subscriptionChecker.current.checkUserHasSubscription()
-                    ) {
-                      // If user wants to deactivate watermark although GDevelop splash
-                      // screen is hidden, we don't allow it if they have no subscription.
-                      return;
-                    }
                     watermark.showGDevelopWatermark(checked);
-                    if (checked) {
-                      loadingScreen.setMinDuration(
-                        timeSettings.current.minDuration
-                      );
-                      loadingScreen.setLogoAndProgressFadeInDuration(
-                        timeSettings.current.logoAndProgressFadeInDuration
-                      );
-                      loadingScreen.setLogoAndProgressLogoFadeInDelay(
-                        timeSettings.current.logoAndProgressLogoFadeInDelay
-                      );
-                    } else if (
-                      subscriptionChecker.current &&
-                      !subscriptionChecker.current.hasUserSubscription()
-                    ) {
-                      if (
-                        loadingScreen.getMinDuration() < forcedLogo.minDuration
-                      ) {
-                        loadingScreen.setMinDuration(forcedLogo.minDuration);
-                      }
-                      if (
-                        loadingScreen.getLogoAndProgressFadeInDuration() >
-                        forcedLogo.logoAndProgressFadeInDuration
-                      ) {
-                        loadingScreen.setLogoAndProgressFadeInDuration(
-                          forcedLogo.logoAndProgressFadeInDuration
-                        );
-                      }
-                      if (
-                        loadingScreen.getLogoAndProgressLogoFadeInDelay() >
-                        forcedLogo.logoAndProgressLogoFadeInDelay
-                      ) {
-                        loadingScreen.setLogoAndProgressLogoFadeInDelay(
-                          forcedLogo.logoAndProgressLogoFadeInDelay
-                        );
-                      }
-                    }
                     onUpdate();
                   }}
                 />

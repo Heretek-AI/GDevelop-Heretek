@@ -34,6 +34,8 @@ import type {
   WillDeleteSceneChanges,
   WillDeleteGameplayTestChanges,
   WillDeleteObjectChanges,
+  ExtensionsOutsideEditorChanges,
+  WillDeleteExtensionItemChanges,
 } from '../../EditorFunctions/OutsideEditorChanges';
 
 export type EditorContainerExtraProps = {|
@@ -51,6 +53,9 @@ export type EditorContainerExtraProps = {|
 
 export type RenderEditorContainerProps = {|
   isActive: boolean,
+  // The pane the editor is displayed in ('left', 'center' or 'right'), for
+  // editors adapting their layout to their position.
+  paneIdentifier: string,
   gameEditorMode: 'embedded-game' | 'instances-editor',
   setGameEditorMode: ('embedded-game' | 'instances-editor') => void,
   projectItemName: ?string,
@@ -96,10 +101,7 @@ export type RenderEditorContainerProps = {|
     |}
   ) => void,
   onOpenEvents: (sceneName: string) => void,
-  openInstructionOrExpression: (
-    extension: gdPlatformExtension,
-    type: string
-  ) => void,
+  openInstructionOrExpression: (type: string) => void,
   onOpenCustomObjectEditor: (
     gdEventsFunctionsExtension,
     gdEventsBasedObject,
@@ -144,6 +146,24 @@ export type RenderEditorContainerProps = {|
   onDeletedEventsBasedObject: (
     eventsFunctionsExtension: gdEventsFunctionsExtension,
     name: string
+  ) => void,
+  onEventsBasedObjectMoved: (
+    oldExtensionName: string,
+    newExtensionName: string,
+    oldObjectName: string,
+    newObjectName: string
+  ) => void,
+  onEventsBasedBehaviorMoved: (
+    oldExtensionName: string,
+    newExtensionName: string,
+    oldBehaviorName: string,
+    newBehaviorName: string
+  ) => void,
+  onEventsFunctionMoved: (
+    oldExtensionName: string,
+    newExtensionName: string,
+    oldFunctionName: string,
+    newFunctionName: string
   ) => void,
 
   // Project opening
@@ -246,6 +266,12 @@ export type RenderEditorContainerProps = {|
     changes: WillDeleteGameplayTestChanges
   ) => Promise<void>,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
+  onExtensionsModifiedOutsideEditor: (
+    changes: ExtensionsOutsideEditorChanges
+  ) => void,
+  onWillDeleteExtensionItem: (
+    changes: WillDeleteExtensionItemChanges
+  ) => Promise<void>,
 
   // Events editing
   onSceneEventsModifiedOutsideEditor: (

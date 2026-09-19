@@ -23,7 +23,9 @@ const ChangelogDialog = ({ open, onClose }: Props): null | React.Node => {
   }
 
   const openReleaseNote = () =>
-    Window.openExternalURL('https://github.com/4ian/GDevelop/releases');
+    Window.openExternalURL(
+      'https://github.com/Heretek-AI/GDevelop-Heretek/releases'
+    );
 
   const actions = [
     <FlatButton
