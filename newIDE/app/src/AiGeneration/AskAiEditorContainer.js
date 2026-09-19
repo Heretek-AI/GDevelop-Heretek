@@ -160,6 +160,7 @@ type Props = {|
         | 'none',
     |}
   ) => void,
+  onOpenExternalLayout: (externalLayoutName: string) => void,
   onSceneEventsModifiedOutsideEditor: (
     changes: SceneEventsOutsideEditorChanges
   ) => void,
@@ -296,6 +297,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onCreateProjectFromExample,
         onCreateEmptyProject,
         onOpenLayout,
+        onOpenExternalLayout,
         onSceneEventsModifiedOutsideEditor,
         onInstancesModifiedOutsideEditor,
         onObjectsModifiedOutsideEditor,
@@ -391,12 +393,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
       const editorCallbacks: EditorCallbacks = React.useMemo(
         () => ({
           onOpenLayout,
+          onOpenExternalLayout,
           onCreateProject,
           onOpenEventsFunctionsExtension: onOpenEventsFunctionsExtensionItem,
           onOpenCustomObjectEditor,
         }),
         [
           onOpenLayout,
+          onOpenExternalLayout,
           onCreateProject,
           onOpenEventsFunctionsExtensionItem,
           onOpenCustomObjectEditor,
@@ -787,12 +791,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           aiRequestId,
           userMessage,
           createdSceneNames,
+          createdExternalLayoutNames,
           createdProject,
           editorFunctionCallResults,
         }: {|
           aiRequestId: string,
           userMessage: string,
           createdSceneNames?: Array<string>,
+          createdExternalLayoutNames?: Array<string>,
           createdProject?: ?gdProject,
           editorFunctionCallResults: Array<EditorFunctionCallResult>,
         |}) => {
@@ -988,6 +994,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
               });
             });
           }
+          if (
+            createdExternalLayoutNames &&
+            createdExternalLayoutNames.length > 0
+          ) {
+            createdExternalLayoutNames.forEach(externalLayoutName => {
+              onOpenExternalLayout(externalLayoutName);
+            });
+          }
         },
         [
           profile,
@@ -1008,6 +1022,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           refreshLimits,
           project,
           onOpenLayout,
+          onOpenExternalLayout,
           automaticallyUseCreditsForAiRequests,
           triggerUnsavedChanges,
         ]
@@ -1048,6 +1063,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           editorFunctionCallResults: Array<EditorFunctionCallResult>,
           options: {|
             createdSceneNames?: Array<string>,
+            createdExternalLayoutNames?: Array<string>,
             createdProject?: ?gdProject,
           |}
         ) => {
@@ -1056,6 +1072,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             userMessage: '',
             createdProject: options.createdProject,
             createdSceneNames: options.createdSceneNames,
+            createdExternalLayoutNames: options.createdExternalLayoutNames,
             editorFunctionCallResults,
           });
         },
@@ -1810,6 +1827,7 @@ export const renderAskAiEditorContainer = (
         onCreateProjectFromExample={props.onCreateProjectFromExample}
         onCreateEmptyProject={props.onCreateEmptyProject}
         onOpenLayout={props.onOpenLayout}
+        onOpenExternalLayout={props.onOpenExternalLayout}
         onSceneEventsModifiedOutsideEditor={
           props.onSceneEventsModifiedOutsideEditor
         }

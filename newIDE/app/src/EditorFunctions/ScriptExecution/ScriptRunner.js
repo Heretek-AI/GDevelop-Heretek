@@ -50,6 +50,8 @@ export type ScriptExecutionResult = {|
    * standalone `create_scene` tool call does.
    */
   newSceneNames: Array<string>,
+  /** Same for the external layouts created by calls made inside the script. */
+  newExternalLayoutNames: Array<string>,
 |};
 
 /**
@@ -237,6 +239,7 @@ export const executeScript = async ({
   const functionCallRecords: Array<ScriptFunctionCallRecord> = [];
   const consoleLogs: Array<string> = [];
   const newSceneNames: Array<string> = [];
+  const newExternalLayoutNames: Array<string> = [];
   const maxCallsCount = maxFunctionCallsCount || 600;
 
   let pendingCallFunctionName: string | null = null;
@@ -273,6 +276,9 @@ export const executeScript = async ({
         // meta.newSceneNames; a script must not lose it).
         if (meta && Array.isArray(meta.newSceneNames)) {
           newSceneNames.push(...meta.newSceneNames);
+        }
+        if (meta && Array.isArray(meta.newExternalLayoutNames)) {
+          newExternalLayoutNames.push(...meta.newExternalLayoutNames);
         }
         functionCallRecords.push({
           functionName: name,
@@ -340,6 +346,7 @@ export const executeScript = async ({
       returnValue: returnValue === undefined ? null : returnValue,
       error: null,
       newSceneNames,
+      newExternalLayoutNames,
     };
   } catch (error) {
     const isFunctionCallFailure = error instanceof FunctionCallFailedError;
@@ -366,6 +373,7 @@ export const executeScript = async ({
         lastCalledFunctionName,
       },
       newSceneNames,
+      newExternalLayoutNames,
     };
   }
 };
