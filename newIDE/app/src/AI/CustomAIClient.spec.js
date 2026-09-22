@@ -14,7 +14,9 @@ import {
   LOCAL_BYOK_USER_ID,
   _resetCustomAiClientForTesting,
   customCreateAiRequest,
+  customCreateSubAgentAiRequest,
   customAddMessageToAiRequest,
+  customUpdateAiRequest,
   customGetAiRequest,
   customGetAiRequests,
   customGetAiRequestStatuses,
@@ -26,6 +28,8 @@ import {
   customCreateResourceSearch,
   testConnection,
 } from './CustomAIClient';
+
+import { getToolsForRole } from '../AiGeneration/Studio/Roles';
 
 jest.mock('axios');
 
@@ -614,6 +618,96 @@ describe('CustomAIClient', () => {
       expect(JSON.stringify(finalRequest.output || '')).toContain(
         'answer after suspend'
       );
+    });
+  });
+
+  describe('Studio sub-agent role enforcement', () => {
+    /** Mock one assistant reply so a turn completes. */
+    const mockAssistantReply = (content: string) => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content } }] },
+      });
+    };
+
+    const spawnTester = async () => {
+      mockAssistantReply('Spawned.');
+      return customCreateSubAgentAiRequest({
+        parentAiRequestId: 'local-ai-parent',
+        roleId: 'tester',
+        userRequest: 'Verify the grid.',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+    };
+
+    const sentToolNames = (callIndex: number) => {
+      // $FlowFixMe
+      const body = axios.post.mock.calls[callIndex][1];
+      return {
+        names: (body.tools || []).map(tool => tool.function.name),
+        systemPrompt: body.messages[0].content,
+      };
+    };
+
+    it('offers a spawned sub-agent only its role tools and prompt', async () => {
+      await spawnTester();
+      const { names, systemPrompt } = sentToolNames(0);
+      const testerToolNames = getToolsForRole(
+        'tester',
+        GDEVELOP_OPENAI_TOOLS
+      ).map(tool => tool.function.name);
+      expect(names.length).toBeGreaterThan(0);
+      names.forEach(name => expect(testerToolNames).toContain(name));
+      expect(systemPrompt).toContain('QA tester');
+    });
+
+    it('keeps the role tool subset and prompt on later turns', async () => {
+      const child = await spawnTester();
+
+      // A second turn - the critical regression: pre-fix this offered all the
+      // tools and dropped the role prompt.
+      mockAssistantReply('Done.');
+      await customAddMessageToAiRequest({
+        aiRequestId: child.id,
+        userMessage: '',
+        functionCallOutputs: [],
+      });
+
+      const { names, systemPrompt } = sentToolNames(1);
+      const testerToolNames = getToolsForRole(
+        'tester',
+        GDEVELOP_OPENAI_TOOLS
+      ).map(tool => tool.function.name);
+      expect(names.length).toBeGreaterThan(0);
+      names.forEach(name => expect(testerToolNames).toContain(name));
+      expect(systemPrompt).toContain('QA tester');
+    });
+
+    it('writes a mutated request through to the cache', async () => {
+      const child = await spawnTester();
+      const before = (child.output || []).length;
+      const marker: any = {
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [
+          {
+            type: 'output_text',
+            status: 'completed',
+            text: 'marker',
+            annotations: [],
+          },
+        ],
+        messageId: 'msg-marker',
+      };
+      customUpdateAiRequest({
+        ...child,
+        output: [...(child.output || []), marker],
+      });
+      expect(customGetAiRequest(child.id).output.length).toBe(before + 1);
     });
   });
 });

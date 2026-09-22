@@ -16,6 +16,9 @@
  *  - `createRequestWriteQueue` serializes the writes per request, keeping at most
  *    one pending write (latest wins) and retrying a blocked one rather than
  *    dropping it.
+ *
+ * A `write` must never `await` an `enqueue` for the same `aiRequestId`: the drain
+ * loop cannot interleave and that promise would never settle.
  */
 
 export type RequestWriteBlock =
@@ -104,8 +107,16 @@ export const createRequestWriteQueue = (): RequestWriteQueue => {
       while (entry.pending) {
         const pending = entry.pending;
         if (pending.isBlocked()) {
-          // Do not drop it: the next enqueue retries it. Nothing more to do
-          // now, because the queue only advances when the caller enqueues.
+          // Do not drop it, and do not wait for another enqueue (none may ever
+          // come): schedule a self-recheck. The promise stays pending until the
+          // write actually runs.
+          setTimeout(() => {
+            if (!entry.isRunning && entry.pending) {
+              runEntry(aiRequestId).catch(error => {
+                console.error('[studio] request write queue failure:', error);
+              });
+            }
+          }, 50);
           break;
         }
         entry.pending = null;
@@ -132,12 +143,19 @@ export const createRequestWriteQueue = (): RequestWriteQueue => {
     ): Promise<void> => {
       const entry = getEntry(aiRequestId);
       // Latest wins: replace whatever was waiting, and settle it as superseded
-      // (resolved, not rejected - the caller asked for a write that a newer one
-      // made pointless).
+      // (rejected, not resolved - a replaced write never ran and must not report
+      // success).
       if (entry.pending) {
         const superseded = entry.pending;
         entry.pending = null;
-        superseded.resolve();
+        superseded.reject(
+          Object.assign(
+            new Error('Superseded by a newer write for this request.'),
+            {
+              code: 'superseded',
+            }
+          )
+        );
       }
       return new Promise<void>((resolve, reject) => {
         entry.pending = { write, isBlocked, resolve, reject };

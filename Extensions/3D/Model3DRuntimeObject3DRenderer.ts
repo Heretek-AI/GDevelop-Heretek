@@ -89,6 +89,11 @@ namespace gdjs {
      */
     private _instanceSlot: integer | null = null;
     private _instanceKey: string | null = null;
+    /**
+     * Bakes everything after the carrier (stretch/centering + the model's own
+     * node transforms) into one matrix so the instance matrix matches the clone.
+     */
+    private _correctionMatrix: THREE.Matrix4 | null = null;
     private _layerRenderer: gdjs.LayerPixiRenderer | null = null;
     private static _instanceMatrix: THREE.Matrix4 | null = null;
 
@@ -151,6 +156,15 @@ namespace gdjs {
       ) {
         return false;
       }
+      // An animated model morphs its vertices over time, which a single shared
+      // instance matrix cannot express. Skins/clips/morphs never take this path.
+      if (
+        this._originalModel &&
+        this._originalModel.animations &&
+        this._originalModel.animations.length > 0
+      ) {
+        return false;
+      }
       return !!this._getSingleMesh();
     }
 
@@ -164,6 +178,7 @@ namespace gdjs {
       let found: THREE.Mesh | null = null;
       let meshCount = 0;
       let skippedSkinnedMesh = false;
+      let hasMorphTargets = false;
       // An empty group contributes nothing; a mesh (or a mesh-less leaf) is one
       // drawable, so anything but exactly one drawable means no shared geometry.
       const visit = (node: THREE.Object3D) => {
@@ -173,9 +188,16 @@ namespace gdjs {
             skippedSkinnedMesh = true;
             return;
           }
+          if (
+            maybeMesh.morphTargetInfluences &&
+            maybeMesh.morphTargetInfluences.length > 0
+          ) {
+            hasMorphTargets = true;
+          }
           meshCount++;
           if (meshCount === 1) found = maybeMesh;
-          return;
+          // Fall through: a mesh node with child meshes is more than one
+          // drawable and must be counted as such (rejected below).
         }
         if (node.children.length === 0) {
           // A leaf that is not a mesh (a light, a camera, an empty).
@@ -184,7 +206,7 @@ namespace gdjs {
         for (const child of node.children) visit(child);
       };
       visit(scene);
-      if (skippedSkinnedMesh || meshCount !== 1) return null;
+      if (skippedSkinnedMesh || hasMorphTargets || meshCount !== 1) return null;
       return found;
     }
 
@@ -202,7 +224,7 @@ namespace gdjs {
      * Returns false when instancing is not applicable, in which case the caller
      * keeps the clone path.
      */
-    private _trySetupInstancing(): boolean {
+    trySetupInstancing(): boolean {
       if (!this._canUseInstancing()) return false;
       const mesh = this._getSingleMesh();
       if (!mesh) return false;
@@ -241,6 +263,16 @@ namespace gdjs {
       });
       this._instanceKey = key;
 
+      // The clone draws `carrier * threeObject(stretch/centering) * mesh`; bake
+      // everything after the carrier into one correction matrix so the instance
+      // matrix (`carrier * correction`) matches the clone exactly.
+      this._originalModel.scene.updateMatrixWorld(true);
+      this._threeObject.updateMatrix();
+      this._correctionMatrix = new THREE.Matrix4().multiplyMatrices(
+        this._threeObject.matrix,
+        mesh.matrixWorld
+      );
+
       // The instanced mesh draws this object now: drop the per-object clone and
       // take the carrier out of the scene graph. The carrier is never added to
       // the scene while instancing is on - it exists only to carry the transform
@@ -249,6 +281,11 @@ namespace gdjs {
       const carrier = this.get3DRendererObject();
       carrier.clear();
       layerRenderer.remove3DRendererObject(carrier);
+
+      // The first write was previously lost because `_updateModel` writes the
+      // matrix before the slot exists; write it now that the slot is acquired.
+      this._writeInstanceMatrix();
+      this._updateShadow();
       return true;
     }
 
@@ -263,6 +300,7 @@ namespace gdjs {
       const carrier = this.get3DRendererObject();
       carrier.updateMatrix();
       matrix.copy(carrier.matrix);
+      if (this._correctionMatrix) matrix.multiply(this._correctionMatrix);
       if (this._layerRenderer) {
         this._layerRenderer
           .getModelInstancePool()
@@ -304,6 +342,29 @@ namespace gdjs {
           this._object.getDepth() * (originPoint[2] - centerPoint[2])
       );
       this._writeInstanceMatrix();
+    }
+
+    override updateRotation() {
+      super.updateRotation();
+      this._writeInstanceMatrix();
+    }
+
+    /**
+     * On the instanced path the real draw is an `InstancedMesh` slot (the carrier
+     * is a detached transform node), so hide/cull collapses or restores the slot
+     * instead of setting `visible` on the carrier.
+     */
+    protected override applyRenderVisibility(): void {
+      if (this._instanceKey !== null && this._instanceSlot !== null) {
+        const drawn = this._isVisible && !this._isCulled;
+        if (this._layerRenderer) {
+          const pool = this._layerRenderer.getModelInstancePool();
+          if (!drawn) pool.collapseSlot(this._instanceKey, this._instanceSlot);
+          else this._writeInstanceMatrix();
+        }
+        return;
+      }
+      super.applyRenderVisibility();
     }
 
     getOriginPoint(): FloatPoint3D {
@@ -558,7 +619,7 @@ namespace gdjs {
       // Last, so the clone is in place if instancing cannot be used: the
       // instanced path replaces it, and silently leaves it alone otherwise.
       this.releaseInstancing();
-      this._trySetupInstancing();
+      this.trySetupInstancing();
     }
 
     /**
@@ -587,6 +648,21 @@ namespace gdjs {
     }
 
     _updateShadow() {
+      if (
+        this._instanceKey !== null &&
+        this._instanceSlot !== null &&
+        this._layerRenderer
+      ) {
+        this._layerRenderer
+          .getModelInstancePool()
+          .setSlotShadows(
+            this._instanceKey,
+            this._instanceSlot,
+            this._model3DRuntimeObject._isCastingShadow,
+            this._model3DRuntimeObject._isReceivingShadow
+          );
+        return;
+      }
       this._threeObject.traverse((child) => {
         child.castShadow = this._model3DRuntimeObject._isCastingShadow;
         child.receiveShadow = this._model3DRuntimeObject._isReceivingShadow;

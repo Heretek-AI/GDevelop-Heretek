@@ -283,6 +283,7 @@ void Model3DObjectConfiguration::DoUnserializeFrom(
   crossfadeDuration = content.GetDoubleAttribute("crossfadeDuration");
   isCastingShadow = content.GetBoolAttribute("isCastingShadow");
   isReceivingShadow = content.GetBoolAttribute("isReceivingShadow");
+  useInstancing = content.GetBoolAttribute("useInstancing", false);
 
   RemoveAllAnimations();
   auto &animationsElement = content.GetChild("animations");
@@ -314,6 +315,7 @@ void Model3DObjectConfiguration::DoSerializeTo(
   content.SetAttribute("crossfadeDuration", crossfadeDuration);
   content.SetAttribute("isCastingShadow", isCastingShadow);
   content.SetAttribute("isReceivingShadow", isReceivingShadow);
+  content.SetAttribute("useInstancing", useInstancing);
 
   auto &animationsElement = content.AddChild("animations");
   animationsElement.ConsiderAsArrayOf("animation");

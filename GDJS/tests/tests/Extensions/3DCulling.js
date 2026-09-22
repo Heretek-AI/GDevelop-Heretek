@@ -1,4 +1,3 @@
-// @ts-check
 // @ts-nocheck The expect.js assertions take an optional message argument, which
 // the installed `expect` typings do not declare.
 

@@ -139,7 +139,7 @@ describe('PlanStore', () => {
   });
 
   describe('validatePlanTasks', () => {
-    it('accepts a well-formed plan and defaults dependsOn to an empty array', () => {
+    it('accepts a well-formed plan and omits dependsOn when not provided', () => {
       const result = validatePlanTasks([
         {
           id: 'a',
@@ -150,7 +150,9 @@ describe('PlanStore', () => {
       ]);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.tasks[0].dependsOn).toEqual([]);
+        // W11: an omitted `dependsOn` is left off the task so a re-plan cannot
+        // clear a dependency another writer set.
+        expect(result.tasks[0].dependsOn).toBeUndefined();
         expect(result.tasks[0].status).toBe('pending');
       }
     });
@@ -296,6 +298,100 @@ describe('PlanStore', () => {
       const patched: any = patchPlanTask(tasks, 'a', { status: 'done' });
       const reread: any = getPlanFromOutput(buildPlanOutput(patched));
       expect(reread).toEqual(patched);
+    });
+  });
+
+  describe('composition and bounds (W11-W13, I11)', () => {
+    it('lets an omitted dependsOn survive a re-plan', () => {
+      const existing: any = [
+        makeTask({ id: 'a', dependsOn: ['b'], agentCallId: 'call-1' }),
+        makeTask({ id: 'b', status: 'done' }),
+      ];
+      const validated = validatePlanTasks([
+        { id: 'a', title: 'A2', description: 'D', status: 'pending' },
+      ]);
+      expect(validated.success).toBe(true);
+      const merged: any = mergePlanTasks(
+        existing,
+        validated.success ? validated.tasks : []
+      );
+      // W11 regression: the omitted dependsOn (and agentCallId) survive.
+      expect(merged[0].dependsOn).toEqual(['b']);
+      expect(merged[0].agentCallId).toBe('call-1');
+      expect(merged[0].title).toBe('A2');
+    });
+
+    it('rejects duplicate ids (W13)', () => {
+      const validated = validatePlanTasks([
+        { id: 'a', title: 'A', description: 'D', status: 'pending' },
+        { id: 'a', title: 'A2', description: 'D', status: 'pending' },
+      ]);
+      expect(validated.success).toBe(false);
+    });
+
+    it('rejects an oversized plan and oversized strings (W12)', () => {
+      const many = Array.from({ length: 33 }, (_, i) => ({
+        id: `t${i}`,
+        title: 'T',
+        description: 'D',
+        status: 'pending',
+      }));
+      expect(validatePlanTasks(many).success).toBe(false);
+      expect(
+        validatePlanTasks([
+          {
+            id: 'x'.repeat(65),
+            title: 'T',
+            description: 'D',
+            status: 'pending',
+          },
+        ]).success
+      ).toBe(false);
+      expect(
+        validatePlanTasks([
+          {
+            id: 'a',
+            title: 'y'.repeat(201),
+            description: 'D',
+            status: 'pending',
+          },
+        ]).success
+      ).toBe(false);
+      expect(
+        validatePlanTasks([
+          {
+            id: 'a',
+            title: 'T',
+            description: 'z'.repeat(1001),
+            status: 'pending',
+          },
+        ]).success
+      ).toBe(false);
+    });
+
+    it('rejects unexpected fields and a null agentCallId (I11)', () => {
+      expect(
+        validatePlanTasks([
+          {
+            id: 'a',
+            title: 'T',
+            description: 'D',
+            status: 'pending',
+            extra: 1,
+          },
+        ]).success
+      ).toBe(false);
+      expect(
+        validatePlanTasks([
+          {
+            id: 'a',
+            title: 'T',
+            description: 'D',
+            status: 'pending',
+            agentCallId: null,
+          },
+        ]).success
+      ).toBe(false);
     });
   });
 });

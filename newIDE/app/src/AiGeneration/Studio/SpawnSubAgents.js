@@ -2,10 +2,13 @@
 
 import { makeSimplifiedProjectBuilder } from '../../EditorFunctions/SimplifiedProject/SimplifiedProject';
 import { customCreateSubAgentAiRequest } from '../../AI/CustomAIClient';
-import { getStudioRole, isSpawnableRoleId, type StudioRoleId } from './Roles';
+import { isSpawnableRoleId, type StudioRoleId } from './Roles';
 import { type AiRequestMessageAssistantFunctionCall } from '../../Utils/GDevelopServices/Generation';
 
 const gd: libGDevelop = global.gd;
+
+/** Cap on live sub-agents one parent may have (W8). */
+export const MAX_SUB_AGENTS_PER_PARENT = 8;
 
 /** Whether a function call is the studio's delegation tool. */
 export const isSpawnAgentCall = (
@@ -61,11 +64,22 @@ export const parseSpawnAgentArgs = (
   const task = rawTask.trim();
   if (!task) return null;
 
+  // Reject (do not coerce) a present-but-wrongly-typed optional field.
+  if (rawContext !== undefined && typeof rawContext !== 'string') return null;
+  if (rawRelatedTaskId !== undefined && typeof rawRelatedTaskId !== 'string')
+    return null;
+
   const context = typeof rawContext === 'string' ? rawContext.trim() : '';
   const relatedTaskId =
     typeof rawRelatedTaskId === 'string' && rawRelatedTaskId.trim()
       ? rawRelatedTaskId.trim()
       : null;
+
+  // Reject oversized strings (W6): a runaway argument must not become a child
+  // request the user cannot read.
+  if (shortTitle.length > 100 || task.length > 4000 || context.length > 4000) {
+    return null;
+  }
 
   return { role, shortTitle, task, context, relatedTaskId };
 };
@@ -118,9 +132,10 @@ export const buildGddContextNote = (project: ?gdProject): string => {
           : JSON.stringify(variable.variableChildren || variable.type)
       }`
   );
-  return `The studio's design document, as GDD_ project variables:\n${lines.join(
+  const note = `The studio's design document, as GDD_ project variables:\n${lines.join(
     '\n'
   )}`;
+  return note.length > 4000 ? note.slice(0, 4000) + '\n…(truncated)' : note;
 };
 
 export type SpawnSubAgentResult =
@@ -140,6 +155,7 @@ export const spawnSubAgent = async ({
   gameProjectJson,
   projectSpecificExtensionsSummaryJson,
   project,
+  gddContextNote,
   onStamped,
 }: {|
   parentAiRequestId: string,
@@ -147,18 +163,14 @@ export const spawnSubAgent = async ({
   gameProjectJson: string | null,
   projectSpecificExtensionsSummaryJson: string | null,
   project: ?gdProject,
+  // The GDD note, computed once per batch and passed in (W7). When provided it
+  // is used verbatim instead of rebuilding the simplified project per call.
+  gddContextNote?: string | null,
   onStamped: (subAgentAiRequestId: string) => void,
 |}): Promise<SpawnSubAgentResult> => {
   const parsedArgs = parseSpawnAgentArgs(functionCall);
   if (!parsedArgs) {
     return { error: 'Invalid spawn_agent arguments.' };
-  }
-
-  const role = getStudioRole(parsedArgs.role);
-  if (!role) {
-    // `isSpawnableRoleId` already gated this, but keep the failure a normal
-    // result rather than a throw, so a model mistake is a failed tool call.
-    return { error: `Unknown role: ${String(parsedArgs.role)}.` };
   }
 
   let userRequest = `Task: ${parsedArgs.task}`;
@@ -170,7 +182,9 @@ export const spawnSubAgent = async ({
   // it, so handing it back to the designer would be noise.
   const spawnContextNote =
     parsedArgs.role === 'developer' || parsedArgs.role === 'tester'
-      ? buildGddContextNote(project)
+      ? gddContextNote != null
+        ? gddContextNote
+        : buildGddContextNote(project)
       : null;
 
   const subAgentRequest = await customCreateSubAgentAiRequest({

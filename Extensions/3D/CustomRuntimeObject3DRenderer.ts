@@ -84,7 +84,7 @@ namespace gdjs {
         this._object.isFlippedZ() ? -scaleZ : scaleZ
       );
 
-      threeObject3D.visible = !this._object.hidden;
+      this.updateVisibility();
 
       this._isContainerDirty = false;
     }
@@ -129,8 +129,22 @@ namespace gdjs {
       this._isContainerDirty = true;
     }
 
+    private _isVisible: boolean = true;
+    private _isCulled: boolean = false;
+
     updateVisibility(): void {
-      this._threeGroup.visible = !this._object.hidden;
+      this._isVisible = !this._object.hidden;
+      this.applyRenderVisibility();
+    }
+
+    setCullingVisible(culled: boolean): void {
+      this._isCulled = !!culled;
+      this.applyRenderVisibility();
+    }
+
+    /** Combine the object's hidden state with its frustum-cull state. */
+    applyRenderVisibility(): void {
+      this._threeGroup.visible = this._isVisible && !this._isCulled;
     }
 
     updateOpacity(): void {

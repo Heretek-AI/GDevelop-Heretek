@@ -162,6 +162,7 @@ public:
   bool shouldKeepAspectRatio() const { return keepAspectRatio; };
   bool shouldCastShadow() const { return isCastingShadow; };
   bool shouldReceiveShadow() const { return isReceivingShadow; };
+  bool shouldUseInstancing() const { return useInstancing; };
   ///@}
 
 protected:
@@ -187,8 +188,6 @@ private:
   bool isCastingShadow;
   bool isReceivingShadow;
   bool useInstancing;
-
-  bool shouldUseInstancing() const { return useInstancing; };
 
   std::vector<Model3DAnimation> animations;
   static Model3DAnimation badAnimation; //< Bad animation when an out of bound

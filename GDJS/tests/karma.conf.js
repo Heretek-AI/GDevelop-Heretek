@@ -172,10 +172,10 @@ module.exports = function (config) {
       './newIDE/app/resources/GDJS/Runtime/Extensions/TextObject/textruntimeobject-pixi-renderer.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/A_RuntimeObject3D.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/A_RuntimeObject3DRenderer.js',
-      // Loaded before the object that uses them.
+      // Mirror Extensions/3D/JsExtension.js addIncludeFile order.
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Scene3DTools.js',
-      './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DInstancePool.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DRuntimeObject.js',
+      './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DInstancePool.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DRuntimeObject3DRenderer.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Cube3DRuntimeObject.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Cube3DRuntimeObjectPixiRenderer.js',

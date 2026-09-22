@@ -25,7 +25,8 @@ export type StudioRole = {|
   /**
    * Exact tool names exposed to this role. Any name not listed here is never
    * sent to the model (see `getToolsForRole`), so a role cannot be talked into
-   * using a tool it was not granted.
+   * calling a tool it was not granted. (`run_script` excepted: it reaches any
+   * registry function not in `NonScriptableFunctionNames`.)
    */
   allowedToolNames: Array<string>,
   /**
@@ -81,6 +82,9 @@ export const MUTATING_TOOL_NAMES: Array<string> = [
   'change_custom_behavior',
   'create_custom_function',
   'change_custom_function',
+  'run_gameplay_test',
+  'change_gameplay_tests',
+  'initialize_project',
 ];
 
 export const STUDIO_ROLES: { [StudioRoleId]: StudioRole } = {
@@ -202,17 +206,17 @@ export const SPAWNABLE_ROLE_IDS: Array<StudioRoleId> = [
 ];
 
 export const isStudioRoleId = (value: any): boolean =>
-  typeof value === 'string' && !!STUDIO_ROLES[(value: any)];
+  typeof value === 'string' &&
+  Object.prototype.hasOwnProperty.call(STUDIO_ROLES, (value: any));
 
 export const isSpawnableRoleId = (value: any): boolean =>
   isStudioRoleId(value) && SPAWNABLE_ROLE_IDS.includes((value: StudioRoleId));
 
 export const getStudioRole = (roleId: StudioRoleId): StudioRole => {
-  const role = STUDIO_ROLES[roleId];
-  if (!role) {
+  if (!Object.prototype.hasOwnProperty.call(STUDIO_ROLES, (roleId: any))) {
     throw new Error(`Unknown studio role: ${String(roleId)}.`);
   }
-  return role;
+  return STUDIO_ROLES[roleId];
 };
 
 /**

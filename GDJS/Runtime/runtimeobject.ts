@@ -72,6 +72,12 @@ namespace gdjs {
     getAABB3D(box: THREE.Box3): THREE.Box3;
     /** True when the object's box intersects `frustum`. */
     isInFrustum(frustum: THREE.Frustum): boolean;
+    /**
+     * Hide/show the object because it left/entered the camera frustum. Routed
+     * through the renderer (not a detached three.js node) so instanced models
+     * can collapse the hidden instance's slot.
+     */
+    setCullingVisible(culled: boolean): void;
   }
 
   /** @category Objects > 3D Objects */
@@ -98,6 +104,10 @@ namespace gdjs {
     getRotationX(): float;
     getRotationY(): float;
     angle: float;
+    /** Scene-space rotation center (not always the box center). */
+    getCenterXInScene(): float;
+    getCenterYInScene(): float;
+    getCenterZInScene(): float;
   };
 
   /**
@@ -106,10 +116,14 @@ namespace gdjs {
    * @category Objects > 3D Objects
    */
   export namespace Object3DCulling {
-    /** Scratch objects: never returned to callers, never read across calls. */
-    const temporaryBox = new THREE.Box3();
-    const temporaryMatrix = new THREE.Matrix4();
-    const temporaryEuler = new THREE.Euler();
+    /**
+     * Scratch objects: never returned to callers, never read across calls.
+     * Allocated lazily at first use so that 2D-only games - which never load
+     * `three.js` - can still boot this namespace (it is included unconditionally).
+     */
+    let temporaryBox: THREE.Box3 | null = null;
+    let temporaryMatrix: THREE.Matrix4 | null = null;
+    let temporaryEuler: THREE.Euler | null = null;
 
     /**
      * Write the object's conservative axis-aligned box into `box` and return it.
@@ -120,18 +134,26 @@ namespace gdjs {
      * conservative, not tight - a non-axis-aligned rotation yields a larger box
      * than the object's silhouette, which is the safe direction for culling.
      *
+     * The box is rotated around the object's rotation center
+     * (`getCenter*InScene`), which is not always the box center (e.g. a
+     * `Model3D` whose origin is at its box corner). A negative size is
+     * normalized so it can never invert the box.
+     *
      * Allocates nothing.
      */
     export const computeAABB = (
       object: Object3DBoxSource,
       box: THREE.Box3
     ): THREE.Box3 => {
-      const halfWidth = object.getWidth() / 2;
-      const halfHeight = object.getHeight() / 2;
-      const halfDepth = object.getDepth() / 2;
-      const centerX = object.getDrawableX() + halfWidth;
-      const centerY = object.getDrawableY() + halfHeight;
-      const centerZ = object.getDrawableZ() + halfDepth;
+      const width = object.getWidth();
+      const height = object.getHeight();
+      const depth = object.getDepth();
+      const halfWidth = Math.abs(width) / 2;
+      const halfHeight = Math.abs(height) / 2;
+      const halfDepth = Math.abs(depth) / 2;
+      const centerX = object.getDrawableX() + width / 2;
+      const centerY = object.getDrawableY() + height / 2;
+      const centerZ = object.getDrawableZ() + depth / 2;
 
       if (
         object.getRotationX() === 0 &&
@@ -154,14 +176,16 @@ namespace gdjs {
 
       // Half-extents of the rotated box: for each world axis, the sum of the
       // absolute contributions of the three local half-extents.
-      temporaryEuler.set(
+      const matrix = temporaryMatrix || (temporaryMatrix = new THREE.Matrix4());
+      const euler = temporaryEuler || (temporaryEuler = new THREE.Euler());
+      euler.set(
         gdjs.toRad(object.getRotationX()),
         gdjs.toRad(object.getRotationY()),
         gdjs.toRad(object.angle),
         'ZYX'
       );
-      temporaryMatrix.makeRotationFromEuler(temporaryEuler);
-      const elements = temporaryMatrix.elements;
+      matrix.makeRotationFromEuler(euler);
+      const elements = matrix.elements;
       const halfExtentX =
         Math.abs(elements[0]) * halfWidth +
         Math.abs(elements[4]) * halfHeight +
@@ -175,15 +199,39 @@ namespace gdjs {
         Math.abs(elements[6]) * halfHeight +
         Math.abs(elements[10]) * halfDepth;
 
+      // Rotate the box center around the object's rotation center: the box sits
+      // at C' = P + R*(C - P), where P is the rotation pivot and C the box center.
+      const pivotX = object.getCenterXInScene();
+      const pivotY = object.getCenterYInScene();
+      const pivotZ = object.getCenterZInScene();
+      const offsetX = centerX - pivotX;
+      const offsetY = centerY - pivotY;
+      const offsetZ = centerZ - pivotZ;
+      const rotatedCenterX =
+        pivotX +
+        elements[0] * offsetX +
+        elements[4] * offsetY +
+        elements[8] * offsetZ;
+      const rotatedCenterY =
+        pivotY +
+        elements[1] * offsetX +
+        elements[5] * offsetY +
+        elements[9] * offsetZ;
+      const rotatedCenterZ =
+        pivotZ +
+        elements[2] * offsetX +
+        elements[6] * offsetY +
+        elements[10] * offsetZ;
+
       box.min.set(
-        centerX - halfExtentX,
-        centerY - halfExtentY,
-        centerZ - halfExtentZ
+        rotatedCenterX - halfExtentX,
+        rotatedCenterY - halfExtentY,
+        rotatedCenterZ - halfExtentZ
       );
       box.max.set(
-        centerX + halfExtentX,
-        centerY + halfExtentY,
-        centerZ + halfExtentZ
+        rotatedCenterX + halfExtentX,
+        rotatedCenterY + halfExtentY,
+        rotatedCenterZ + halfExtentZ
       );
       return box;
     };
@@ -196,8 +244,9 @@ namespace gdjs {
       object: Object3DBoxSource,
       frustum: THREE.Frustum
     ): boolean => {
-      computeAABB(object, temporaryBox);
-      return frustum.intersectsBox(temporaryBox);
+      const scratchBox = temporaryBox || (temporaryBox = new THREE.Box3());
+      computeAABB(object, scratchBox);
+      return frustum.intersectsBox(scratchBox);
     };
   }
 

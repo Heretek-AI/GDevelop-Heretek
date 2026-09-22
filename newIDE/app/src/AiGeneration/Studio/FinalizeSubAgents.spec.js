@@ -38,6 +38,17 @@ const spawnCall = (
   ...(subAgentId ? { subAgentAiRequestId: subAgentId } : {}),
 });
 
+const functionCallOutput = (
+  callId: string,
+  success: boolean,
+  message?: string
+): any => ({
+  type: 'function_call_output',
+  call_id: callId,
+  success,
+  output: message !== undefined ? { message } : {},
+});
+
 const makeSubAgent = (overrides: any): any => ({
   id: 'child-1',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -125,7 +136,13 @@ describe('FinalizeSubAgents', () => {
       ).toBe(true);
       expect(
         isSubAgentFinished({
-          subAgentRequest: makeSubAgent({}),
+          subAgentRequest: makeSubAgent({
+            output: [
+              assistantMessage('Done.'),
+              // The result's output has landed in the transcript (written back).
+              functionCallOutput('call-y', true),
+            ],
+          }),
           editorFunctionCallResults: [
             {
               status: 'finished',
@@ -136,6 +153,42 @@ describe('FinalizeSubAgents', () => {
           ],
         })
       ).toBe(true);
+    });
+    it('treats a sub-agent that errored as finished (4i)', () => {
+      expect(
+        isSubAgentFinished({
+          subAgentRequest: makeSubAgent({
+            status: 'error',
+            error: { code: 'repeated-tool-call-loop', message: 'stuck' },
+          }),
+          editorFunctionCallResults: null,
+        })
+      ).toBe(true);
+    });
+
+    it('is false for an executed-but-unsent result (4i)', () => {
+      expect(
+        isSubAgentFinished({
+          subAgentRequest: makeSubAgent({}),
+          editorFunctionCallResults: [
+            {
+              status: 'finished',
+              call_id: 'call-x',
+              success: false,
+              output: { message: 'boom' },
+            },
+          ],
+        })
+      ).toBe(false);
+    });
+
+    it('is false for an aborted/timeout-shaped request', () => {
+      expect(
+        isSubAgentFinished({
+          subAgentRequest: makeSubAgent({ status: 'aborted' }),
+          editorFunctionCallResults: null,
+        })
+      ).toBe(false);
     });
   });
 

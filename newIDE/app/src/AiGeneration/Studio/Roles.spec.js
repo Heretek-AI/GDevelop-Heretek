@@ -12,9 +12,7 @@ describe('Studio roles', () => {
   const allToolNames: Array<string> = GDEVELOP_OPENAI_TOOLS.map(
     tool => tool.function.name
   );
-  // `spawn_agent` is part of the studio's own tool schema addition (Phase 4),
-  // not of the upstream-derived part of `GDEVELOP_OPENAI_TOOLS`.
-  const availableToolNames = new Set([...allToolNames, 'spawn_agent']);
+  const availableToolNames = new Set(allToolNames);
 
   const roleIds = Object.keys(STUDIO_ROLES);
 
@@ -106,11 +104,15 @@ describe('Studio roles', () => {
     expect(
       designerReadOnlyTools.filter(name => !READ_ONLY_TOOL_NAMES.includes(name))
     ).toEqual([]);
-    // And the tester is granted no mutating tool at all.
+    // And the tester writes no game content: its only mutating tools (per W1)
+    // are the two gameplay-test tools, which change test definitions, never the
+    // game itself.
     const testerMutations = STUDIO_ROLES.tester.allowedToolNames.filter(name =>
       MUTATING_TOOL_NAMES.includes(name)
     );
-    expect(testerMutations).toEqual([]);
+    expect(testerMutations.sort()).toEqual(
+      ['change_gameplay_tests', 'run_gameplay_test'].sort()
+    );
   });
 
   it('only the manager may delegate, so a sub-agent never spawns a sub-agent', () => {

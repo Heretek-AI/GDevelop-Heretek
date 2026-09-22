@@ -1004,7 +1004,7 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
                   description: 'List of task IDs this task depends on.',
                 },
               },
-              required: ['id', 'title', 'status'],
+              required: ['id', 'title', 'description', 'status'],
             },
           },
         },
@@ -2260,10 +2260,15 @@ export const customAddMessageToAiRequest = async ({
       });
     }
 
+    // The role a studio sub-agent was spawned with must shape every turn, not
+    // just the first: keep its prompt and tool subset.
+    const studioRoleId = existing.studioRoleId || null;
+
     const systemPrompt = buildSystemPrompt({
       gameProjectJson,
       projectSpecificExtensionsSummaryJson,
       mode: mode || existing.mode,
+      role: studioRoleId,
     });
 
     const openAiMessages = transformGDevelopMessagesToOpenAi(
@@ -2273,7 +2278,9 @@ export const customAddMessageToAiRequest = async ({
 
     const assistantResponse = await sendChatCompletion({
       messages: openAiMessages,
-      tools: GDEVELOP_OPENAI_TOOLS,
+      tools: studioRoleId
+        ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
+        : GDEVELOP_OPENAI_TOOLS,
     });
 
     const assistantMsgId = `msg-asst-${Date.now()}`;
@@ -2284,6 +2291,23 @@ export const customAddMessageToAiRequest = async ({
     output.push(assistantMessage);
 
     const currentCachedRequest = localAiRequestsCache[aiRequestId] || existing;
+    // A suggestion or suspension write that landed while the model was
+    // answering must not be discarded (W5): re-insert cache-only messages
+    // before the turn's own additions.
+    const turnIds = new Set(output.map(message => message.messageId));
+    const cacheOnlyMessages = (currentCachedRequest.output || []).filter(
+      message => message && !turnIds.has(message.messageId)
+    );
+    let merged = output;
+    if (cacheOnlyMessages.length > 0) {
+      const appendedThisTurn = (userMessage && userMessage.trim() ? 1 : 0) + 1;
+      const turnStart = Math.max(0, output.length - appendedThisTurn);
+      merged = [
+        ...output.slice(0, turnStart),
+        ...cacheOnlyMessages,
+        ...output.slice(turnStart),
+      ];
+    }
     const updatedAiRequest: AiRequest = {
       // Read the cache again, inside the lock: a suspend or a suggestion write
       // that landed while the model was answering must not be discarded.
@@ -2294,7 +2318,7 @@ export const customAddMessageToAiRequest = async ({
       // can read what the agent produced before it was stopped.
       status:
         currentCachedRequest.status === 'suspended' ? 'suspended' : 'ready',
-      output,
+      output: merged,
     };
 
     localAiRequestsCache[aiRequestId] = updatedAiRequest;
@@ -2384,6 +2408,7 @@ export const customCreateSubAgentAiRequest = async ({
       toolsVersion: 'v14',
       toolOptions: null,
       parentAiRequestId: parentAiRequestId,
+      studioRoleId: roleId,
       error: null,
       output,
       lastUserMessagePriceInCredits: 0,
@@ -2459,16 +2484,39 @@ export const customSuspendAiRequest = (aiRequestId: string): AiRequest => {
   if (existing) {
     // Replace the cached request rather than mutating it in place: a model turn
     // may be holding a reference to it and will write its own copy back.
+    const now = new Date().toISOString();
     const suspended: AiRequest = {
       ...existing,
       status: 'suspended',
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
     localAiRequestsCache[aiRequestId] = suspended;
+    // A parent Stop must not leave BYOK-burning children running: suspend every
+    // sub-agent of this request too.
+    for (const key of Object.keys(localAiRequestsCache)) {
+      const child = localAiRequestsCache[key];
+      if (child && child.parentAiRequestId === aiRequestId) {
+        localAiRequestsCache[key] = {
+          ...child,
+          status: 'suspended',
+          updatedAt: now,
+        };
+      }
+    }
     saveLocalAiRequests();
     return suspended;
   }
   return customGetAiRequest(aiRequestId);
+};
+
+/**
+ * Client-side update write-through: a mutated request is written back to the
+ * local cache so plan flips and the loop guard's `status: 'error'` are not
+ * reverted by the next cache fetch. Content-idempotent.
+ */
+export const customUpdateAiRequest = (aiRequest: AiRequest): void => {
+  localAiRequestsCache[aiRequest.id] = aiRequest;
+  saveLocalAiRequests();
 };
 
 /**

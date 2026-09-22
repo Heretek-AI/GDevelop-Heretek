@@ -29,12 +29,31 @@ namespace gdjs {
     usedSlotCount: integer;
     /** Whether the instance matrices changed since the last `flush`. */
     isMatrixDirty: boolean;
+    /**
+     * Slots that cast/receive shadows. Drives the `InstancedMesh`'s mesh-level
+     * shadow flags (Three.js shadows are per-mesh, not per-instance).
+     */
+    castShadowSlots: Set<integer>;
+    receiveShadowSlots: Set<integer>;
   };
 
   export class Model3DInstancePool {
     private _entries: Map<string, InstanceEntry> = new Map();
-    /** The scratch matrix, reused by `setMatrix`; never returned. */
-    private _temporaryMatrix: THREE.Matrix4 = new THREE.Matrix4();
+    /**
+     * Reused scratch (a `getMatrixAt` target and the collapsed matrix); never
+     * returned to callers. Allocated lazily so an unused pool allocates nothing.
+     */
+    private _scratchMatrix: THREE.Matrix4 | null = null;
+    /** Preallocated `flush` handler so `flush` allocates no closure per frame. */
+    private _flushEntry: (entry: InstanceEntry) => void;
+
+    constructor() {
+      this._flushEntry = (entry: InstanceEntry): void => {
+        if (!entry.isMatrixDirty) return;
+        entry.instancedMesh.instanceMatrix.needsUpdate = true;
+        entry.isMatrixDirty = false;
+      };
+    }
 
     /**
      * Take a free slot for `key`, creating the `InstancedMesh` when the key is
@@ -52,23 +71,31 @@ namespace gdjs {
           instancedMesh,
           growMesh: (newCapacity: integer) => {
             const grown = createMesh(newCapacity);
-            // Move the matrices already written onto the bigger mesh.
+            // Move the matrices already written onto the bigger mesh. Read from
+            // the *current* mesh, not the one this closure first saw - a second
+            // grow must copy from the previous grown mesh, not a disposed one.
+            const current = newEntry.instancedMesh;
+            const scratch =
+              this._scratchMatrix || (this._scratchMatrix = new THREE.Matrix4());
             for (let slot = 0; slot < newEntry.usedSlotCount; slot++) {
-              instancedMesh.getMatrixAt(slot, this._temporaryMatrix);
-              grown.setMatrixAt(slot, this._temporaryMatrix);
+              current.getMatrixAt(slot, scratch);
+              grown.setMatrixAt(slot, scratch);
             }
             grown.instanceMatrix.needsUpdate = true;
-            if (instancedMesh.parent) {
-              instancedMesh.parent.remove(instancedMesh);
-              instancedMesh.parent.add(grown);
-            }
-            instancedMesh.dispose();
+            // `createMesh` already adds the grown mesh to the layer group; only
+            // the old one must be dropped (capture the parent first: `remove`
+            // nulls `.parent`).
+            const parent = current.parent;
+            if (parent) parent.remove(current);
+            current.dispose();
             newEntry.instancedMesh = grown;
             return grown;
           },
           freeSlots: [],
           usedSlotCount: 0,
           isMatrixDirty: true,
+          castShadowSlots: new Set<integer>(),
+          receiveShadowSlots: new Set<integer>(),
         };
         this._entries.set(key, newEntry);
         return this._takeSlot(newEntry);
@@ -95,19 +122,67 @@ namespace gdjs {
       if (!entry) return;
       if (slot < 0 || slot >= entry.usedSlotCount) return;
       if (entry.freeSlots.indexOf(slot) !== -1) return;
+      // Collapse first: a deleted object must stop being drawn even before the
+      // slot is reused.
+      this._collapseSlot(entry, slot);
       entry.freeSlots.push(slot);
     }
 
     /**
-     * Write the instance matrix of `slot`. Copies into a scratch matrix and marks
-     * the entry dirty; the caller flushes once per frame.
+     * Collapse a slot to zero scale (a zero instance matrix turns the triangle
+     * into a point, so it stops being drawn). Marks the entry dirty and clears
+     * the slot from the shadow sets so it stops driving the mesh's shadow flags.
+     */
+    private _collapseSlot(entry: InstanceEntry, slot: integer): void {
+      const scratch =
+        this._scratchMatrix || (this._scratchMatrix = new THREE.Matrix4());
+      scratch.makeScale(0, 0, 0);
+      entry.instancedMesh.setMatrixAt(slot, scratch);
+      entry.isMatrixDirty = true;
+      entry.castShadowSlots.delete(slot);
+      entry.receiveShadowSlots.delete(slot);
+      entry.instancedMesh.castShadow = entry.castShadowSlots.size > 0;
+      entry.instancedMesh.receiveShadow = entry.receiveShadowSlots.size > 0;
+    }
+
+    /** Collapse a live slot without releasing it (used by hide/cull). */
+    collapseSlot(key: string, slot: integer): void {
+      const entry = this._entries.get(key);
+      if (!entry) return;
+      if (slot < 0 || slot >= entry.usedSlotCount) return;
+      this._collapseSlot(entry, slot);
+    }
+
+    /**
+     * Record which slots cast/receive shadows and update the `InstancedMesh`'s
+     * mesh-level shadow flags (the mesh casts if any live slot does).
+     */
+    setSlotShadows(
+      key: string,
+      slot: integer,
+      castShadow: boolean,
+      receiveShadow: boolean
+    ): void {
+      const entry = this._entries.get(key);
+      if (!entry) return;
+      if (slot < 0 || slot >= entry.usedSlotCount) return;
+      if (castShadow) entry.castShadowSlots.add(slot);
+      else entry.castShadowSlots.delete(slot);
+      if (receiveShadow) entry.receiveShadowSlots.add(slot);
+      else entry.receiveShadowSlots.delete(slot);
+      entry.instancedMesh.castShadow = entry.castShadowSlots.size > 0;
+      entry.instancedMesh.receiveShadow = entry.receiveShadowSlots.size > 0;
+    }
+
+    /**
+     * Write the instance matrix of `slot` (passed straight through, no copy);
+     * the caller flushes once per frame.
      */
     setMatrix(key: string, slot: integer, matrix: THREE.Matrix4): void {
       const entry = this._entries.get(key);
       if (!entry) return;
       if (slot < 0 || slot >= entry.instancedMesh.count) return;
-      this._temporaryMatrix.copy(matrix);
-      entry.instancedMesh.setMatrixAt(slot, this._temporaryMatrix);
+      entry.instancedMesh.setMatrixAt(slot, matrix);
       entry.isMatrixDirty = true;
     }
 
@@ -116,11 +191,7 @@ namespace gdjs {
      * once per frame, after all the objects of the frame wrote their matrices.
      */
     flush(): void {
-      this._entries.forEach((entry) => {
-        if (!entry.isMatrixDirty) return;
-        entry.instancedMesh.instanceMatrix.needsUpdate = true;
-        entry.isMatrixDirty = false;
-      });
+      this._entries.forEach(this._flushEntry);
     }
 
     /** The `InstancedMesh` of a key, for a caller that needs to check or scene it. */
@@ -131,9 +202,7 @@ namespace gdjs {
 
     /** The keys currently held, in insertion order. */
     getKeys(): Array<string> {
-      const keys: Array<string> = [];
-      this._entries.forEach((entry, key) => keys.push(key));
-      return keys;
+      return Array.from(this._entries.keys());
     }
 
     /** Release every mesh this pool created and forget every key. */
@@ -149,13 +218,19 @@ namespace gdjs {
   }
 
   /**
-   * The pool key of one Model3D instance: the model resource, the material type and
-   * the layer it is rendered on. Two objects with the same key can share one
+   * The pool key of one Model3D instance: the model resource, the material type
+   * and the layer it is rendered on. Two objects with the same key can share one
    * `InstancedMesh` because their meshes and material are interchangeable.
+   *
+   * Each part is `JSON.stringify`-escaped so the comma-joined key is injective
+   * (a name containing `,` or `|` cannot collide with another triple).
    */
   export const getModelInstanceKey = (
     modelResourceName: string,
     materialType: string,
     layerName: string
-  ): string => `${modelResourceName}|${materialType}|${layerName}`;
+  ): string =>
+    `${JSON.stringify(modelResourceName)},${JSON.stringify(
+      materialType
+    )},${JSON.stringify(layerName)}`;
 }

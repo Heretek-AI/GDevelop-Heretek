@@ -45,14 +45,14 @@ export type LoopGuardDecision = {|
 
 export const DEFAULT_LOOP_GUARD_CONFIG = {
   enabled: true,
-  /** Consecutive identical tool calls (same name AND same arguments) allowed. */
+  /** Trips on the Nth consecutive identical call; N-1 are tolerated. */
   repeatedToolLimit: 8,
-  /** Consecutive failed tool calls allowed. */
+  /** Trips on the Nth consecutive failed call; N-1 are tolerated. */
   errorStormLimit: 5,
   /**
-   * Assistant turns allowed without a user message in between. Generous on
-   * purpose: a legitimate long task (a `run_script` doing hundreds of calls, a
-   * gameplay test) is not a loop.
+   * Trips on the Nth assistant turn without a user message; N-1 are tolerated.
+   * Generous on purpose: a legitimate long task (a `run_script` doing hundreds
+   * of calls, a gameplay test) is not a loop.
    */
   maxTurnsWithoutUserInput: 60,
 };
@@ -80,24 +80,53 @@ const actionFor = (level: LoopGuardLevel): LoopGuardAction => {
   return 'none';
 };
 
+/** Recursively stringify with object keys sorted, so key order is not identity. */
+const stableStringify = (value: any): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value).sort();
+    return `{${keys
+      .map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
 /**
- * The identity of a tool call: its name and a hash of its **whole** arguments
- * string.
+ * Parse `argsJson` and re-emit it canonically (keys sorted) so two argument
+ * objects that differ only in key order hash the same. A non-JSON string is
+ * hashed as-is.
+ */
+const canonicalizeArgs = (argsJson: string): string => {
+  try {
+    return stableStringify(JSON.parse(argsJson || 'null'));
+  } catch (error) {
+    return argsJson || '';
+  }
+};
+
+/**
+ * The identity of a tool call: its name and a hash of its arguments, taken
+ * whole and in canonical (key-sorted) form.
  *
- * Hashing the whole string is the point. munder-difflin's #377 records that its
- * old `input.slice(0, 200)` collided on Bash commands sharing a long identical
- * preamble - nine *different* measurements in a row read as nine identical calls
- * and constrained the agent. Different arguments must produce different keys,
- * however long their common prefix.
+ * Hashing the whole arguments is the point. munder-difflin's #377 records that
+ * its old `input.slice(0, 200)` collided on Bash commands sharing a long
+ * identical preamble - nine *different* measurements in a row read as nine
+ * identical calls and constrained the agent. Different arguments must produce
+ * different keys, however long their common prefix; canonicalizing means two
+ * calls that differ only in argument key order are the *same* call.
  */
 export const toolCallKey = (name: string, argsJson: string): string => {
   const shaObj = new jsSHA('SHA-256', 'TEXT', { encoding: 'UTF8' });
-  shaObj.update(argsJson || '');
+  shaObj.update(canonicalizeArgs(argsJson));
   return `${name}:${shaObj.getHash('HEX')}`;
 };
 
 export type LoopGuard = {|
   recordToolCall: (call: {| name: string, arguments: string |}) => void,
+  recordSuccess: () => void,
   recordError: () => void,
   recordTurn: () => void,
   reset: () => void,
@@ -118,6 +147,7 @@ export const createLoopGuard = (
   let repeatCount = 0;
   let errorCount = 0;
   let turnCount = 0;
+  let actionEmittedForTrip = false;
 
   const evaluateTrips = (): {| tripping: boolean, reason: string |} => {
     if (repeatCount >= effectiveConfig.repeatedToolLimit) {
@@ -151,10 +181,11 @@ export const createLoopGuard = (
       } else {
         repeatKey = key;
         repeatCount = 1;
-        // A distinct tool call is progress: it clears the error storm
-        // (munder-difflin `breaker.ts` `recordToolUse`).
-        errorCount = 0;
       }
+    },
+    recordSuccess: () => {
+      // Only a real success clears the error storm: an attempt is not progress.
+      errorCount = 0;
     },
     recordError: () => {
       errorCount++;
@@ -171,6 +202,7 @@ export const createLoopGuard = (
       repeatCount = 0;
       errorCount = 0;
       turnCount = 0;
+      actionEmittedForTrip = false;
     },
     evaluate: () => {
       if (!effectiveConfig.enabled) {
@@ -200,12 +232,20 @@ export const createLoopGuard = (
       level = target;
       reason = trip.tripping ? trip.reason : changed ? 'recovering' : reason;
 
+      // Emit on an escalation (a new level carries its own action) or on a
+      // fresh trip after a reset - but never re-send a durable action on every
+      // tick. Re-armed by `reset` and on recovery.
+      const shouldEmit = escalated || (trip.tripping && !actionEmittedForTrip);
+      if (shouldEmit) {
+        actionEmittedForTrip = true;
+      } else if (!trip.tripping) {
+        actionEmittedForTrip = false;
+      }
+
       return {
         level,
         reason,
-        // Only an escalation carries an action, so a durable steer is not
-        // re-sent on every tick.
-        action: escalated ? actionFor(target) : 'none',
+        action: shouldEmit ? actionFor(target) : 'none',
         changed,
       };
     },

@@ -1,7 +1,6 @@
-// @ts-check
 // @ts-nocheck The runtime types do not describe the internals these tests drive
-// (the instance pool slot, the resource manager registry), which the built
-// runtime does expose.
+// (the instance pool, the resource manager registry), which the built runtime
+// does expose.
 
 describe('Model3D instancing', function () {
   /** The single-mesh model shipped for these tests. */
@@ -29,21 +28,23 @@ describe('Model3D instancing', function () {
     return runtimeGame;
   };
 
+  const make3DLayerData = (name) => ({
+    name,
+    renderingType: '3d',
+    cameraType: 'perspective',
+    visibility: true,
+    cameras: [],
+    effects: [],
+    ambientLightColorR: 255,
+    ambientLightColorG: 255,
+    ambientLightColorB: 255,
+    isLightingLayer: false,
+    followBaseLayerCamera: false,
+  });
+
   const createSceneWith3DLayer = (runtimeGame) => {
     const runtimeScene = new gdjs.RuntimeScene(runtimeGame);
-    runtimeScene.addLayer({
-      name: '',
-      renderingType: '3d',
-      cameraType: 'perspective',
-      visibility: true,
-      cameras: [],
-      effects: [],
-      ambientLightColorR: 255,
-      ambientLightColorG: 255,
-      ambientLightColorB: 255,
-      isLightingLayer: false,
-      followBaseLayerCamera: false,
-    });
+    runtimeScene.addLayer(make3DLayerData(''));
     return runtimeScene;
   };
 
@@ -104,79 +105,148 @@ describe('Model3D instancing', function () {
   const countGroups = (runtimeScene) =>
     getThreeChildren(runtimeScene).filter((child) => child.isGroup).length;
 
-  it('shares one InstancedMesh between instanced models and keeps the clone path for the others', async () => {
+  const getPoolKey = (runtimeScene) => getLayerPool(runtimeScene).getKeys()[0];
+
+  it('shares one InstancedMesh between same-key models and draws no clones', async () => {
     const runtimeGame = await makeGameWithSingleMeshModel();
     const runtimeScene = createSceneWith3DLayer(runtimeGame);
 
-    const first = createModel3D(runtimeScene, 'First', true);
-    const second = createModel3D(runtimeScene, 'Second', true);
-    const third = createModel3D(runtimeScene, 'Third', true);
-    // Not opted in: must keep the per-object clone.
-    const cloned = createModel3D(runtimeScene, 'Cloned', false);
-
+    createModel3D(runtimeScene, 'First', true);
+    createModel3D(runtimeScene, 'Second', true);
     runtimeScene.render();
 
-    // the three instanced models share one InstancedMesh
+    // (i) one InstancedMesh in the layer group and no per-object clones.
     expect(countInstancedMeshes(runtimeScene)).to.be(1);
-    // the fourth, non-instanced model still gets its own clone
-    expect(countGroups(runtimeScene)).to.be(1);
-
-    // moving the first instance rewrites its matrix
-    expect(getLayerPool(runtimeScene).getKeys().length).to.be(1);
-    expect(first.getRenderer().getInstanceSlot()).to.be(0);
-    expect(second.getRenderer().getInstanceSlot()).to.be(1);
-    expect(third.getRenderer().getInstanceSlot()).to.be(2);
-    expect(cloned.getRenderer().getInstanceSlot()).to.be(null);
+    expect(countGroups(runtimeScene)).to.be(0);
   });
 
-  it('writes the instance matrix of each instance when it moves', async () => {
+  it('grows past the initial capacity without throwing or losing matrices', async () => {
+    const runtimeGame = await makeGameWithSingleMeshModel();
+    const runtimeScene = createSceneWith3DLayer(runtimeGame);
+
+    // 16 fill the initial capacity; the 17th grows the mesh.
+    for (let i = 0; i < 16; i++) {
+      const object = createModel3D(runtimeScene, 'O' + i, true);
+      object.setX(i * 1000);
+    }
+    runtimeScene.render();
+
+    // (ii) the 17th acquire grows the mesh (pre-fix: `TypeError` on `null.add`).
+    const seventeenth = createModel3D(runtimeScene, 'O16', true);
+    seventeenth.setX(16000);
+
+    // Slots 0..15 keep the matrices written before the grow.
+    const instancedMesh = getLayerPool(runtimeScene).getInstancedMesh(
+      getPoolKey(runtimeScene)
+    );
+    expect(instancedMesh).to.be.ok();
+    const matrix = new THREE.Matrix4();
+    for (let slot = 0; slot < 16; slot++) {
+      instancedMesh.getMatrixAt(slot, matrix);
+      // A lost/collapsed slot would have a zero scale; the grow copies it as-is.
+      expect(matrix.elements[0]).to.not.be(0);
+    }
+  });
+
+  it('collapses the slot of a deleted model to zero scale', async () => {
     const runtimeGame = await makeGameWithSingleMeshModel();
     const runtimeScene = createSceneWith3DLayer(runtimeGame);
 
     const first = createModel3D(runtimeScene, 'First', true);
-    const second = createModel3D(runtimeScene, 'Second', true);
+    createModel3D(runtimeScene, 'Second', true);
     runtimeScene.render();
 
-    const key = getLayerPool(runtimeScene).getKeys()[0];
-    const instancedMesh = getLayerPool(runtimeScene).getInstancedMesh(key);
-    expect(instancedMesh).to.be.ok();
-
+    const instancedMesh = getLayerPool(runtimeScene).getInstancedMesh(
+      getPoolKey(runtimeScene)
+    );
     const matrix = new THREE.Matrix4();
     instancedMesh.getMatrixAt(0, matrix);
-    const firstX = matrix.elements[12];
+    expect(matrix.elements[0]).to.not.be(0);
 
-    first.setX(1000);
+    // (iii) deleting the first model collapses its slot (pre-fix: drawn forever).
+    runtimeScene.markObjectForDeletion(first);
     runtimeScene.render();
     instancedMesh.getMatrixAt(0, matrix);
-    expect(matrix.elements[12]).to.be.above(firstX);
-
-    instancedMesh.getMatrixAt(1, matrix);
-    const secondX = matrix.elements[12];
-    second.setX(2000);
-    runtimeScene.render();
-    instancedMesh.getMatrixAt(1, matrix);
-    // the freed slot 0 is handed to the next instanced model
-    expect(matrix.elements[12]).to.be.above(secondX);
+    expect(matrix.elements[0]).to.be(0);
   });
 
-  it('frees a slot when an instanced model leaves the scene, for reuse', async () => {
+  it('rewrites the instance matrix on rotation', async () => {
     const runtimeGame = await makeGameWithSingleMeshModel();
     const runtimeScene = createSceneWith3DLayer(runtimeGame);
 
-    const first = createModel3D(runtimeScene, 'First', true);
-    const second = createModel3D(runtimeScene, 'Second', true);
+    const object = createModel3D(runtimeScene, 'First', true);
     runtimeScene.render();
 
-    expect(first.getRenderer().getInstanceSlot()).to.be(0);
-    expect(second.getRenderer().getInstanceSlot()).to.be(1);
+    const instancedMesh = getLayerPool(runtimeScene).getInstancedMesh(
+      getPoolKey(runtimeScene)
+    );
+    const matrix = new THREE.Matrix4();
+    instancedMesh.getMatrixAt(0, matrix);
+    const before = matrix.elements[0];
 
-    // Removing the first object gives slot 0 back.
-    runtimeScene.markObjectForDeletion(first);
+    // (iv) a rotation reaches the instance matrix (pre-fix: unchanged).
+    object.setAngle(Math.PI / 2);
+    runtimeScene.render();
+    instancedMesh.getMatrixAt(0, matrix);
+    expect(matrix.elements[0]).to.not.be(before);
+  });
+
+  it('collapses the slot on hide and restores it on unhide', async () => {
+    const runtimeGame = await makeGameWithSingleMeshModel();
+    const runtimeScene = createSceneWith3DLayer(runtimeGame);
+
+    const object = createModel3D(runtimeScene, 'First', true);
     runtimeScene.render();
 
-    const third = createModel3D(runtimeScene, 'Third', true);
+    const instancedMesh = getLayerPool(runtimeScene).getInstancedMesh(
+      getPoolKey(runtimeScene)
+    );
+    const matrix = new THREE.Matrix4();
+
+    // (v) hide collapses the slot; unhide restores the transform matrix.
+    object.hide(true);
     runtimeScene.render();
-    expect(third.getRenderer().getInstanceSlot()).to.be(0);
+    instancedMesh.getMatrixAt(0, matrix);
+    expect(matrix.elements[0]).to.be(0);
+
+    object.hide(false);
+    runtimeScene.render();
+    instancedMesh.getMatrixAt(0, matrix);
+    expect(matrix.elements[0]).to.not.be(0);
+  });
+
+  it('moves the instance matrix to the new layer pool on a layer change', async () => {
+    const runtimeGame = await makeGameWithSingleMeshModel();
+    const runtimeScene = new gdjs.RuntimeScene(runtimeGame);
+    runtimeScene.addLayer(make3DLayerData(''));
+    runtimeScene.addLayer(make3DLayerData('other'));
+
+    const object = createModel3D(runtimeScene, 'First', true);
+    runtimeScene.render();
+
+    const sourceMesh = runtimeScene
+      .getLayer('')
+      .getRenderer()
+      .getModelInstancePool()
+      .getInstancedMesh(
+        runtimeScene.getLayer('').getRenderer().getModelInstancePool().getKeys()[0]
+      );
+    const matrix = new THREE.Matrix4();
+    sourceMesh.getMatrixAt(0, matrix);
+    const before = matrix.elements[0];
+
+    // (vi) the slot is re-acquired from the destination layer's pool.
+    object.setLayer('other');
+    runtimeScene.render();
+
+    const targetPool = runtimeScene
+      .getLayer('other')
+      .getRenderer()
+      .getModelInstancePool();
+    const targetMesh = targetPool.getInstancedMesh(targetPool.getKeys()[0]);
+    expect(targetMesh).to.be.ok();
+    targetMesh.getMatrixAt(0, matrix);
+    expect(matrix.elements[0]).to.be(before);
   });
 
   it('silently keeps the clone path for a Basic material', async () => {
@@ -184,10 +254,10 @@ describe('Model3D instancing', function () {
     const runtimeScene = createSceneWith3DLayer(runtimeGame);
 
     // "Basic" replaces every material per instance: not shareable.
-    const object = createModel3D(runtimeScene, 'Basic', true, 'Basic');
+    createModel3D(runtimeScene, 'Basic', true, 'Basic');
     runtimeScene.render();
 
-    expect(object.getRenderer().getInstanceSlot()).to.be(null);
+    // Materials/skins/animation clips never take the instanced path.
     expect(countInstancedMeshes(runtimeScene)).to.be(0);
     expect(countGroups(runtimeScene)).to.be(1);
   });

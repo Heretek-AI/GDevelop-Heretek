@@ -11,6 +11,7 @@ import {
   isSubAgentFinished,
   buildSubAgentReport,
   getSubAgentReportLabel,
+  getSubAgentRoleId,
 } from './FinalizeSubAgents';
 import {
   buildPlanOutput,
@@ -132,7 +133,7 @@ export const useStudioRuntime = ({
     aiRequestId: string,
     editorFunctionCallResults: Array<EditorFunctionCallResult>,
     options: Object
-  ) => Promise<void>,
+  ) => Promise<boolean>,
   /**
    * Runs a write once the request is free (see `RequestWriteGate`). Optional so
    * the hook can be used without the gate; the write then runs immediately.
@@ -172,6 +173,10 @@ export const useStudioRuntime = ({
 
         const subAgentRequest = aiRequests[subAgentId];
         if (!subAgentRequest) continue;
+        // A hosted sub-agent is retired by the server, never finalized here.
+        if (!getSubAgentRoleId({ aiRequest: subAgentRequest, aiRequests })) {
+          continue;
+        }
         const parentRequest = aiRequests[subAgentInfo.parentAiRequestId];
         if (!parentRequest) continue;
 
@@ -229,33 +234,43 @@ export const useStudioRuntime = ({
 
             const parentRequest = aiRequests[parentAiRequestId];
             if (parentRequest) {
-              const updatedOutput = buildPlanStatusUpdateOutput(
-                parentRequest,
-                callId
-              );
-              if (updatedOutput) {
-                const writePlan = async () => {
-                  updateAiRequest(parentAiRequestId, currentRequest =>
-                    currentRequest
-                      ? { ...currentRequest, output: updatedOutput }
-                      : // The request disappeared: hand back the same empty shell
-                        // the mutator expects rather than null.
-                        ({
-                          id: parentAiRequestId,
-                          createdAt: new Date().toISOString(),
-                          updatedAt: new Date().toISOString(),
-                          userId: 'local-byok-user',
-                          status: 'ready',
-                          error: null,
-                          output: updatedOutput,
-                        }: any)
-                  );
-                };
-                if (enqueueRequestWrite) {
-                  await enqueueRequestWrite(parentAiRequestId, writePlan);
-                } else {
-                  await writePlan();
-                }
+              const writePlan = async () => {
+                updateAiRequest(parentAiRequestId, currentRequest => {
+                  const base =
+                    currentRequest ||
+                    ({
+                      id: parentAiRequestId,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                      userId: 'local-byok-user',
+                      status: 'ready',
+                      error: null,
+                      output: [],
+                    }: any);
+                  // Recompute inside the updater: two finalizations in one pass
+                  // would otherwise write the first snapshot twice.
+                  const updated = buildPlanStatusUpdateOutput(base, callId);
+                  return updated ? { ...base, output: updated } : base;
+                });
+              };
+              if (enqueueRequestWrite) {
+                // Fire-and-forget: a blocked gate write no longer settles
+                // inline, so awaiting it would freeze every later finalization
+                // behind `isRunningRef`.
+                enqueueRequestWrite(parentAiRequestId, writePlan).catch(
+                  error => {
+                    if (error.code === 'superseded') {
+                      console.info('[studio] plan write superseded');
+                    } else {
+                      console.error(
+                        '[studio] error while writing the plan update:',
+                        error
+                      );
+                    }
+                  }
+                );
+              } else {
+                await writePlan();
               }
             }
 
@@ -263,7 +278,7 @@ export const useStudioRuntime = ({
               aiRequest: subAgentRequest,
               aiRequests,
             });
-            await onSendEditorFunctionCallResults(
+            const sent = await onSendEditorFunctionCallResults(
               parentAiRequestId,
               [
                 {
@@ -272,13 +287,17 @@ export const useStudioRuntime = ({
                   success: true,
                   output: {
                     message: `Report from the ${label}:\n\n${buildSubAgentReport(
-                      subAgentRequest
+                      subAgentRequest,
+                      aiRequests
                     )}`,
                   },
                 },
               ],
               {}
             );
+            // Report delivery is not droppable: throw so the `catch` retries
+            // (it deletes `startedCallIds`, so the next pass redoes this).
+            if (!sent) throw new Error('Sub-agent report was not sent.');
           }
         } catch (error) {
           console.error('[studio] error while finalizing a sub-agent:', error);

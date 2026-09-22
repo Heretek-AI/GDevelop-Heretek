@@ -312,6 +312,14 @@ namespace gdjs {
         object.onDestroyed();
       }
 
+      // Release each layer's Model3D instance pool so a reloaded scene does not
+      // leak shared InstancedMeshes.
+      for (const name in this._layers.items) {
+        if (this._layers.items.hasOwnProperty(name)) {
+          this._layers.items[name].getRenderer().disposeModelInstancePool();
+        }
+      }
+
       // Notify the renderer
       if (this._renderer) {
         this._renderer.onSceneUnloaded();
@@ -542,10 +550,9 @@ namespace gdjs {
             const frustum = layerRenderer
               ? layerRenderer.getThreeFrustum()
               : null;
-            const isVisible =
-              !object.isHidden() && (!frustum || object.isInFrustum(frustum));
-            const threeObject = object.get3DRendererObject();
-            if (threeObject) threeObject.visible = isVisible;
+            const culled = !!frustum && !object.isInFrustum(frustum);
+            object.setCullingVisible(culled);
+            const isVisible = !object.isHidden() && !culled;
 
             // Update effects and perform the pre-render update only if the
             // object is visible, like the 2D path below.

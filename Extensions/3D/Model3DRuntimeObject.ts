@@ -528,6 +528,17 @@ namespace gdjs {
       }
       super.onDeletedFromScene();
     }
+
+    /**
+     * Moving to another layer re-acquires the instance slot from that layer's
+     * pool (the pool key embeds the layer name).
+     */
+    setLayer(layerName: string): void {
+      const wasInstanced = this._renderer.getInstanceSlot() !== null;
+      if (wasInstanced) this._renderer.releaseInstancing();
+      super.setLayer(layerName);
+      if (wasInstanced) this._renderer.trySetupInstancing();
+    }
   }
 
   /** @category Objects > 3D Model */

@@ -266,24 +266,18 @@ namespace gdjs {
         const object = allInstancesList[i];
 
         // 3D objects report no `getRendererObject()` (see
-        // `RuntimeObject3D.getRendererObject`), so they need their own culling.
-        // A custom object has no camera of its own: resolve the scene's, for the
-        // layer the 3D object is on.
+        // `RuntimeObject3D.getRendererObject`), so they need their own
+        // visibility handling.
         //
         // Both 3D object families are caught by the capability, not by a base
         // class: `CustomRuntimeObject3D` does not extend `RuntimeObject3D`.
         const isThreeD = gdjs.CullableRuntimeObject3D.isCullable3D(object);
         if (isThreeD) {
-          const scene = this.getScene();
-          const layer = scene ? scene.getLayer(object.getLayer()) : null;
-          const layerRenderer = layer ? layer.getRenderer() : null;
-          const frustum = layerRenderer
-            ? layerRenderer.getThreeFrustum()
-            : null;
-          const isVisible =
-            !object.isHidden() && (!frustum || object.isInFrustum(frustum));
-          const threeObject = object.get3DRendererObject();
-          if (threeObject) threeObject.visible = isVisible;
+          // A 3D child's box is in the custom object's container space, but the
+          // frustum is in scene space: cull nothing here (see
+          // AI_GAME_STUDIO_ASSESSMENT follow-up for container-space frustums).
+          object.setCullingVisible(false);
+          const isVisible = !object.isHidden();
 
           if (isVisible) {
             this.getGame()

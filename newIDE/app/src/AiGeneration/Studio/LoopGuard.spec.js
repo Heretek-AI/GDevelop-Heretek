@@ -92,15 +92,23 @@ describe('LoopGuard', () => {
       expect(decision.reason).toContain('5');
     });
 
-    it('is reset by a successful (distinct) tool call', () => {
-      const guard = createLoopGuard({ errorStormLimit: 3 });
-      guard.recordError();
-      guard.recordError();
-      guard.recordToolCall({ name: 'create_scene', arguments: '{}' });
-      guard.recordError();
-      guard.recordError();
-      // Only two consecutive errors since the successful call.
-      expect(guard.evaluate().level).toBe('healthy');
+    it('is reset by a success but not by a mere attempt', () => {
+      // A distinct tool call is an attempt, not progress: the storm continues.
+      const attempt = createLoopGuard({ errorStormLimit: 3 });
+      attempt.recordError();
+      attempt.recordError();
+      attempt.recordToolCall({ name: 'create_scene', arguments: '{}' });
+      attempt.recordError();
+      expect(attempt.evaluate().level).toBe('steering');
+
+      // A real success clears the storm.
+      const success = createLoopGuard({ errorStormLimit: 3 });
+      success.recordError();
+      success.recordError();
+      success.recordSuccess();
+      success.recordError();
+      success.recordError();
+      expect(success.evaluate().level).toBe('healthy');
     });
   });
 
@@ -208,6 +216,46 @@ describe('LoopGuard', () => {
       const decision = guard.evaluate();
       expect(decision.level).toBe('healthy');
       expect(decision.action).toBe('none');
+    });
+  });
+
+  describe('canonicalization and re-arming', () => {
+    it('treats arguments that differ only in key order as the same call', () => {
+      expect(toolCallKey('create_scene', '{"a":1,"b":2}')).toBe(
+        toolCallKey('create_scene', '{"b":2,"a":1}')
+      );
+    });
+
+    it('is not tripped by a benign A-B-A-B alternation', () => {
+      const guard = createLoopGuard({ repeatedToolLimit: 3 });
+      for (const args of [
+        '{"a":1}',
+        '{"a":2}',
+        '{"a":1}',
+        '{"a":2}',
+        '{"a":1}',
+      ]) {
+        guard.recordToolCall({ name: 'create_scene', arguments: args });
+      }
+      expect(guard.evaluate().level).toBe('healthy');
+    });
+
+    it('re-emits an action on a re-trip after reset at the ceiling', () => {
+      const guard = createLoopGuard({
+        repeatedToolLimit: 1,
+        maxTurnsWithoutUserInput: 1000,
+      });
+      guard.recordToolCall({ name: 'a', arguments: '{}' });
+      guard.evaluate(); // steering
+      guard.evaluate(); // constrained
+      guard.evaluate(); // constrained (ceiling, durable: no action)
+      expect(guard.evaluate().action).toBe('none');
+
+      guard.reset();
+      guard.recordToolCall({ name: 'a', arguments: '{}' });
+      const retripped = guard.evaluate();
+      expect(retripped.level).toBe('constrained');
+      expect(retripped.action).toBe('constrain');
     });
   });
 

@@ -4,7 +4,8 @@ Answers three questions the fork asked, then records what this plan builds on th
 
 Every claim below carries a `path:line` (or a `path`) that was read while writing this
 document, in this checkout. Where a figure is quoted from another project, the file that
-contains it is named.
+contains it is named. The gap claims were measured at the parent of `ae815f489`, before
+the phases of section 5 landed; those that section 5 closes are stated in the past tense.
 
 ---
 
@@ -37,9 +38,9 @@ common repeated-prop case, not for an arbitrary scene.
   `GDJS/Runtime/CustomRuntimeObjectInstanceContainer.ts:263`.
 - `RuntimeObject3D.getRendererObject()` returns `null`
   (`Extensions/3D/A_RuntimeObject3D.ts:97-99`), so the 2D AABB culling path in
-  `CustomRuntimeObjectInstanceContainer._updateObjectsPreRender` skips every 3D object
-  entirely: `if (rendererObject) { ... } else { object.updatePreRender(this); }`
-  (`GDJS/Runtime/CustomRuntimeObjectInstanceContainer.ts:266-283`).
+  `GDJS/Runtime/runtimescene.ts` `_updateObjectsPreRender` (pre-change `:529-573`)
+  skips every 3D object entirely:
+  `if (rendererObject) { ... } else { object.updatePreRender(this); }`.
 
 So every 3D object in the scene is submitted to the GPU every frame regardless of where the
 camera is. Combined with 1.1, a large city is not merely slow — it is bounded by total
@@ -206,7 +207,8 @@ create_or_update_plan, run_gameplay_test, change_gameplay_tests
 
 `spawn_agent` is added to this list by Phase 4. The four roles and their exact tool names are
 defined in `newIDE/app/src/AiGeneration/Studio/Roles.js` (Phase 2); the read-only invariant
-(tester mutates nothing; designer's only mutating tool is `add_or_edit_variable`) is asserted
+(tester mutates no game content, but writes test definitions (`change_gameplay_tests`,
+`run_gameplay_test`); designer's only mutating tool is `add_or_edit_variable`) is asserted
 by `Roles.spec.js`.
 
 ---
@@ -218,7 +220,7 @@ by `Roles.spec.js`.
 | No instancing: every Model3D instance clones its own scene graph | `Extensions/3D/Model3DRuntimeObject3DRenderer.ts:349` (`SkeletonUtils.clone`); no `THREE.InstancedMesh` outside vendored Three.js | Draw calls rise 1:1 with repeated props; framerate collapses on any repeated-model set | **7** |
 | 3D objects never culled in a scene | `GDJS/Runtime/runtimescene.ts:524` (`TODO (3D) culling`) | Off-camera 3D objects still submitted every frame | **6** |
 | 3D objects never culled inside a custom object | `GDJS/Runtime/CustomRuntimeObjectInstanceContainer.ts:263` (`TODO (3D) culling`) | A custom object holding many 3D children is never culled as a whole or in part | **6** |
-| `RuntimeObject3D` reports no renderer object, so the 2D AABB path skips it | `Extensions/3D/A_RuntimeObject3D.ts:97-99` (`getRendererObject() { return null; }`); branch at `GDJS/Runtime/CustomRuntimeObjectInstanceContainer.ts:266-283` | Reinforces the two rows above: even the existing 2D culling cannot see 3D objects | **6** |
+| `RuntimeObject3D` reports no renderer object, so the 2D AABB path skips it | `Extensions/3D/A_RuntimeObject3D.ts:97-99` (`getRendererObject() { return null; }`) | Reinforces the two rows above: even the existing 2D culling cannot see 3D objects | **6** |
 | Base container has no camera to cull against | `GDJS/Runtime/RuntimeInstanceContainer.ts:496` (`TODO (3D) culling`) | Accepted — see below | accepted, not fixed |
 | TileMap viewport culling only for SimpleTileMap, only as a direct scene child, only with an unrotated 3D camera | `Extensions/TileMap/tilemapruntimeobject-pixi-renderer.ts:152-159` (`dimX + dimY > 100 && isSimpleTileMap(object) && instanceContainer === scene && (!gdjs.scene3d || rotations are 0)`) | A large `TileMap` (not Simple) or a tilemap nested in a custom object re-renders the whole map every frame | **8** |
 | Any tilemap opacity change forces a full re-render | `Extensions/TileMap/tilemapruntimeobject-pixi-renderer.ts:90-95` (`updateTileMap(true)`) | Fading a district stutters | accepted, not fixed |

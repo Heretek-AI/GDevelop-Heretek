@@ -223,8 +223,25 @@ namespace gdjs {
      */
     private _threeFrustum: THREE.Frustum | null = null;
     private _threeFrustumMatrix: THREE.Matrix4 | null = null;
-    /** Everything the frustum depends on, so it is rebuilt only on a change. */
-    private _threeFrustumSignature: string | null = null;
+    /**
+     * Everything the frustum depends on, so it is rebuilt only on a change.
+     * Compared field by field - never concatenated - to avoid a per-object
+     * per-frame string allocation. `getCameraZ` is included so a camera depth
+     * change also invalidates the cached frustum.
+     */
+    private _frustumSigValid: boolean = false;
+    private _frustumSigCameraX: float = 0;
+    private _frustumSigCameraY: float = 0;
+    private _frustumSigCameraZ: float = 0;
+    private _frustumSigCameraRotation: float = 0;
+    private _frustumSigCameraZoom: float = 0;
+    private _frustumSigWidth: float = 0;
+    private _frustumSigHeight: float = 0;
+    private _frustumSigRotX: float = 0;
+    private _frustumSigRotY: float = 0;
+    private _frustumSigFov: float = 0;
+    private _frustumSigNear: float = 0;
+    private _frustumSigFar: float = 0;
 
     // For a 2D+3D layer, the 2D rendering is done on the render texture
     // and then must be displayed on a plane in the 3D world:
@@ -344,6 +361,14 @@ namespace gdjs {
       return this._modelInstancePool;
     }
 
+    /** Release the Model3D instance pool (called when the scene is unloaded). */
+    disposeModelInstancePool(): void {
+      if (this._modelInstancePool) {
+        this._modelInstancePool.dispose();
+        this._modelInstancePool = null;
+      }
+    }
+
     /** The 3D group this layer renders its 3D objects into. */
     getThreeGroup(): THREE.Group | null {
       return this._threeGroup;
@@ -390,33 +415,36 @@ namespace gdjs {
       const camera = this._threeCamera;
       if (!camera) return null;
 
-      // A cheap signature of everything the frustum depends on.
-      const cameraSignature =
-        this._layer.getCameraX() +
-        '|' +
-        this._layer.getCameraY() +
-        '|' +
-        this._layer.getCameraRotation() +
-        '|' +
-        this._layer.getCameraZoom() +
-        '|' +
-        this._layer.getWidth() +
-        '|' +
-        this._layer.getHeight() +
-        '|' +
-        camera.rotation.x +
-        '|' +
-        camera.rotation.y +
-        '|' +
-        camera.fov +
-        '|' +
-        camera.near +
-        '|' +
-        camera.far;
+      // Everything the frustum depends on. Compared field by field (never
+      // concatenated) to avoid a per-object per-frame string allocation.
+      const cameraX = this._layer.getCameraX();
+      const cameraY = this._layer.getCameraY();
+      const cameraZ = this._layer.getCameraZ(null);
+      const cameraRotation = this._layer.getCameraRotation();
+      const cameraZoom = this._layer.getCameraZoom();
+      const width = this._layer.getWidth();
+      const height = this._layer.getHeight();
+      const rotX = camera.rotation.x;
+      const rotY = camera.rotation.y;
+      const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 0;
+      const near = camera.near;
+      const far = camera.far;
 
       if (
         this._threeFrustum &&
-        this._threeFrustumSignature === cameraSignature
+        this._frustumSigValid &&
+        this._frustumSigCameraX === cameraX &&
+        this._frustumSigCameraY === cameraY &&
+        this._frustumSigCameraZ === cameraZ &&
+        this._frustumSigCameraRotation === cameraRotation &&
+        this._frustumSigCameraZoom === cameraZoom &&
+        this._frustumSigWidth === width &&
+        this._frustumSigHeight === height &&
+        this._frustumSigRotX === rotX &&
+        this._frustumSigRotY === rotY &&
+        this._frustumSigFov === fov &&
+        this._frustumSigNear === near &&
+        this._frustumSigFar === far
       ) {
         return this._threeFrustum;
       }
@@ -429,13 +457,37 @@ namespace gdjs {
       }
 
       this._update3DCameraFromLayer();
+      if (this._threeCameraDirty) {
+        camera.updateProjectionMatrix();
+        this._threeCameraDirty = false;
+      }
       camera.updateMatrixWorld();
+      if (this._threeScene) this._threeScene.updateMatrixWorld();
       this._threeFrustumMatrix.multiplyMatrices(
         camera.projectionMatrix,
         camera.matrixWorldInverse
       );
+      // Right-multiply by the group's world matrix to map the frustum into the
+      // space of the boxes built by `gdjs.Object3DCulling.computeAABB` (the
+      // group's world matrix carries the `_threeScene` Y mirror).
+      if (this._threeGroup) {
+        this._threeFrustumMatrix.multiply(this._threeGroup.matrixWorld);
+      }
       this._threeFrustum.setFromProjectionMatrix(this._threeFrustumMatrix);
-      this._threeFrustumSignature = cameraSignature;
+
+      this._frustumSigCameraX = cameraX;
+      this._frustumSigCameraY = cameraY;
+      this._frustumSigCameraZ = cameraZ;
+      this._frustumSigCameraRotation = cameraRotation;
+      this._frustumSigCameraZoom = cameraZoom;
+      this._frustumSigWidth = width;
+      this._frustumSigHeight = height;
+      this._frustumSigRotX = rotX;
+      this._frustumSigRotY = rotY;
+      this._frustumSigFov = fov;
+      this._frustumSigNear = near;
+      this._frustumSigFar = far;
+      this._frustumSigValid = true;
       return this._threeFrustum;
     }
 

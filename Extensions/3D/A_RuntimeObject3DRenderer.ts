@@ -54,8 +54,30 @@ namespace gdjs {
       this.updatePosition();
     }
 
-    updateVisibility() {
-      this._threeObject3D.visible = !this._object.isHidden();
+    /**
+     * The object's own hidden state (`!isHidden()`) and its frustum-cull state,
+     * combined by `applyRenderVisibility`. Kept separate so hiding and culling
+     * stay independent and can both be routed through the renderer (a detached
+     * three.js node is not enough: an instanced model's real draw is an
+     * `InstancedMesh` slot, which `Model3DRuntimeObject3DRenderer` collapses).
+     */
+    protected _isVisible: boolean = true;
+    protected _isCulled: boolean = false;
+
+    updateVisibility(visible: boolean) {
+      this._isVisible = !!visible;
+      this.applyRenderVisibility();
+    }
+
+    setCullingVisible(culled: boolean): void {
+      this._isCulled = !!culled;
+      this.applyRenderVisibility();
+    }
+
+    /** Combine the object's hidden state with its frustum-cull state. */
+    protected applyRenderVisibility(): void {
+      const threeObject = this.get3DRendererObject();
+      if (threeObject) threeObject.visible = this._isVisible && !this._isCulled;
     }
 
     invalidateRotation(): void {

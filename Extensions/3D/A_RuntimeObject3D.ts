@@ -110,6 +110,10 @@ namespace gdjs {
       return gdjs.Object3DCulling.isInFrustum(this, frustum);
     }
 
+    setCullingVisible(culled: boolean): void {
+      this.getRenderer().setCullingVisible(culled);
+    }
+
     getRendererObject() {
       return null;
     }
@@ -612,7 +616,7 @@ namespace gdjs {
 
     hide(enable: boolean): void {
       super.hide(enable);
-      this.getRenderer().updateVisibility();
+      this.getRenderer().updateVisibility(!this.isHidden());
     }
 
     hasEstimatedVelocity(): boolean {

@@ -493,14 +493,9 @@ namespace gdjs {
      */
     _updateObjectsPreRender() {
       const allInstancesList = this.getAdhocListOfAllInstances();
-      // No 3D culling here: a plain instance container has no camera of its own,
-      // so 3D culling is only defined where a camera exists - on the scene
-      // (`RuntimeScene._updateObjectsPreRender`) and inside a custom object,
-      // which resolves the scene's camera for the object's layer
-      // (`CustomRuntimeObjectInstanceContainer._updateObjectsPreRender`).
-      // `RuntimeScene` overrides this method with the culling 2D and 3D objects
-      // both need; this implementation is the first-frame path for a scene and
-      // the every-frame path for a container without a camera.
+      // RuntimeScene overrides this with the culling both 2D and 3D objects
+      // need; this implementation runs only for containers without their own
+      // culling (custom object containers override it too).
       for (let i = 0, len = allInstancesList.length; i < len; ++i) {
         const object = allInstancesList[i];
         const rendererObject = object.getRendererObject();

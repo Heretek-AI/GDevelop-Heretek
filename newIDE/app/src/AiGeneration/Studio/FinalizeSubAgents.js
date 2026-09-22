@@ -68,11 +68,28 @@ export const isSubAgentAtTurnCap = ({
 export const isSubAgentFinished = ({
   subAgentRequest,
   editorFunctionCallResults,
+  aiRequests,
 }: {|
   subAgentRequest: AiRequest,
   editorFunctionCallResults: Array<EditorFunctionCallResult> | null,
+  aiRequests?: { [string]: AiRequest } | null,
 |}): boolean => {
-  if (subAgentRequest.status !== 'ready') return false;
+  // A sub-agent at its turn cap is finalized with its last message even if it
+  // still has calls left: the dispatcher has stopped issuing its turns.
+  if (
+    aiRequests &&
+    isSubAgentAtTurnCap({ aiRequest: subAgentRequest, aiRequests })
+  ) {
+    return true;
+  }
+  // The loop guard's terminal state is 'error'; treat it as finished so the
+  // studio writes its (failed) report back instead of waiting forever.
+  if (
+    subAgentRequest.status !== 'ready' &&
+    subAgentRequest.status !== 'error'
+  ) {
+    return false;
+  }
   if (
     getFunctionCallsToProcess({
       aiRequest: subAgentRequest,
@@ -92,21 +109,56 @@ export const isSubAgentFinished = ({
   ) {
     return false;
   }
+  // A result that was executed but whose output has not landed in the child's
+  // transcript yet: finalizing now would drop the child's real wrap-up forever.
+  const writtenBackCallIds = new Set(
+    (subAgentRequest.output || [])
+      .filter(message => message.type === 'function_call_output')
+      .map(message => (message: any).call_id)
+  );
+  if (
+    editorFunctionCallResults &&
+    editorFunctionCallResults.some(
+      result => !writtenBackCallIds.has(result.call_id)
+    )
+  ) {
+    return false;
+  }
   return true;
 };
 
+/** Reports are capped so one runaway sub-agent cannot flood the parent. */
+export const MAX_SUB_AGENT_REPORT_LENGTH = 4000;
+
 /**
  * The text written into the parent's `function_call_output`: the sub-agent's
- * last assistant message, prefixed with the role's display name.
- *
- * The message's text lives in a `content` entry whose type is `'output_text'`
- * for a message the server produced, and `'text'` for one the local BYOK path
- * parsed (`parseAssistantMessage` emits `'text'`); both are read, and the
- * message's own `text` field is the fallback, so a report is never lost to the
- * difference.
+ * last assistant message, prefixed with any failure or turn-limit context and
+ * suffixed with its failed calls, then truncated. The message's text is read
+ * from a `content` entry (`'output_text'` from the server, `'text'` from the
+ * local BYOK parser) with the message's own `text` field as fallback.
  */
-export const buildSubAgentReport = (subAgentRequest: AiRequest): string => {
+export const buildSubAgentReport = (
+  subAgentRequest: AiRequest,
+  aiRequests?: { [string]: AiRequest } | null
+): string => {
   const output = subAgentRequest.output || [];
+  let report = '';
+
+  if (subAgentRequest.error) {
+    report += `Failed: ${subAgentRequest.error.message}\n\n`;
+  }
+  if (
+    aiRequests &&
+    isSubAgentAtTurnCap({ aiRequest: subAgentRequest, aiRequests })
+  ) {
+    report += 'Reached its turn limit.\n\n';
+  }
+
+  // The sub-agent's last assistant message is the core of the report. Its text
+  // lives in a `content` entry whose type is `'output_text'` for a message the
+  // server produced, and `'text'` for one the local BYOK path parsed; both are
+  // read, and the message's own `text` field is the fallback.
+  let core = '(no report)';
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
     if (message.type !== 'message' || message.role !== 'assistant') continue;
@@ -115,13 +167,39 @@ export const buildSubAgentReport = (subAgentRequest: AiRequest): string => {
     );
     const textFromContent = textContent ? (textContent: any).text : null;
     if (typeof textFromContent === 'string' && textFromContent) {
-      return textFromContent;
+      core = textFromContent;
+    } else {
+      const messageText = (message: any).text;
+      core =
+        typeof messageText === 'string' && messageText
+          ? messageText
+          : '(no report)';
     }
-    const messageText = (message: any).text;
-    if (typeof messageText === 'string' && messageText) return messageText;
-    return '(no report)';
+    break;
   }
-  return '(no report)';
+  report += core;
+
+  // Surface failed tool calls so the parent sees what went wrong.
+  const failedMessages = output
+    .filter(
+      message =>
+        message.type === 'function_call_output' &&
+        (message: any).success === false
+    )
+    .map(message => {
+      const messageOutput = (message: any).output;
+      return (messageOutput && messageOutput.message) || '(failed call)';
+    });
+  if (failedMessages.length > 0) {
+    report += `\n\nFailed calls:\n- ${failedMessages.join('\n- ')}`;
+  }
+
+  if (report.length > MAX_SUB_AGENT_REPORT_LENGTH) {
+    return (
+      report.slice(0, MAX_SUB_AGENT_REPORT_LENGTH) + '\n…(report truncated)'
+    );
+  }
+  return report;
 };
 
 /**

@@ -41,6 +41,7 @@ namespace gdjs {
     private _rotationY: float = 0;
     private _customCenterZ: float = 0;
     private static _temporaryVector = new THREE.Vector3();
+    private static _cullingScratchBox: THREE.Box3 | null = null;
 
     private _hasEstimatedVelocity = false;
     private _estimatedVelocityX: float = 0;
@@ -81,9 +82,28 @@ namespace gdjs {
     /**
      * Writes the object's conservative axis-aligned box into `box` and returns
      * it. Allocates nothing. See `gdjs.Object3DCulling.computeAABB`.
+     *
+     * The box is widened to cover each 3D child's own box so that content which
+     * pokes outside the parent's declared size is never wrongly culled. This is
+     * conservative in the safe direction: it can only draw more, never hide.
      */
     getAABB3D(box: THREE.Box3): THREE.Box3 {
-      return gdjs.Object3DCulling.computeAABB(this, box);
+      gdjs.Object3DCulling.computeAABB(this, box);
+      const scratch =
+        CustomRuntimeObject3D._cullingScratchBox ||
+        (CustomRuntimeObject3D._cullingScratchBox = new THREE.Box3());
+      for (const childInstance of this._instanceContainer.getAdhocListOfAllInstances()) {
+        if (!childInstance.isIncludedInParentCollisionMask()) {
+          continue;
+        }
+        if (!gdjs.CullableRuntimeObject3D.isCullable3D(childInstance)) {
+          continue;
+        }
+        childInstance.getAABB3D(scratch);
+        box.min.min(scratch.min);
+        box.max.max(scratch.max);
+      }
+      return box;
     }
 
     /**
@@ -92,6 +112,10 @@ namespace gdjs {
      */
     isInFrustum(frustum: THREE.Frustum): boolean {
       return gdjs.Object3DCulling.isInFrustum(this, frustum);
+    }
+
+    setCullingVisible(culled: boolean): void {
+      this.getRenderer().setCullingVisible(culled);
     }
 
     override extraInitializationFromInitialInstance(
@@ -394,6 +418,17 @@ namespace gdjs {
       let maxZ = -Number.MAX_VALUE;
       for (const childInstance of this._instanceContainer.getAdhocListOfAllInstances()) {
         if (!childInstance.isIncludedInParentCollisionMask()) {
+          continue;
+        }
+        if (gdjs.CullableRuntimeObject3D.isCullable3D(childInstance)) {
+          // Conservative z-extent including the child's rotation (see the
+          // rotation-aware box in `gdjs.Object3DCulling.computeAABB`).
+          const scratch =
+            CustomRuntimeObject3D._cullingScratchBox ||
+            (CustomRuntimeObject3D._cullingScratchBox = new THREE.Box3());
+          childInstance.getAABB3D(scratch);
+          minZ = Math.min(minZ, scratch.min.z);
+          maxZ = Math.max(maxZ, scratch.max.z);
           continue;
         }
         if (!gdjs.Base3DHandler.is3D(childInstance)) {

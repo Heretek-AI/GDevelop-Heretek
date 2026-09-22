@@ -190,7 +190,15 @@ describe('RequestWriteGate', () => {
         () => false
       );
 
-      await Promise.all([first, second, third]);
+      // The superseded write never ran and must reject, not report success.
+      let supersededError = null;
+      try {
+        await second;
+      } catch (error) {
+        supersededError = error;
+      }
+      await Promise.all([first, third]);
+      expect(supersededError && supersededError.code).toBe('superseded');
       expect(events).toEqual(['first', 'third']);
     });
 
@@ -199,10 +207,10 @@ describe('RequestWriteGate', () => {
       let blocked = true;
       const events = [];
 
-      const write = queue.enqueue(
+      const first = queue.enqueue(
         'req-1',
         async () => {
-          events.push('ran');
+          events.push('first-ran');
         },
         () => blocked
       );
@@ -211,17 +219,22 @@ describe('RequestWriteGate', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
       expect(events).toEqual([]);
 
-      // Unblock and enqueue again: the retried write runs.
+      // Unblock: the queue retries the blocked write itself (no new enqueue).
       blocked = false;
+      await new Promise(resolve => setTimeout(resolve, 80));
+      await first;
+      expect(events).toEqual(['first-ran']);
+
+      // A later write runs after it: both ran, so the first was retried, not
+      // dropped.
       await queue.enqueue(
         'req-1',
         async () => {
-          events.push('ran');
+          events.push('second-ran');
         },
-        () => blocked
+        () => false
       );
-      await write;
-      expect(events).toEqual(['ran']);
+      expect(events).toEqual(['first-ran', 'second-ran']);
     });
 
     it('rejects the caller when its write throws', async () => {

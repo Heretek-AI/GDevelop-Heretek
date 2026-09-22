@@ -33,6 +33,7 @@ import {
   getUserRequestText,
 } from './AiRequestUtils';
 import { type EditApprovalRequest } from './Utils';
+import { customUpdateAiRequest } from '../AI/CustomAIClient';
 
 type EditorFunctionCallResultsStorage = {|
   getEditorFunctionCallResults: (
@@ -374,6 +375,11 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
         const newAiRequest = updateFn(
           previousState.aiRequests[aiRequestId] || null
         );
+        // Write a local (BYOK) request through to the cache so plan flips and
+        // the loop guard's error state are not reverted by the next cache fetch.
+        if (aiRequestId.startsWith('local-ai-')) {
+          customUpdateAiRequest(newAiRequest);
+        }
         return {
           ...previousState,
           aiRequests: {

@@ -494,13 +494,13 @@ export const AskAiStandAloneForm = ({
 
       // If anything is not finished yet, stop there (we only send all
       // results at once, AI do not support partial results).
-      if (hasUnfinishedResult) return;
-      if (hasFunctionsCallsToProcess) return;
+      if (hasUnfinishedResult) return false;
+      if (hasFunctionsCallsToProcess) return false;
 
       // If nothing to send, stop there.
       // When in a standalone form, this can happen if the agent did not
       // decide to create a project, in this case, abort and clear the form.
-      if (functionCallOutputs.length === 0) return;
+      if (functionCallOutputs.length === 0) return false;
 
       try {
         setSendingAiRequest(aiRequestId, true);
@@ -578,6 +578,7 @@ export const AskAiStandAloneForm = ({
       // is up-to-date after an AI request.
       await delay(500);
       await refreshLimits({ withRetry: true });
+      return true;
     },
     [
       profile,
@@ -605,7 +606,7 @@ export const AskAiStandAloneForm = ({
         createdProject?: ?gdProject,
       |}
     ) => {
-      await onSendMessage({
+      return onSendMessage({
         aiRequestId,
         userMessage: '',
         createdSceneNames: options.createdSceneNames,
@@ -631,6 +632,7 @@ export const AskAiStandAloneForm = ({
     editorCallbacks,
     aiRequestsToProcess,
     onSendEditorFunctionCallResults,
+    isStudioEnabled: false,
     getEditorFunctionCallResults,
     addEditorFunctionCallResults,
     i18n,

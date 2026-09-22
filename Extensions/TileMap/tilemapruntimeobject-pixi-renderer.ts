@@ -8,12 +8,15 @@ namespace gdjs {
    * The whole map (`[0, dimX, 0, dimY]`) is returned whenever culling must not
    * be applied:
    * - the map is small (`dimX + dimY <= 100`): the maths is not worth paying for;
+   * - the tile map is nested in a custom object: its box is in the container's
+   *   space while the camera corners are scene-space, so it is drawn in full
+   *   rather than culled with a wrong window;
    * - the container has no scene or the scene has no such layer;
    * - the layer's 3D camera is tilted, because the axis-aligned tile-bounds
    *   maths is only valid for an unrotated camera.
    *
-   * The camera is resolved from the **scene's** layer, so a tile map nested in
-   * a custom object is culled too - its own container has no camera.
+   * The camera is resolved from the **scene's** layer (a nested tile map's own
+   * container has no camera).
    *
    * The computed bounds are clamped to `[0, dimX] x [0, dimY]`: a camera outside
    * the map must not produce out-of-range bounds that differ every frame and so
@@ -38,6 +41,20 @@ namespace gdjs {
 
     const instanceContainer = object.getInstanceContainer();
     const scene = instanceContainer.getScene();
+    // Nested tile map: scene-space camera corners vs a container-space grid.
+    // Draw it in full rather than cull with a wrong window.
+    if (instanceContainer !== scene) return result;
+    // No loaded tile map yet: the grid lookup would map both corners to [0,0].
+    if (!object.getTileMap()) return result;
+    // The axis-aligned tile bounds maths is only valid for an unrotated,
+    // unmirrored map (the transform uses |scale| and samples only two corners).
+    if (
+      object.getAngle() !== 0 ||
+      object.getScaleX() < 0 ||
+      object.getScaleY() < 0
+    ) {
+      return result;
+    }
     const layerName = object.getLayer();
     const layer = scene ? scene.getLayer(layerName) : null;
     if (!layer) return result;
@@ -71,22 +88,23 @@ namespace gdjs {
         cameraY + cameraHalfHeight
       );
 
-    // Clamp to the map.
+    // Clamp to the map, expanded one tile on every side so a partially-visible
+    // tile at the window edge is not cut off.
     result[0] = Math.max(
       0,
-      Math.min(dimX, Math.min(cameraLeftTile, cameraRightTile))
+      Math.min(dimX, Math.min(cameraLeftTile, cameraRightTile) - 1)
     );
     result[1] = Math.max(
       0,
-      Math.min(dimX, Math.max(cameraLeftTile, cameraRightTile) + 1)
+      Math.min(dimX, Math.max(cameraLeftTile, cameraRightTile) + 2)
     );
     result[2] = Math.max(
       0,
-      Math.min(dimY, Math.min(cameraTopTile, cameraBottomTile))
+      Math.min(dimY, Math.min(cameraTopTile, cameraBottomTile) - 1)
     );
     result[3] = Math.max(
       0,
-      Math.min(dimY, Math.max(cameraTopTile, cameraBottomTile) + 1)
+      Math.min(dimY, Math.max(cameraTopTile, cameraBottomTile) + 2)
     );
     return result;
   };
