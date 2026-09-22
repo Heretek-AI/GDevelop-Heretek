@@ -92,6 +92,7 @@ const lockfiles = [
   'newIDE/electron-app/package-lock.json',
   'newIDE/electron-app/app/package-lock.json',
   'newIDE/web-app/package-lock.json',
+  'newIDE/visual-tests/package-lock.json',
   'SharedLibs/TileMapHelper/package-lock.json',
   'SharedLibs/ThreeAddons/package-lock.json',
 ];

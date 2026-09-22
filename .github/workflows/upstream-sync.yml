@@ -115,15 +115,38 @@ jobs:
             fi
             exit 0
           fi
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number')
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number' 2>/dev/null || echo "")
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #$EXISTING_PR already exists for $BRANCH."
+            exit 0
+          fi
+
+          # Org policy forces a read-only GITHUB_TOKEN and no SYNC_PAT is
+          # configured, so `gh pr create` cannot succeed here ("Resource not
+          # accessible by integration"). The branch HAS been pushed above, so
+          # degrade to emitting a ready-to-click compare URL instead of
+          # failing the whole run.
+          if gh pr create \
+               --base master \
+               --head "$BRANCH" \
+               --title "$PR_TITLE" \
+               --body "$PR_BODY"; then
+            echo "Sync PR created."
           else
-            gh pr create \
-              --base master \
-              --head "$BRANCH" \
-              --title "$PR_TITLE" \
-              --body "$PR_BODY"
+            COMPARE_URL="https://github.com/${GITHUB_REPOSITORY}/compare/master...${BRANCH}?expand=1"
+            {
+              echo "### Upstream sync branch is ready — no PR was opened"
+              echo ""
+              echo "The sync branch \`$BRANCH\` was pushed successfully, but this"
+              echo "workflow could not open the pull request: the org policy on"
+              echo "\`GITHUB_TOKEN\` is read-only, and no \`SYNC_PAT\` secret is set."
+              echo ""
+              echo "Open it manually: $COMPARE_URL"
+              echo ""
+              echo "To automate this, add a \`SYNC_PAT\` repository secret with"
+              echo "\`pull_requests: write\`; the workflow already prefers it when present."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Could not open the sync PR (read-only GITHUB_TOKEN, no SYNC_PAT). Open manually: $COMPARE_URL"
           fi
         env:
           GH_TOKEN: ${{ secrets.SYNC_PAT != '' && secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}

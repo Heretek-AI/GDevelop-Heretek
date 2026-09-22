@@ -44,6 +44,68 @@ jobs:
       - name: Run guard
         run: node scripts/security/check-lockfiles.js
 
+  lockfile-sync:
+    name: Lockfile sync (all manifests)
+    # `npm ci` hard-fails when package.json and package-lock.json disagree, but
+    # only the directories that a later job happens to install are ever checked.
+    # That gap let THREE lockfiles rot on master unnoticed (GDJS,
+    # newIDE/electron-app/app, SharedLibs/TileMapHelper) — each one only failed
+    # the moment someone tried to install there. This job checks every manifest
+    # so drift surfaces on the PR that causes it.
+    #
+    # Runs as one job over all directories rather than a 10-way matrix: each
+    # entry is a dry-run resolve taking a few seconds, so a matrix costs 10
+    # runners to save ~30s of wall clock, and the queue contention starves the
+    # slower build/test jobs.
+    #
+    # `--ignore-scripts` keeps postinstall hooks (patch-package,
+    # import-resources) out of it: this job only asserts that the lockfile
+    # resolves. All directories are checked even after a failure so one run
+    # reports every drifted manifest.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Assert every lockfile is in sync with its package.json
+        run: |
+          set -uo pipefail
+          dirs=(
+            GDevelop.js
+            GDJS
+            GDJS/tests
+            newIDE/app
+            newIDE/electron-app
+            newIDE/electron-app/app
+            newIDE/web-app
+            newIDE/visual-tests
+            SharedLibs/TileMapHelper
+            SharedLibs/ThreeAddons
+          )
+          failed=0
+          for d in "${dirs[@]}"; do
+            if [ ! -f "$d/package-lock.json" ]; then
+              echo "::notice::$d has no lockfile; skipping"
+              continue
+            fi
+            # `npm ci` writes its diagnostics to stdout, so capture both.
+            if out=$(cd "$d" && npm ci --dry-run --no-audit --no-fund --ignore-scripts 2>&1); then
+              echo "✅ $d"
+            else
+              echo "❌ $d"
+              echo "$out" | grep -E 'Missing: |Invalid: |npm error code' | sed 's/^/     /' || true
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::One or more lockfiles are out of sync with package.json. Run 'npm install --package-lock-only' in the failing directory."
+            exit 1
+          fi
+          echo "All lockfiles in sync."
+
   build-libgd:
     name: Build libGD.js (Emscripten)
     # Slow step (~5–10 min on cold cache). Builds the C++ core via
