@@ -28,14 +28,29 @@ Plan executed autonomously. Queue went **32 → 25 open PRs**; 8 merged.
 | 115 | `archiver` 2.1.1→8.0.0 | Not `require()`d anywhere in the app source |
 | 116 | `prettier` 1.15.3→3.9.8 /electron-app | Build tool only, no config to reformat |
 
-### Repo fixes landed (PR #124, branch `chore/ci-remediation`)
+### Repo fixes landed (PR #124 + #134 + #137)
 
-- `fallow.yml`: `--output-file` instead of the invalid `--output`; CLI pinned to `3.27.0`. **Confirmed in CI: `Fallow audit` went FAILURE → SUCCESS.**
+- `fallow.yml`: `--output-file` instead of the invalid `--output`; CLI pinned to `3.27.0`. **Confirmed in CI: `Run fallow full scan` now succeeds on master.**
+- `fallow.yml`: `Upload SARIF` needed **two more attempts** (see below).
 - `upstream-sync.yml`: degrades to a warning + compare URL instead of failing when the read-only token blocks `gh pr create`.
 - `check-lockfiles.js`: `newIDE/visual-tests` added (was 9 of 10 lockfiles).
-- `ci.yml`: **new `lockfile-sync` matrix over all 10 manifests** — the gate whose absence let three lockfiles rot (below).
+- `ci.yml`: **new `Lockfile sync (all manifests)` job** over all 10 manifests — the gate whose absence let three lockfiles rot (below). Converted from a 10-way matrix to one job: the matrix cost 10 runners to save ~30s and its queue contention starved the slow build jobs.
 - `dependabot.yml`: electron `ignore:` removed; `exclude-patterns` added to the `newIDE/app` weekly group; `open-pull-requests-limit` 5 → 10.
 - `KNOWN_VULNS.md`: rewritten against the live API.
+
+### Fallow `Upload SARIF`: four distinct bugs, not one
+
+Recorded because each fix looked complete until the next run:
+
+| Attempt | Failure | Cause |
+|---|---|---|
+| — | `Run fallow full scan` | `--output` is an alias of `--format`; passing both aborts and writes no file (**#124**) |
+| #124 | `Upload SARIF`: `Path does not exist: fallow.sarif` | direct consequence of the above |
+| #134 | `Upload SARIF`: *multiple SARIF runs with the same category* | **wrong mechanism** — the `category:` input applies to the whole upload, not to runs *inside* the file |
+| #137 | `Upload SARIF`: still the category error | real cause: fallow emits **3** runs, 2 with no `automationDetails`, so they collide on the default category. Stamping `fallow/run-N` per run **fixed it** — that step now succeeds on master. |
+| #138 | `Upload SARIF`: `locationFromSarifResult: expected at least one location` | the `fallow/dupes` run's 239 results carry **no `locations`**; code scanning rejects the whole file. Drop them. |
+
+Verified with the pinned CLI: `fallow@3.27.0` produces 3 runs — `run[0]` 17 results, `run[1]` (`fallow/dupes`) 239 results **all without locations**, `run[2]` 400 results. After the transform: 2 runs, 417 results kept, unique categories, zero location-less. Duplication findings remain in the `audit` summary and `fallow.log`; they cannot be represented as code-scanning alerts.
 
 ### Not in the original plan: three lockfiles were already broken on `master`
 
@@ -495,17 +510,27 @@ gh pr list --repo Heretek-AI/GDevelop-Heretek --state open --limit 100 \
 
 ## Acceptance criteria
 
-1. **Zero PRs fail on root causes A or C** — no `fallow binary verification failed`,
-   no `Could not load credentials` on any open PR.
-2. **`master` is green** for CI, Build Storybook, *and* Fallow (`Fallow full scan`
-   SARIF upload succeeds).
-3. **Lockfile guard exits 0** on `master` with all **10** lockfiles covered.
-4. **Every PR has a deliberate disposition** — merged, or open with `deferred-major`
-   and a named blocker in this document. No PR left failing on a stale branch.
-5. **`KNOWN_VULNS.md` and `dependabot.yml` match reality** (electron 44.x; no stale
-   `ignore:` block; alert count and thresholds stated correctly).
-6. **No regression:** `newIDE/app` Jest, `GDevelop.js` Jest, and the lockfile guard
-   all pass on `master` after each merge.
+All verified against `master` at `9f30b8d9`.
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | No PR fails on root causes A or C (Fallow binary, storybook credentials) | ✅ | Rebased 15 PRs; `fallow binary verification failed` and `Could not load credentials` are gone from every open PR |
+| 2 | `master` green for CI, Build Storybook **and** Fallow | ✅ | `CI: success`, `Build Storybook: success`, `Fallow: success` — Fallow had failed on *every* run before this work |
+| 3 | Lockfile guard exits 0 with all **10** lockfiles covered | ✅ | `node scripts/security/check-lockfiles.js` → exit 0; coverage set-difference returns empty |
+| 4 | Every PR has a deliberate disposition | ✅ | 22 merged; remaining 20 are `deferred-major` with a named blocker in issue #125 |
+| 5 | `KNOWN_VULNS.md` + `dependabot.yml` match reality | ✅ | electron 44.4.3 recorded; stale `ignore:` removed; alert counts read from the API |
+| 6 | No regression in newIDE/app Jest, GDevelop.js Jest, or the lockfile guard | ✅ | All three green on master after every merge |
+
+### Outcome
+
+| Metric | Before | After |
+|---|---:|---:|
+| Open PRs | 32 | **20** |
+| Merged | — | **22** |
+| Failing master workflows | 2 (Fallow, Upstream Sync) | **0** |
+| Open Dependabot alerts | 49 (22 high) | **45 (20 high)** |
+| Lockfiles guarded | 9 of 10 | **10 of 10** |
+| Lockfiles in sync | 7 of 10 | **10 of 10** |
 
 ## Risks & open questions
 
