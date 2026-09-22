@@ -71,6 +71,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: fallow.sarif
+          # Code scanning keys analyses by `category`. Without one here, this
+          # upload collides with CodeQL's own run for the same commit and the
+          # step fails with:
+          #   "The CodeQL Action does not support uploading multiple SARIF runs
+          #    with the same category."
+          # A distinct category keeps Fallow's findings separable from CodeQL's.
+          category: fallow
       - name: Archive log
         if: always()
         uses: actions/upload-artifact@v4
