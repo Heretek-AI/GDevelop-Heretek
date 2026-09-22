@@ -80,6 +80,12 @@ jobs:
           echo "sync_branch=$SYNC_BRANCH" >> $GITHUB_OUTPUT
           echo "merge_success=$MERGE_SUCCESS" >> $GITHUB_OUTPUT
 
+      - name: DEBUG - which token is configured?
+        run: |
+          echo "SYNC_PAT is set: ${{ secrets.SYNC_PAT != '' }}"
+          echo "GITHUB_TOKEN is set: ${{ secrets.GITHUB_TOKEN != '' }}"
+          echo "(value is never printed)"
+
       - name: Open or Update Sync PR
         if: steps.check_diff.outputs.commits_count != '0'
         run: |
