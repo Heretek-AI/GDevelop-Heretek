@@ -19,11 +19,25 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    # 6 PRs are already open against this directory (the 5 limit plus the
+    # grouped weekly-deps PR), so new ones are suppressed at the source.
+    open-pull-requests-limit: 10
     groups:
       weekly-deps:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+        # For 0.x packages a "minor" bump is breaking by semver convention.
+        # Without this, the group silently carries migrations like three
+        # 0.160->0.186 and react-monaco-editor 0.18->0.59 alongside real
+        # patch bumps, which is how one "weekly-deps" PR turned into a
+        # 19-package migration.
+        exclude-patterns:
+          - "three"
+          - "react-monaco-editor"
+          - "flow-bin"
+          - "flow-coverage-report"
+          - "@esotericsoftware/spine-pixi-v7"
+          - "@esotericsoftware/spine-core"
 
   # newIDE/electron-app — desktop shell
   - package-ecosystem: "npm"
@@ -36,10 +50,6 @@ updates:
       weekly-deps:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-    ignore:
-      # Stay in 32.x until ready for native-rebuild risk. See KNOWN_VULNS.md.
-      - dependency-name: "electron"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # newIDE/electron-app/app — main process of the desktop app
   - package-ecosystem: "npm"
