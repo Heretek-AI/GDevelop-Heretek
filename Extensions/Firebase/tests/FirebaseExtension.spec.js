@@ -39,7 +39,8 @@ const variable = new gdjs.Variable().fromJSObject({
  */
 const firebaseConfig = {
   apiKey:
-    process.env.GD_TEST_FIREBASE_API_KEY ||
+    (typeof process !== 'undefined' &&
+      process.env.GD_TEST_FIREBASE_API_KEY) ||
     'GD_TEST_FIREBASE_API_KEY-env-var-not-set-see-SECRETS.md',
   authDomain: 'gdtest-e11a5.firebaseapp.com',
   databaseURL: 'https://gdtest-e11a5.firebaseio.com',

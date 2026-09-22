@@ -152,7 +152,7 @@ describe('TileMap viewport culling', function () {
     expect(far[3]).to.be.below(ROW_COUNT + 1);
   });
 
-  it('culls a tile map nested in a custom object, resolving the scene camera', async () => {
+  it('draws a tile map nested in a custom object in full, without culling', async () => {
     const runtimeGame = await gdjs.getPixiRuntimeGameWithAssets();
     const runtimeScene = createScene(runtimeGame);
 
@@ -176,14 +176,13 @@ describe('TileMap viewport culling', function () {
       customObject._instanceContainer,
       'BigMap'
     );
-    runtimeScene.getLayer('').setCameraX(400);
-    runtimeScene.getLayer('').setCameraY(400);
+    // The tile map's own container is the custom object, which has no camera of
+    // its own. Culling with a wrong window would draw the wrong tiles, so a
+    // nested tile map is deliberately drawn in full: the camera must be
+    // resolved from the scene's layer only when the container is the scene.
     const bounds = computeBounds(tileMap);
-
-    // Before this change, a tile map inside a custom object was never culled
-    // (the old guard required `instanceContainer === scene`).
-    expect(width(bounds)).to.be.below(COLUMN_COUNT);
-    expect(height(bounds)).to.be.below(ROW_COUNT);
+    expect(width(bounds)).to.be(COLUMN_COUNT);
+    expect(height(bounds)).to.be(ROW_COUNT);
   });
 
   it('culls on an unrotated 3D camera and keeps the whole map on a tilted one', async () => {
