@@ -34,7 +34,7 @@
     "lint-staged": "^16.2.7",
     "minimist": "^1.2.8",
     "patch-package": "^6.4.7",
-    "prettier": "1.15.3",
+    "prettier": "3.9.8",
     "react-app-rewired": "^2.2.1",
     "react-scripts": "5.0.1",
     "recursive-copy": "^2.0.14",
