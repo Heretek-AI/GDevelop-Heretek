@@ -122,11 +122,25 @@ jobs:
             exit 0
           fi
 
-          # Org policy forces a read-only GITHUB_TOKEN and no SYNC_PAT is
-          # configured, so `gh pr create` cannot succeed here ("Resource not
-          # accessible by integration"). The branch HAS been pushed above, so
-          # degrade to emitting a ready-to-click compare URL instead of
-          # failing the whole run.
+          # `gh pr create` from this workflow fails with "GraphQL: Resource not
+          # accessible by integration (createPullRequest)". The cause is NOT a
+          # read-only token - that was an earlier misdiagnosis. Verified by
+          # probe against this repo:
+          #
+          #   REST POST /pulls            -> OK (created a PR)
+          #   gh pr create                -> OK (created a PR)
+          #   gh pr create on an
+          #     upstream-sync-* branch    -> OK (created a PR)
+          #
+          # all as app/github-actions with secrets.GITHUB_TOKEN, while
+          #   default_workflow_permissions     = write
+          #   can_approve_pull_request_reviews = true
+          #   runtime grant  = Contents:write + PullRequests:write
+          #   git push with the same token     = succeeds
+          #   SYNC_PAT                         = not set
+          #
+          # So the token can create PRs here. The branch HAS been pushed, so
+          # degrade to a ready-to-click compare URL rather than failing the run.
           if gh pr create \
                --base master \
                --head "$BRANCH" \
@@ -139,15 +153,14 @@ jobs:
               echo "### Upstream sync branch is ready — no PR was opened"
               echo ""
               echo "The sync branch \`$BRANCH\` was pushed successfully, but this"
-              echo "workflow could not open the pull request: the org policy on"
-              echo "\`GITHUB_TOKEN\` is read-only, and no \`SYNC_PAT\` secret is set."
+              echo "workflow could not open the pull request. \`gh pr create\`"
+              echo "returned a permissions error even though the same token"
+              echo "creates PRs successfully from other workflows; the cause is"
+              echo "still unidentified (see the comment in this step)."
               echo ""
               echo "Open it manually: $COMPARE_URL"
-              echo ""
-              echo "To automate this, add a \`SYNC_PAT\` repository secret with"
-              echo "\`pull_requests: write\`; the workflow already prefers it when present."
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Could not open the sync PR (read-only GITHUB_TOKEN, no SYNC_PAT). Open manually: $COMPARE_URL"
+            echo "::warning::Could not open the sync PR. Open manually: $COMPARE_URL"
           fi
         env:
           GH_TOKEN: ${{ secrets.SYNC_PAT != '' && secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
