@@ -11,6 +11,68 @@ deferred, and two need a small manifest change.
 
 ---
 
+## Execution status (updated 2026-09-22)
+
+Plan executed autonomously. Queue went **32 → 25 open PRs**; 8 merged.
+
+### Merged
+
+| PR | What | Evidence for safety |
+|---:|---|---|
+| 117 | weekly-deps /GDJS (`@types/three` 0.185.4→0.186.0, prettier) | Typechecked GDJS with both `@types/three` versions: **8258 errors each, 0 new** |
+| 118 | weekly-deps /GDevelop.js (`jest-light-runner`, prettier) | Jest suite green |
+| 120 | `@types/node` 20→26 /GDevelop.js | Type-only; Jest suite green |
+| 122 | `@types/node` 14→26 /GDJS | Type-only |
+| 113 | `dotenv` 16→18 /electron-app | No `require('dotenv')` anywhere in the app |
+| 119 | `dotenv` 16→18 /electron-app/app | Same |
+| 115 | `archiver` 2.1.1→8.0.0 | Not `require()`d anywhere in the app source |
+| 116 | `prettier` 1.15.3→3.9.8 /electron-app | Build tool only, no config to reformat |
+
+### Repo fixes landed (PR #124, branch `chore/ci-remediation`)
+
+- `fallow.yml`: `--output-file` instead of the invalid `--output`; CLI pinned to `3.27.0`. **Confirmed in CI: `Fallow audit` went FAILURE → SUCCESS.**
+- `upstream-sync.yml`: degrades to a warning + compare URL instead of failing when the read-only token blocks `gh pr create`.
+- `check-lockfiles.js`: `newIDE/visual-tests` added (was 9 of 10 lockfiles).
+- `ci.yml`: **new `lockfile-sync` matrix over all 10 manifests** — the gate whose absence let three lockfiles rot (below).
+- `dependabot.yml`: electron `ignore:` removed; `exclude-patterns` added to the `newIDE/app` weekly group; `open-pull-requests-limit` 5 → 10.
+- `KNOWN_VULNS.md`: rewritten against the live API.
+
+### Not in the original plan: three lockfiles were already broken on `master`
+
+Found while verifying, and repaired on the same branch. CI never ran `npm ci` in
+these directories, so the drift was invisible until someone installed there:
+
+| Directory | Drift |
+|---|---|
+| `GDJS` | 16 missing (`@pixi/*` 7.4.3) |
+| `newIDE/electron-app/app` | 6 missing + 3 invalid (`electron` 44.4.3, `@electron/get`) |
+| `SharedLibs/TileMapHelper` | 36 missing + 2 invalid (`@webassemblyjs/*`, terser) |
+
+This is also why PR #121's lockfile guard failure looked like a PR-local problem
+when GDJS was already broken on `master`.
+
+Also took `adm-zip` 0.6.0 → 0.6.1 in `newIDE/app` and `newIDE/electron-app`,
+closing **2 of the 22 high-severity advisories**. It is a direct dependency
+declared `^0.6.0`, so 0.6.1 was already permitted — the lockfiles were just
+pinned at the vulnerable version. Raising the existing override to `^0.6.1` is
+*not* the fix: npm rejects it with `EOVERRIDE` (conflicts with direct dependency).
+
+### Blocked on rebase mechanics (not code)
+
+PRs 18, 26, 37, 39, 40, 104 did not move on `@dependabot rebase`. Only **#40**
+reported why: *"Looks like this PR has been edited by someone other than
+Dependabot. That means Dependabot can't rebase it."* #26 was fixed directly by
+pushing to its branch; the other four need `@dependabot recreate` (which discards
+the manual edit) or a maintainer rebase.
+
+### Cause D confirmed as the only remaining blocker
+
+After rebasing, PRs 37/39/104/18 still fail **only** on `build-storybook` and
+`newIDE/app (lint + format)` — i.e. the genuine peer-dependency conflicts. Every
+Fallow and storybook-credentials failure is gone.
+
+---
+
 ## Inventory
 
 `mergeStateStatus` from the GitHub API; failure attribution from per-PR check runs.
