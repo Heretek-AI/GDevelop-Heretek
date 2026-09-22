@@ -2,6 +2,96 @@
 /// <reference path="pixi-tilemap/dist/pixi-tilemap.d.ts" />
 namespace gdjs {
   /**
+   * The tile bounds of a tile map to draw for the current camera position, as
+   * `[left, right, top, bottom]`.
+   *
+   * The whole map (`[0, dimX, 0, dimY]`) is returned whenever culling must not
+   * be applied:
+   * - the map is small (`dimX + dimY <= 100`): the maths is not worth paying for;
+   * - the container has no scene or the scene has no such layer;
+   * - the layer's 3D camera is tilted, because the axis-aligned tile-bounds
+   *   maths is only valid for an unrotated camera.
+   *
+   * The camera is resolved from the **scene's** layer, so a tile map nested in
+   * a custom object is culled too - its own container has no camera.
+   *
+   * The computed bounds are clamped to `[0, dimX] x [0, dimY]`: a camera outside
+   * the map must not produce out-of-range bounds that differ every frame and so
+   * force a full re-render at every step.
+   *
+   * Written into `result` (a 4-element array) to avoid allocating; returns it.
+   * @category Renderers > Tile Map
+   */
+  export const computeTileMapCullingBounds = (
+    object: gdjs.TileMapRuntimeObject | gdjs.SimpleTileMapRuntimeObject,
+    dimX: integer,
+    dimY: integer,
+    result: Array<integer>
+  ): Array<integer> => {
+    result[0] = 0;
+    result[1] = dimX;
+    result[2] = 0;
+    result[3] = dimY;
+
+    // Don't cull small maps or chunks.
+    if (dimX + dimY <= 100) return result;
+
+    const instanceContainer = object.getInstanceContainer();
+    const scene = instanceContainer.getScene();
+    const layerName = object.getLayer();
+    const layer = scene ? scene.getLayer(layerName) : null;
+    if (!layer) return result;
+
+    // The axis-aligned tile bounds maths is only valid for an unrotated camera.
+    if (
+      gdjs.scene3d &&
+      (gdjs.scene3d.camera.getCameraRotationX(scene, layerName, 0) !== 0 ||
+        gdjs.scene3d.camera.getCameraRotationY(scene, layerName, 0) !== 0)
+    ) {
+      return result;
+    }
+
+    const cameraX = layer.getCameraX();
+    const cameraY = layer.getCameraY();
+    let cameraHalfWidth = layer.getCameraWidth() / 2;
+    let cameraHalfHeight = layer.getCameraHeight() / 2;
+    if (layer.getCameraRotation() !== 0) {
+      const hypot = cameraHalfWidth + cameraHalfHeight;
+      cameraHalfWidth = hypot;
+      cameraHalfHeight = hypot;
+    }
+    const [cameraLeftTile, cameraTopTile] =
+      object.getGridCoordinatesFromSceneCoordinates(
+        cameraX - cameraHalfWidth,
+        cameraY - cameraHalfHeight
+      );
+    const [cameraRightTile, cameraBottomTile] =
+      object.getGridCoordinatesFromSceneCoordinates(
+        cameraX + cameraHalfWidth,
+        cameraY + cameraHalfHeight
+      );
+
+    // Clamp to the map.
+    result[0] = Math.max(
+      0,
+      Math.min(dimX, Math.min(cameraLeftTile, cameraRightTile))
+    );
+    result[1] = Math.max(
+      0,
+      Math.min(dimX, Math.max(cameraLeftTile, cameraRightTile) + 1)
+    );
+    result[2] = Math.max(
+      0,
+      Math.min(dimY, Math.min(cameraTopTile, cameraBottomTile))
+    );
+    result[3] = Math.max(
+      0,
+      Math.min(dimY, Math.max(cameraTopTile, cameraBottomTile) + 1)
+    );
+    return result;
+  };
+
+  /**
    * The PIXI.js renderer for the Tile map runtime object.
    *
    * @class TileMapRuntimeObjectPixiRenderer
@@ -9,10 +99,11 @@ namespace gdjs {
    */
   export class TileMapRuntimeObjectPixiRenderer {
     private _object:
-      | gdjs.TileMapRuntimeObject
-      | gdjs.SimpleTileMapRuntimeObject;
+      gdjs.TileMapRuntimeObject | gdjs.SimpleTileMapRuntimeObject;
 
     private _pixiObject: PIXI.tilemap.CompositeTilemap;
+    /** Scratch array reused by the culling maths; never returned. */
+    private _temporaryCullingBounds: Array<integer> = [0, 0, 0, 0];
     private _lastCullingLeftBound = 0;
     private _lastCullingRightBound = 0;
     private _lastCullingTopBound = 0;
@@ -24,8 +115,7 @@ namespace gdjs {
      */
     constructor(
       runtimeObject:
-        | gdjs.TileMapRuntimeObject
-        | gdjs.SimpleTileMapRuntimeObject,
+        gdjs.TileMapRuntimeObject | gdjs.SimpleTileMapRuntimeObject,
       instanceContainer: gdjs.RuntimeInstanceContainer
     ) {
       this._object = runtimeObject;
@@ -140,49 +230,16 @@ namespace gdjs {
       const dimX = tileMap.getDimensionX();
       const dimY = tileMap.getDimensionY();
 
-      let leftBound = 0;
-      let rightBound = dimX;
-      let topBound = 0;
-      let bottomBound = dimY;
-
-      const instanceContainer = this._object.getInstanceContainer();
-      const scene = instanceContainer.getScene();
-      const layerName = this._object.getLayer();
-      const layer = this._object.getInstanceContainer().getLayer(layerName);
-      if (
-        // Don't cull small maps or chunks.
-        dimX + dimY > 100 &&
-        // TODO Handle culling for TileMapRuntimeObject.
-        isSimpleTileMap(object) &&
-        instanceContainer === scene &&
-        (!gdjs.scene3d ||
-          (gdjs.scene3d.camera.getCameraRotationX(scene, layerName, 0) === 0 &&
-            gdjs.scene3d.camera.getCameraRotationY(scene, layerName, 0) === 0))
-      ) {
-        const cameraX = layer.getCameraX();
-        const cameraY = layer.getCameraY();
-        let cameraHalfWidth = layer.getCameraWidth() / 2;
-        let cameraHalfHeight = layer.getCameraHeight() / 2;
-        if (layer.getCameraRotation() !== 0) {
-          const hypot = cameraHalfWidth + cameraHalfHeight;
-          cameraHalfWidth = hypot;
-          cameraHalfHeight = hypot;
-        }
-        const [cameraLeftTile, cameraTopTile] =
-          object.getGridCoordinatesFromSceneCoordinates(
-            cameraX - cameraHalfWidth,
-            cameraY - cameraHalfHeight
-          );
-        const [cameraRightTile, cameraBottomTile] =
-          object.getGridCoordinatesFromSceneCoordinates(
-            cameraX + cameraHalfWidth,
-            cameraY + cameraHalfHeight
-          );
-        leftBound = Math.min(cameraLeftTile, cameraRightTile);
-        rightBound = Math.max(cameraLeftTile, cameraRightTile) + 1;
-        topBound = Math.min(cameraTopTile, cameraBottomTile);
-        bottomBound = Math.max(cameraTopTile, cameraBottomTile) + 1;
-      }
+      const cullingBounds = computeTileMapCullingBounds(
+        object,
+        dimX,
+        dimY,
+        this._temporaryCullingBounds
+      );
+      const leftBound = cullingBounds[0];
+      const rightBound = cullingBounds[1];
+      const topBound = cullingBounds[2];
+      const bottomBound = cullingBounds[3];
 
       if (
         forceRefresh ||
@@ -215,13 +272,6 @@ namespace gdjs {
       // Keep textures because they are shared by all tile maps.
       this._pixiObject.destroy(false);
     }
-  }
-
-  function isSimpleTileMap(
-    object: gdjs.SimpleTileMapRuntimeObject | gdjs.TileMapRuntimeObject
-  ): object is gdjs.SimpleTileMapRuntimeObject {
-    //@ts-ignore We are checking if the methods are present.
-    return object.getGridCoordinatesFromSceneCoordinates;
   }
 
   /**

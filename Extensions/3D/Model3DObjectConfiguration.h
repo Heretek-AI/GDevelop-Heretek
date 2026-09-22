@@ -186,6 +186,9 @@ private:
   bool keepAspectRatio;
   bool isCastingShadow;
   bool isReceivingShadow;
+  bool useInstancing;
+
+  bool shouldUseInstancing() const { return useInstancing; };
 
   std::vector<Model3DAnimation> animations;
   static Model3DAnimation badAnimation; //< Bad animation when an out of bound

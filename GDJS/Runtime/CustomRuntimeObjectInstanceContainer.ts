@@ -10,7 +10,9 @@ namespace gdjs {
    * @see gdjs.CustomRuntimeObject
    * @category Core Engine > Instance Container
    */
-  export class CustomRuntimeObjectInstanceContainer extends gdjs.RuntimeInstanceContainer {
+  export class CustomRuntimeObjectInstanceContainer
+    extends gdjs.RuntimeInstanceContainer
+  {
     _debuggerRenderer: gdjs.DebuggerRenderer;
     _runtimeScene: gdjs.RuntimeScene;
     /** The parent container that contains the object associated with this container. */
@@ -260,18 +262,46 @@ namespace gdjs {
      */
     _updateObjectsPreRender() {
       const allInstancesList = this.getAdhocListOfAllInstances();
-      // TODO (3D) culling - add support for 3D object culling?
       for (let i = 0, len = allInstancesList.length; i < len; ++i) {
         const object = allInstancesList[i];
-        const rendererObject = object.getRendererObject();
-        if (rendererObject) {
-          rendererObject.visible = !object.isHidden();
 
-          // Update effects, only for visible objects.
-          if (rendererObject.visible) {
+        // 3D objects report no `getRendererObject()` (see
+        // `RuntimeObject3D.getRendererObject`), so they need their own culling.
+        // A custom object has no camera of its own: resolve the scene's, for the
+        // layer the 3D object is on.
+        //
+        // Both 3D object families are caught by the capability, not by a base
+        // class: `CustomRuntimeObject3D` does not extend `RuntimeObject3D`.
+        const isThreeD = gdjs.CullableRuntimeObject3D.isCullable3D(object);
+        if (isThreeD) {
+          const scene = this.getScene();
+          const layer = scene ? scene.getLayer(object.getLayer()) : null;
+          const layerRenderer = layer ? layer.getRenderer() : null;
+          const frustum = layerRenderer
+            ? layerRenderer.getThreeFrustum()
+            : null;
+          const isVisible =
+            !object.isHidden() && (!frustum || object.isInFrustum(frustum));
+          const threeObject = object.get3DRendererObject();
+          if (threeObject) threeObject.visible = isVisible;
+
+          if (isVisible) {
             this.getGame()
               .getEffectsManager()
               .updatePreRender(object.getRendererEffects(), object);
+            object.updatePreRender(this);
+          }
+        } else {
+          const rendererObject = object.getRendererObject();
+          if (rendererObject) {
+            rendererObject.visible = !object.isHidden();
+
+            // Update effects, only for visible objects.
+            if (rendererObject.visible) {
+              this.getGame()
+                .getEffectsManager()
+                .updatePreRender(object.getRendererEffects(), object);
+            }
           }
         }
 
@@ -288,8 +318,11 @@ namespace gdjs {
           );
         }
 
-        // Perform pre-render update.
-        object.updatePreRender(this);
+        // Perform pre-render update, always for non-3D objects (they handle
+        // visibility on their own); 3D objects got theirs above, only if visible.
+        if (!isThreeD) {
+          object.updatePreRender(this);
+        }
       }
       return;
     }
@@ -324,8 +357,7 @@ namespace gdjs {
      * Get the renderer associated to the RuntimeScene.
      */
     getRenderer():
-      | gdjs.CustomRuntimeObject2DRenderer
-      | gdjs.CustomRuntimeObject3DRenderer {
+      gdjs.CustomRuntimeObject2DRenderer | gdjs.CustomRuntimeObject3DRenderer {
       return this._customObject.getRenderer();
     }
 

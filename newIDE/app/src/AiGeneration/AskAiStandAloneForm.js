@@ -67,6 +67,11 @@ const gd: libGDevelop = global.gd;
 const alwaysAutoEditEnabled = () => true;
 const noOpSuspendAiRequest = async () => {};
 const alwaysApproveEdit = async () => true;
+// The stand-alone form has no studio runtime: it never spawns a sub-agent, and
+// the shared request-store mutators are not mounted here.
+const noOpActivateSubAgent = () => {};
+const noOpUpdateAiRequest = () => {};
+const neverSendingAiRequest = () => false;
 
 type Props = {|
   project: ?gdProject,
@@ -649,6 +654,10 @@ export const AskAiStandAloneForm = ({
     getIsAutoEditEnabled: alwaysAutoEditEnabled,
     suspendAiRequest: noOpSuspendAiRequest,
     requestEditApproval: alwaysApproveEdit,
+    // The form never spawns a sub-agent and has no request store to write to.
+    activateSubAgent: noOpActivateSubAgent,
+    updateAiRequest: noOpUpdateAiRequest,
+    isSendingAiRequest: neverSendingAiRequest,
   });
 
   const onProcessFormFunctionCalls = React.useCallback(

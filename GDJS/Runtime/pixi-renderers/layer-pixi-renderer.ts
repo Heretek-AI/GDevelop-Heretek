@@ -210,13 +210,21 @@ namespace gdjs {
     private _threeGroup: THREE.Group | null = null;
     private _threeScene: THREE.Scene | null = null;
     private _threeCamera:
-      | THREE.PerspectiveCamera
-      | THREE.OrthographicCamera
-      | null = null;
+      THREE.PerspectiveCamera | THREE.OrthographicCamera | null = null;
     private _threeCameraDirty: boolean = false;
     private _threeEffectComposer: THREE_ADDONS.EffectComposer | null = null;
     private _basis: Basis | null = null;
     private static matrix4: THREE.Matrix4 | null = null;
+
+    /**
+     * The 3D camera frustum, rebuilt at most once per frame and read by 3D
+     * object culling (`RuntimeObject3D.isInFrustum`). Both scratch objects are
+     * allocated here, once.
+     */
+    private _threeFrustum: THREE.Frustum | null = null;
+    private _threeFrustumMatrix: THREE.Matrix4 | null = null;
+    /** Everything the frustum depends on, so it is rebuilt only on a change. */
+    private _threeFrustumSignature: string | null = null;
 
     // For a 2D+3D layer, the 2D rendering is done on the render texture
     // and then must be displayed on a plane in the 3D world:
@@ -315,15 +323,120 @@ namespace gdjs {
       return this._threeScene;
     }
 
+    /**
+     * The pool of `THREE.InstancedMesh` for this layer's 3D group.
+     *
+     * Owned per layer, not globally: the meshes live in this layer's
+     * `_threeGroup`, so a pool shared across layers (or across scenes, whose
+     * layer renderers are rebuilt) would hand out slots on a mesh that belongs
+     * to a discarded scene and nothing would be drawn.
+     */
+    private _modelInstancePool: gdjs.Model3DInstancePool | null = null;
+
+    /**
+     * The instance pool of this layer, created on first use: a layer with no
+     * instanced Model3D never allocates one.
+     */
+    getModelInstancePool(): gdjs.Model3DInstancePool {
+      if (!this._modelInstancePool) {
+        this._modelInstancePool = new gdjs.Model3DInstancePool();
+      }
+      return this._modelInstancePool;
+    }
+
+    /** The 3D group this layer renders its 3D objects into. */
     getThreeGroup(): THREE.Group | null {
       return this._threeGroup;
     }
 
     getThreeCamera():
-      | THREE.PerspectiveCamera
-      | THREE.OrthographicCamera
-      | null {
+      THREE.PerspectiveCamera | THREE.OrthographicCamera | null {
       return this._threeCamera;
+    }
+
+    /**
+     * Copy the layer camera onto the 3D camera. Needed by the frustum before 3D
+     * object culling runs, which happens before the layers are updated for the
+     * frame (`RuntimeScene.render`), so the frustum cannot rely on
+     * `updatePosition` having run yet.
+     */
+    private _update3DCameraFromLayer(): void {
+      const camera = this._threeCamera;
+      if (!camera) return;
+
+      camera.position.x = this._layer.getCameraX();
+      camera.position.y = -this._layer.getCameraY(); // scene is mirrored on Y
+      camera.rotation.z = -gdjs.toRad(this._layer.getCameraRotation());
+
+      if (camera instanceof THREE.OrthographicCamera) {
+        camera.zoom = this._layer.getCameraZoom();
+        camera.updateProjectionMatrix();
+        camera.position.z = this._layer.getCameraZ(null);
+      } else {
+        camera.position.z = this._layer.getCameraZ(camera.fov);
+      }
+    }
+
+    /**
+     * The 3D camera frustum of this layer, or null when the layer has no 3D
+     * camera.
+     *
+     * Rebuilt only when the camera actually changed: the layer camera state is
+     * cheap to read, so a change in position, zoom or rotation (X, Y or Z)
+     * invalidates the cached frustum. The returned object is shared - read it,
+     * never keep it across frames.
+     */
+    getThreeFrustum(): THREE.Frustum | null {
+      const camera = this._threeCamera;
+      if (!camera) return null;
+
+      // A cheap signature of everything the frustum depends on.
+      const cameraSignature =
+        this._layer.getCameraX() +
+        '|' +
+        this._layer.getCameraY() +
+        '|' +
+        this._layer.getCameraRotation() +
+        '|' +
+        this._layer.getCameraZoom() +
+        '|' +
+        this._layer.getWidth() +
+        '|' +
+        this._layer.getHeight() +
+        '|' +
+        camera.rotation.x +
+        '|' +
+        camera.rotation.y +
+        '|' +
+        camera.fov +
+        '|' +
+        camera.near +
+        '|' +
+        camera.far;
+
+      if (
+        this._threeFrustum &&
+        this._threeFrustumSignature === cameraSignature
+      ) {
+        return this._threeFrustum;
+      }
+
+      if (!this._threeFrustum) {
+        this._threeFrustum = new THREE.Frustum();
+      }
+      if (!this._threeFrustumMatrix) {
+        this._threeFrustumMatrix = new THREE.Matrix4();
+      }
+
+      this._update3DCameraFromLayer();
+      camera.updateMatrixWorld();
+      this._threeFrustumMatrix.multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse
+      );
+      this._threeFrustum.setFromProjectionMatrix(this._threeFrustumMatrix);
+      this._threeFrustumSignature = cameraSignature;
+      return this._threeFrustum;
     }
 
     getThreeEffectComposer(): THREE_ADDONS.EffectComposer | null {
@@ -833,22 +946,7 @@ namespace gdjs {
       const runtimeGame = instanceContainer.getGame();
 
       // Update the 3D camera position and rotation.
-      if (this._threeCamera) {
-        const angle = -gdjs.toRad(this._layer.getCameraRotation());
-        this._threeCamera.position.x = this._layer.getCameraX();
-        this._threeCamera.position.y = -this._layer.getCameraY(); // scene is mirrored on Y
-        this._threeCamera.rotation.z = angle;
-
-        if (this._threeCamera instanceof THREE.OrthographicCamera) {
-          this._threeCamera.zoom = this._layer.getCameraZoom();
-          this._threeCamera.updateProjectionMatrix();
-          this._threeCamera.position.z = this._layer.getCameraZ(null);
-        } else {
-          this._threeCamera.position.z = this._layer.getCameraZ(
-            this._threeCamera.fov
-          );
-        }
-      }
+      this._update3DCameraFromLayer();
 
       let effectivePixiZoom = 1;
       const angle = -gdjs.toRad(this._layer.getCameraRotation());
@@ -1185,6 +1283,12 @@ namespace gdjs {
           camera.updateProjectionMatrix();
         }
         this._threeCameraDirty = false;
+      }
+
+      // Upload the instance matrices written during object pre-render of this
+      // frame, before the layer is drawn.
+      if (this._modelInstancePool) {
+        this._modelInstancePool.flush();
       }
     }
 

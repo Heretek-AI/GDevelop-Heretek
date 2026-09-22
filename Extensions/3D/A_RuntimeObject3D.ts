@@ -94,6 +94,22 @@ namespace gdjs {
 
     abstract getRenderer(): gdjs.RuntimeObject3DRenderer;
 
+    /**
+     * Writes the object's conservative axis-aligned box into `box` and returns
+     * it. Allocates nothing. See `gdjs.Object3DCulling.computeAABB`.
+     */
+    getAABB3D(box: THREE.Box3): THREE.Box3 {
+      return gdjs.Object3DCulling.computeAABB(this, box);
+    }
+
+    /**
+     * True when the object's box intersects `frustum`. Allocates nothing, so it
+     * is safe to call for every object every frame.
+     */
+    isInFrustum(frustum: THREE.Frustum): boolean {
+      return gdjs.Object3DCulling.isInFrustum(this, frustum);
+    }
+
     getRendererObject() {
       return null;
     }

@@ -81,6 +81,17 @@ namespace gdjs {
      */
     private _modelOriginPoint: FloatPoint3D;
 
+    /**
+     * The instanced path, set when `useInstancing` is on and the model can be
+     * shared (see `_canUseInstancing`). While it is set, `_threeObject3D` is a
+     * transform carrier that is **never added to the scene graph**: the pool
+     * reads its matrix and writes it to the shared `InstancedMesh`.
+     */
+    private _instanceSlot: integer | null = null;
+    private _instanceKey: string | null = null;
+    private _layerRenderer: gdjs.LayerPixiRenderer | null = null;
+    private static _instanceMatrix: THREE.Matrix4 | null = null;
+
     constructor(
       runtimeObject: gdjs.Model3DRuntimeObject,
       instanceContainer: gdjs.RuntimeInstanceContainer
@@ -117,6 +128,170 @@ namespace gdjs {
       this._animationMixer.update(timeDelta);
     }
 
+    /**
+     * Whether this object can be drawn through a shared `InstancedMesh`.
+     *
+     * The three conditions the property documents, all required:
+     * - the object opted in (`useInstancing`),
+     * - its material is not substituted per instance ("Basic" replaces every
+     *   material with a `MeshBasicMaterial`, which a shared instanced material
+     *   cannot express),
+     * - the model is a single mesh, because a shared instanced mesh draws one
+     *   geometry (a model with materials/skins - anything animated - therefore
+     *   never takes this path).
+     *
+     * When any of them is false the object silently uses the clone path: no
+     * error, no warning.
+     */
+    private _canUseInstancing(): boolean {
+      if (!this._model3DRuntimeObject._useInstancing) return false;
+      if (
+        this._model3DRuntimeObject._materialType ===
+        gdjs.Model3DRuntimeObject.MaterialType.Basic
+      ) {
+        return false;
+      }
+      return !!this._getSingleMesh();
+    }
+
+    /**
+     * The model's single mesh, or null when it is not exactly one mesh (a group,
+     * a skinned mesh, several sub-meshes...).
+     */
+    private _getSingleMesh(): THREE.Mesh | null {
+      const scene = this._originalModel ? this._originalModel.scene : null;
+      if (!scene) return null;
+      let found: THREE.Mesh | null = null;
+      let meshCount = 0;
+      let skippedSkinnedMesh = false;
+      // An empty group contributes nothing; a mesh (or a mesh-less leaf) is one
+      // drawable, so anything but exactly one drawable means no shared geometry.
+      const visit = (node: THREE.Object3D) => {
+        const maybeMesh = node as THREE.Mesh;
+        if (maybeMesh.isMesh) {
+          if (maybeMesh.isSkinnedMesh) {
+            skippedSkinnedMesh = true;
+            return;
+          }
+          meshCount++;
+          if (meshCount === 1) found = maybeMesh;
+          return;
+        }
+        if (node.children.length === 0) {
+          // A leaf that is not a mesh (a light, a camera, an empty).
+          return;
+        }
+        for (const child of node.children) visit(child);
+      };
+      visit(scene);
+      if (skippedSkinnedMesh || meshCount !== 1) return null;
+      return found;
+    }
+
+    /** The layer renderer this object is rendered by. */
+    private _getLayerRenderer(): gdjs.LayerPixiRenderer | null {
+      const layer = this._object
+        .getInstanceContainer()
+        .getLayer(this._object.getLayer());
+      return layer ? layer.getRenderer() : null;
+    }
+
+    /**
+     * Take an instance slot for this object, replacing the per-object clone.
+     *
+     * Returns false when instancing is not applicable, in which case the caller
+     * keeps the clone path.
+     */
+    private _trySetupInstancing(): boolean {
+      if (!this._canUseInstancing()) return false;
+      const mesh = this._getSingleMesh();
+      if (!mesh) return false;
+      const layerRenderer = this._getLayerRenderer();
+      const threeGroup = layerRenderer ? layerRenderer.getThreeGroup() : null;
+      if (!layerRenderer || !threeGroup) return false;
+
+      const layerName = this._object.getLayer();
+      const key = gdjs.getModelInstanceKey(
+        this._model3DRuntimeObject._modelResourceName,
+        String(this._model3DRuntimeObject._materialType),
+        layerName
+      );
+      const geometry = mesh.geometry;
+      const material = mesh.material;
+
+      // The layer owns the pool: the InstancedMesh is added to this layer's 3D
+      // group, so it must never be shared with another layer or another scene.
+      const pool = layerRenderer.getModelInstancePool();
+      this._layerRenderer = layerRenderer;
+      this._instanceSlot = pool.acquire(key, (capacity) => {
+        const instancedMesh = new THREE.InstancedMesh(
+          geometry,
+          material as THREE.Material,
+          capacity
+        );
+        instancedMesh.rotation.order = 'ZYX';
+        // The instance count and matrices are managed by the pool; culling is
+        // per object (Phase 6 culls the carrier's box, not this merged mesh).
+        instancedMesh.frustumCulled = false;
+        instancedMesh.castShadow = this._model3DRuntimeObject._isCastingShadow;
+        instancedMesh.receiveShadow =
+          this._model3DRuntimeObject._isReceivingShadow;
+        threeGroup.add(instancedMesh);
+        return instancedMesh;
+      });
+      this._instanceKey = key;
+
+      // The instanced mesh draws this object now: drop the per-object clone and
+      // take the carrier out of the scene graph. The carrier is never added to
+      // the scene while instancing is on - it exists only to carry the transform
+      // the pool reads, and an empty group left in the graph would still be
+      // traversed (and counted as a 3D object) every frame.
+      const carrier = this.get3DRendererObject();
+      carrier.clear();
+      layerRenderer.remove3DRendererObject(carrier);
+      return true;
+    }
+
+    /** Write the carrier's transform into the shared `InstancedMesh`. */
+    private _writeInstanceMatrix(): void {
+      if (this._instanceKey === null || this._instanceSlot === null) return;
+      let matrix = Model3DRuntimeObject3DRenderer._instanceMatrix;
+      if (!matrix) {
+        matrix = new THREE.Matrix4();
+        Model3DRuntimeObject3DRenderer._instanceMatrix = matrix;
+      }
+      const carrier = this.get3DRendererObject();
+      carrier.updateMatrix();
+      matrix.copy(carrier.matrix);
+      if (this._layerRenderer) {
+        this._layerRenderer
+          .getModelInstancePool()
+          .setMatrix(this._instanceKey, this._instanceSlot, matrix);
+      }
+    }
+
+    /** Give the instance slot back; the slot is reusable by another object. */
+    releaseInstancing(): void {
+      if (this._instanceKey === null || this._instanceSlot === null) return;
+      const layerRenderer = this._layerRenderer;
+      if (layerRenderer) {
+        layerRenderer
+          .getModelInstancePool()
+          .release(this._instanceKey, this._instanceSlot);
+        // Put the carrier back: it was taken out of the scene graph when
+        // instancing took over, and the clone path draws through it again.
+        layerRenderer.add3DRendererObject(this.get3DRendererObject());
+      }
+      this._instanceKey = null;
+      this._instanceSlot = null;
+      this._layerRenderer = null;
+    }
+
+    /** The shared pool slot of this object, or null on the clone path. */
+    getInstanceSlot(): integer | null {
+      return this._instanceSlot;
+    }
+
     override updatePosition() {
       const originPoint = this.getOriginPoint();
       const centerPoint = this.getCenterPoint();
@@ -128,6 +303,7 @@ namespace gdjs {
         this._object.getZ() -
           this._object.getDepth() * (originPoint[2] - centerPoint[2])
       );
+      this._writeInstanceMatrix();
     }
 
     getOriginPoint(): FloatPoint3D {
@@ -378,6 +554,11 @@ namespace gdjs {
       if (isAnimationPaused) {
         this.pauseAnimation();
       }
+
+      // Last, so the clone is in place if instancing cannot be used: the
+      // instanced path replaces it, and silently leaves it alone otherwise.
+      this.releaseInstancing();
+      this._trySetupInstancing();
     }
 
     /**

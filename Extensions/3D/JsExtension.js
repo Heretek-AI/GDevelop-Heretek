@@ -380,6 +380,7 @@ module.exports = {
         .setIncludeFile('Extensions/3D/A_RuntimeObject3D.js')
         .addIncludeFile('Extensions/3D/A_RuntimeObject3DRenderer.js')
         .addIncludeFile('Extensions/3D/Model3DRuntimeObject.js')
+        .addIncludeFile('Extensions/3D/Model3DInstancePool.js')
         .addIncludeFile('Extensions/3D/Model3DRuntimeObject3DRenderer.js');
 
       // Properties expressions/conditions/actions:

@@ -19,18 +19,49 @@ describe('server-side handled tools', () => {
     project.delete();
   });
 
-  const launch = (functionName: string) =>
+  const launch = (functionName: string, args: Object = {}) =>
     editorFunctions[functionName].launchFunction({
       ...makeFakeLaunchFunctionOptionsWithProject(project),
-      args: {},
+      args,
     });
 
-  it('create_or_update_plan fails as it is handled server-side', async () => {
-    const result = await launch('create_or_update_plan');
-    expect(result.success).toBe(false);
-    expect(result.message).toBe(
-      'Unable to create or update plan - this is handled server-side.'
+  it('create_or_update_plan builds the plan locally', async () => {
+    const result = await launch('create_or_update_plan', {
+      tasks: [
+        {
+          id: 'gdd',
+          title: 'Write the GDD',
+          description: 'Sections: overview, economy.',
+          status: 'pending',
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+    expect((result: any).plan).toEqual({
+      tasks: [
+        {
+          id: 'gdd',
+          title: 'Write the GDD',
+          description: 'Sections: overview, economy.',
+          status: 'pending',
+          dependsOn: [],
+        },
+      ],
+    });
+  });
+
+  it('create_or_update_plan rejects a bad tasks argument instead of throwing', async () => {
+    const missingTasks = await launch('create_or_update_plan');
+    expect(missingTasks.success).toBe(false);
+    expect(missingTasks.message).toBe(
+      'create_or_update_plan requires a tasks array.'
     );
+
+    const badTask = await launch('create_or_update_plan', {
+      tasks: [{ id: 'a', title: '', description: 'd', status: 'pending' }],
+    });
+    expect(badTask.success).toBe(false);
+    expect(badTask.message).toContain('index 0');
   });
 
   it('report_fulfilment_problem fails as it is handled server-side', async () => {

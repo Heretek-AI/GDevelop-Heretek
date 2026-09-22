@@ -77,6 +77,7 @@ import { listAllExamples } from '../Utils/GDevelopServices/Example';
 import UrlStorageProvider from '../ProjectsStorage/UrlStorageProvider';
 import { prepareAiUserContent } from './PrepareAiUserContent';
 import { AiRequestContext } from './AiRequestContext';
+import { useStudioRuntime } from './Studio/UseStudioRuntime';
 import { getAiConfigurationPresetsWithAvailability } from './AiConfiguration';
 import {
   setEditorHotReloadNeeded,
@@ -546,6 +547,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         requestEditApproval,
         resolveEditApproval,
         setIsFetchingSuggestions,
+        activateSubAgent,
       } = React.useContext(AiRequestContext);
       const {
         getEditorFunctionCallResults,
@@ -1103,6 +1105,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
       const {
         onProcessFunctionCalls,
         clearApprovedEditBatches,
+        enqueueRequestWrite,
       } = useProcessFunctionCalls({
         project,
         resourceManagementProps,
@@ -1129,6 +1132,21 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         getIsAutoEditEnabled,
         suspendAiRequest,
         requestEditApproval,
+        activateSubAgent,
+        updateAiRequest,
+        isSendingAiRequest,
+      });
+
+      // Closes the loop for locally spawned studio sub-agents: waits for a child
+      // to finish, reports it back to its parent, and updates the plan. A no-op
+      // when no sub-agent is active, so the hosted path is untouched.
+      useStudioRuntime({
+        aiRequests,
+        activeSubAgents,
+        getEditorFunctionCallResults,
+        updateAiRequest,
+        onSendEditorFunctionCallResults,
+        enqueueRequestWrite,
       });
 
       // Wrap onProcessFunctionCalls to bind the selected AI request for the chat UI.

@@ -7,6 +7,7 @@
 // session keys, or anything that requires unpredictability.
 
 import axios from 'axios';
+import { getStudioRole, getToolsForRole } from '../AiGeneration/Studio/Roles';
 import {
   type AiRequest,
   type AiRequestMessage,
@@ -158,12 +159,56 @@ export const getEndpointUrl = (
 const localAiRequestsCache: { [id: string]: AiRequest } = {};
 
 /**
- * Reset CustomAIClient state (for testing).
+ * One in-flight model turn per request id.
+ *
+ * A turn reads `localAiRequestsCache[id]`, awaits a full model call, then writes
+ * the whole updated request back. Once the studio spawns a sub-agent, a parent
+ * and its child are both taking turns, so that read-to-write window is a real
+ * lost-update race: without this lock the later write discards the earlier one's
+ * appended message.
+ *
+ * Different request ids never block each other.
  */
+const localAiTurnTails: { [aiRequestId: string]: Promise<void> } = {};
+
+/**
+ * Run `turn` with the exclusive turn lock for `aiRequestId`, releasing it when
+ * the turn settles. The lock is a promise tail, so a queued turn only starts
+ * after the previous one has released it, and different request ids never block
+ * each other.
+ */
+export const withLocalAiTurnLock = async <T>(
+  aiRequestId: string,
+  turn: () => Promise<T>
+): Promise<T> => {
+  const tail = localAiTurnTails[aiRequestId] || Promise.resolve();
+  let release: () => void;
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  const newTail = tail.then(() => held);
+  localAiTurnTails[aiRequestId] = newTail;
+
+  await tail;
+  try {
+    return await turn();
+  } finally {
+    release();
+    // Drop the entry once nothing is queued behind this turn.
+    if (localAiTurnTails[aiRequestId] === newTail) {
+      delete localAiTurnTails[aiRequestId];
+    }
+  }
+};
+
+/** Reset CustomAIClient state (for testing). */
 export const _resetCustomAiClientForTesting = () => {
   cachedConfig = null;
   for (const key of Object.keys(localAiRequestsCache)) {
     delete localAiRequestsCache[key];
+  }
+  for (const key of Object.keys(localAiTurnTails)) {
+    delete localAiTurnTails[key];
   }
 };
 
@@ -1048,6 +1093,539 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_extension',
+      description:
+        'Create a new events-functions extension in the project. Optionally copy an existing one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description:
+              'Name of the extension to create. It is made unique automatically if taken.',
+          },
+          duplicated_extension_name: {
+            type: 'string',
+            description:
+              'Name of an existing extension to copy into the new one. Omit to create an empty extension.',
+          },
+          full_name: {
+            type: 'string',
+            description: 'Human-readable title shown in the editor.',
+          },
+          short_description: {
+            type: 'string',
+            description: 'One-line description of the extension.',
+          },
+          description: {
+            type: 'string',
+            description: 'Full description of the extension.',
+          },
+          category: { type: 'string', description: 'Extension category.' },
+          tags: {
+            type: 'string',
+            description: 'Comma-separated tags.',
+          },
+          author: { type: 'string', description: 'Extension author.' },
+        },
+        required: ['extension_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'change_extension_properties',
+      description:
+        'Change properties of an extension, its dependencies, or delete the extension.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description: 'Name of the extension to change.',
+          },
+          new_name: {
+            type: 'string',
+            description: 'New name for the extension, to rename it.',
+          },
+          delete_this_extension: {
+            type: 'boolean',
+            description: 'Set to true to delete the extension.',
+          },
+          delete_even_if_used: {
+            type: 'boolean',
+            description:
+              'Allow deleting an extension that is still used. Only when delete_this_extension is true.',
+          },
+          changed_properties: {
+            type: 'array',
+            description: 'Properties to set on the extension.',
+            items: {
+              type: 'object',
+              properties: {
+                property_name: {
+                  type: 'string',
+                  description:
+                    'One of: fullName, shortDescription, description, category, tags, version, author, helpPath, previewIconUrl, iconUrl, dimension.',
+                },
+                new_value: { type: 'string' },
+              },
+              required: ['property_name', 'new_value'],
+            },
+          },
+          changed_dependencies: {
+            type: 'array',
+            description: 'Dependencies to create, edit or delete.',
+            items: {
+              type: 'object',
+              properties: {
+                dependency_name: { type: 'string' },
+                dependency_type: { type: 'string' },
+                new_name: { type: 'string' },
+                export_name: { type: 'string' },
+                version: { type: 'string' },
+                delete_this_dependency: { type: 'boolean' },
+                extra_settings: {
+                  type: 'object',
+                  description: 'Dependency-specific settings, as strings.',
+                },
+              },
+              required: ['dependency_name'],
+            },
+          },
+        },
+        required: ['extension_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_custom_object',
+      description:
+        'Create a custom object (an events-based object) in an extension, optionally as a copy of an existing one.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description: 'Extension to create the custom object in.',
+          },
+          custom_object_name: {
+            type: 'string',
+            description: 'Name of the new custom object.',
+          },
+          duplicated_custom_object_name: {
+            type: 'string',
+            description: 'Existing custom object to copy.',
+          },
+          duplicated_from_extension_name: {
+            type: 'string',
+            description:
+              'Extension holding the custom object to copy. Defaults to extension_name.',
+          },
+          area: {
+            type: 'object',
+            description:
+              'Default area of the object, as numbers: minX, minY, minZ, maxX, maxY, maxZ.',
+            properties: {
+              minX: { type: 'number' },
+              minY: { type: 'number' },
+              minZ: { type: 'number' },
+              maxX: { type: 'number' },
+              maxY: { type: 'number' },
+              maxZ: { type: 'number' },
+            },
+          },
+        },
+        required: ['extension_name', 'custom_object_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'change_custom_object',
+      description:
+        'Change a custom object: rename, delete, change its settings, its variants or its properties.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description: 'Extension holding the custom object.',
+          },
+          custom_object_name: {
+            type: 'string',
+            description: 'Name of the custom object to change.',
+          },
+          new_name: { type: 'string', description: 'New name, to rename it.' },
+          delete_this_custom_object: {
+            type: 'boolean',
+            description: 'Set to true to delete the custom object.',
+          },
+          delete_even_if_used: {
+            type: 'boolean',
+            description:
+              'Allow deleting a custom object that is still used. Only when delete_this_custom_object is true.',
+          },
+          fit_area_to_children: {
+            type: 'string',
+            description:
+              'Whether to fit the area to the children (true/false).',
+          },
+          changed_settings: {
+            type: 'array',
+            description: 'Settings to change on the custom object.',
+            items: {
+              type: 'object',
+              properties: {
+                setting_name: { type: 'string' },
+                new_value: {
+                  description:
+                    'String, boolean or number depending on the setting.',
+                },
+              },
+              required: ['setting_name', 'new_value'],
+            },
+          },
+          changed_variants: {
+            type: 'array',
+            description: 'Variants to create or delete.',
+            items: {
+              type: 'object',
+              properties: {
+                variant_name: { type: 'string' },
+                duplicated_from_variant_name: { type: 'string' },
+                delete_this_variant: { type: 'boolean' },
+              },
+              required: ['variant_name'],
+            },
+          },
+          changed_properties: {
+            type: 'array',
+            description: 'Properties to set on the custom object.',
+            items: {
+              type: 'object',
+              properties: {
+                property_name: { type: 'string' },
+                new_value: { type: 'string' },
+              },
+              required: ['property_name', 'new_value'],
+            },
+          },
+        },
+        required: ['extension_name', 'custom_object_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_custom_behavior',
+      description:
+        'Create a custom behavior (an events-based behavior) in an extension.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description: 'Extension to create the behavior in.',
+          },
+          custom_behavior_name: {
+            type: 'string',
+            description: 'Name of the new custom behavior.',
+          },
+          duplicated_custom_behavior_name: {
+            type: 'string',
+            description: 'Existing custom behavior to copy.',
+          },
+          duplicated_from_extension_name: {
+            type: 'string',
+            description:
+              'Extension holding the behavior to copy. Defaults to extension_name.',
+          },
+          full_name: {
+            type: 'string',
+            description: 'Human-readable title.',
+          },
+          description: { type: 'string' },
+          object_type: {
+            type: 'string',
+            description:
+              'Restrict the behavior to objects of this type. Omit for all objects.',
+          },
+        },
+        required: ['extension_name', 'custom_behavior_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'change_custom_behavior',
+      description:
+        'Change a custom behavior: rename, delete, change its settings, its shared properties or its properties.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description: 'Extension holding the custom behavior.',
+          },
+          custom_behavior_name: {
+            type: 'string',
+            description: 'Name of the custom behavior to change.',
+          },
+          new_name: { type: 'string', description: 'New name, to rename it.' },
+          delete_this_custom_behavior: {
+            type: 'boolean',
+            description: 'Set to true to delete the custom behavior.',
+          },
+          delete_even_if_used: {
+            type: 'boolean',
+            description:
+              'Allow deleting a behavior that is still used. Only when delete_this_custom_behavior is true.',
+          },
+          changed_settings: {
+            type: 'array',
+            description: 'Settings to change on the custom behavior.',
+            items: {
+              type: 'object',
+              properties: {
+                setting_name: { type: 'string' },
+                new_value: {
+                  description:
+                    'String, boolean or number depending on the setting.',
+                },
+              },
+              required: ['setting_name', 'new_value'],
+            },
+          },
+          changed_shared_properties: {
+            type: 'array',
+            description: 'Shared properties of the behavior to change.',
+            items: {
+              type: 'object',
+              properties: {
+                property_name: { type: 'string' },
+                new_value: { type: 'string' },
+              },
+              required: ['property_name', 'new_value'],
+            },
+          },
+          changed_properties: {
+            type: 'array',
+            description: 'Properties of the behavior to change.',
+            items: {
+              type: 'object',
+              properties: {
+                property_name: { type: 'string' },
+                new_value: { type: 'string' },
+              },
+              required: ['property_name', 'new_value'],
+            },
+          },
+        },
+        required: ['extension_name', 'custom_behavior_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_custom_function',
+      description:
+        'Create a function in an extension, a custom object or a custom behavior.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scope: {
+            type: 'object',
+            description:
+              'Where to create the function. type "extension" needs extension_name; "custom_object" needs extension_name and custom_object_name; "custom_behavior" needs extension_name and custom_behavior_name.',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['extension', 'custom_object', 'custom_behavior'],
+              },
+              extension_name: { type: 'string' },
+              custom_object_name: { type: 'string' },
+              custom_behavior_name: { type: 'string' },
+            },
+            required: ['type'],
+          },
+          function_name: {
+            type: 'string',
+            description: 'Name of the new function.',
+          },
+          duplicated_function_name: {
+            type: 'string',
+            description: 'Existing function to copy.',
+          },
+          function_type: {
+            type: 'string',
+            description:
+              'Action, Condition, Expression, StringExpression or ActionWithOperator.',
+          },
+          getter_name: {
+            type: 'string',
+            description:
+              'For ActionWithOperator: the getter function to build from.',
+          },
+          full_name: { type: 'string' },
+          description: { type: 'string' },
+          group: { type: 'string' },
+          sentence: {
+            type: 'string',
+            description: 'Sentence shown in the events sheet.',
+          },
+          parameters: {
+            type: 'array',
+            description: 'Parameters to declare on the function.',
+            items: { type: 'object' },
+          },
+        },
+        required: ['scope', 'function_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'change_custom_function',
+      description:
+        'Change a function: rename, delete, change its settings or its parameters.',
+      parameters: {
+        type: 'object',
+        properties: {
+          scope: {
+            type: 'object',
+            description:
+              'Where the function lives. type "extension" needs extension_name; "custom_object" needs extension_name and custom_object_name; "custom_behavior" needs extension_name and custom_behavior_name.',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['extension', 'custom_object', 'custom_behavior'],
+              },
+              extension_name: { type: 'string' },
+              custom_object_name: { type: 'string' },
+              custom_behavior_name: { type: 'string' },
+            },
+            required: ['type'],
+          },
+          function_name: {
+            type: 'string',
+            description: 'Name of the function to change.',
+          },
+          new_name: { type: 'string', description: 'New name, to rename it.' },
+          delete_this_function: {
+            type: 'boolean',
+            description: 'Set to true to delete the function.',
+          },
+          changed_settings: {
+            type: 'array',
+            description: 'Settings to change on the function.',
+            items: {
+              type: 'object',
+              properties: {
+                setting_name: { type: 'string' },
+                new_value: {
+                  description:
+                    'String, boolean or number depending on the setting.',
+                },
+              },
+              required: ['setting_name', 'new_value'],
+            },
+          },
+          changed_parameters: {
+            type: 'array',
+            description: 'Parameters to change on the function.',
+            items: { type: 'object' },
+          },
+        },
+        required: ['scope', 'function_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'inspect_extension',
+      description:
+        'Read the structure of an extension: its custom objects, custom behaviors, functions and variants.',
+      parameters: {
+        type: 'object',
+        properties: {
+          extension_name: {
+            type: 'string',
+            description: 'Name of the extension to inspect.',
+          },
+          custom_object_name: {
+            type: 'string',
+            description: 'Restrict the output to this custom object.',
+          },
+          custom_behavior_name: {
+            type: 'string',
+            description: 'Restrict the output to this custom behavior.',
+          },
+          function_name: {
+            type: 'string',
+            description: 'Restrict the output to this function.',
+          },
+          variant_name: {
+            type: 'string',
+            description: 'Restrict the output to this variant.',
+          },
+        },
+        required: ['extension_name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'spawn_agent',
+      description:
+        'Delegate one task to a studio sub-agent, which works on it and reports back. Only the studio lead may call this. Sub-agents never delegate further.',
+      parameters: {
+        type: 'object',
+        properties: {
+          role: {
+            type: 'string',
+            description:
+              'Which specialist to use: "designer" writes the design document as GDD_ project variables; "developer" changes the project to implement a task; "tester" writes and runs a gameplay test and reports pass or fail.',
+            enum: ['designer', 'developer', 'tester'],
+          },
+          short_title: {
+            type: 'string',
+            description:
+              'A 2-5 word label shown in the chat for this sub-agent, e.g. "Build the town grid".',
+          },
+          task: {
+            type: 'string',
+            description:
+              'The complete, self-contained instruction for the sub-agent. It cannot see this conversation, so state everything it needs: the scene, the objects, the expected result.',
+          },
+          context: {
+            type: 'string',
+            description:
+              'Extra facts the sub-agent needs: relevant variable values, previous findings, constraints.',
+          },
+          related_task_id: {
+            type: 'string',
+            description:
+              'The id of the create_or_update_plan task this agent works on. That task is marked done when the agent reports back.',
+          },
+        },
+        required: ['role', 'short_title', 'task'],
+      },
+    },
+  },
 ];
 
 /**
@@ -1252,17 +1830,35 @@ export const transformGDevelopMessagesToOpenAi = (
 
 /**
  * Build the system prompt with project structure and guidelines.
+ *
+ * `role` and `spawnContextNote` are the studio's additions (see
+ * `AiGeneration/Studio/`). Both are optional: with neither, the prompt is exactly
+ * what the chat and the hosted-style agent turns have always used.
  */
 export const buildSystemPrompt = ({
   gameProjectJson,
   projectSpecificExtensionsSummaryJson,
   mode,
+  role,
+  spawnContextNote,
 }: {|
   gameProjectJson?: string | null,
   projectSpecificExtensionsSummaryJson?: string | null,
   mode?: 'chat' | 'agent' | 'orchestrator',
+  role?: string | null,
+  spawnContextNote?: string | null,
 |}): string => {
-  let prompt = `You are GDevelop AI Assistant, an expert game engine developer. You help users build games in GDevelop 5.
+  const rolePrompt = role ? getStudioRole((role: any)).systemPrompt : null;
+
+  let prompt = rolePrompt
+    ? `${rolePrompt}
+
+You are working inside GDevelop, the game engine this project is built with. The tools you can call are restricted to the ones your role is granted: if you need something you cannot do, report it instead of trying another route.
+
+`
+    : '';
+
+  prompt += `You are GDevelop AI Assistant, an expert game engine developer. You help users build games in GDevelop 5.
 
 Guidelines:
 1. Always use available tools/functions to inspect or modify the project.
@@ -1282,6 +1878,9 @@ Guidelines:
   }
   if (projectSpecificExtensionsSummaryJson) {
     prompt += `\nInstalled Project Extensions:\n${projectSpecificExtensionsSummaryJson}\n`;
+  }
+  if (spawnContextNote) {
+    prompt += `\n${spawnContextNote}\n`;
   }
 
   return prompt;
@@ -1619,33 +2218,120 @@ export const customAddMessageToAiRequest = async ({
   projectSpecificExtensionsSummaryJson?: string | null,
   mode?: 'chat' | 'agent' | 'orchestrator',
 |}): Promise<AiRequest> => {
-  const existing = localAiRequestsCache[aiRequestId] || {
-    id: aiRequestId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    userId: LOCAL_BYOK_USER_ID,
-    status: 'ready',
-    output: [],
-    error: null,
-  };
+  return withLocalAiTurnLock(aiRequestId, async () => {
+    const existing = localAiRequestsCache[aiRequestId] || {
+      id: aiRequestId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      userId: LOCAL_BYOK_USER_ID,
+      status: 'ready',
+      output: [],
+      error: null,
+    };
 
-  const output = [...(existing.output || [])];
+    const output = [...(existing.output || [])];
 
-  if (functionCallOutputs && functionCallOutputs.length > 0) {
-    for (const fcOutput of functionCallOutputs) {
+    if (functionCallOutputs && functionCallOutputs.length > 0) {
+      for (const fcOutput of functionCallOutputs) {
+        output.push({
+          type: 'function_call_output',
+          call_id: fcOutput.call_id,
+          output: fcOutput.output,
+          messageId: `msg-fco-${Date.now()}-${Math.random()
+            .toString(36)
+            .substr(2, 4)}`,
+        });
+      }
+    }
+
+    if (userMessage && userMessage.trim()) {
       output.push({
-        type: 'function_call_output',
-        call_id: fcOutput.call_id,
-        output: fcOutput.output,
-        messageId: `msg-fco-${Date.now()}-${Math.random()
-          .toString(36)
-          .substr(2, 4)}`,
+        type: 'message',
+        status: 'completed',
+        role: 'user',
+        content: [
+          {
+            type: 'user_request',
+            status: 'completed',
+            text: userMessage,
+          },
+        ],
+        messageId: `msg-user-${Date.now()}`,
       });
     }
-  }
 
-  if (userMessage && userMessage.trim()) {
-    output.push({
+    const systemPrompt = buildSystemPrompt({
+      gameProjectJson,
+      projectSpecificExtensionsSummaryJson,
+      mode: mode || existing.mode,
+    });
+
+    const openAiMessages = transformGDevelopMessagesToOpenAi(
+      output,
+      systemPrompt
+    );
+
+    const assistantResponse = await sendChatCompletion({
+      messages: openAiMessages,
+      tools: GDEVELOP_OPENAI_TOOLS,
+    });
+
+    const assistantMsgId = `msg-asst-${Date.now()}`;
+    const assistantMessage = parseAssistantMessage(
+      assistantResponse,
+      assistantMsgId
+    );
+    output.push(assistantMessage);
+
+    const currentCachedRequest = localAiRequestsCache[aiRequestId] || existing;
+    const updatedAiRequest: AiRequest = {
+      // Read the cache again, inside the lock: a suspend or a suggestion write
+      // that landed while the model was answering must not be discarded.
+      ...currentCachedRequest,
+      updatedAt: new Date().toISOString(),
+      // A request suspended during the turn stays suspended: writing the answer
+      // back must not silently resume it. It keeps the new output so the user
+      // can read what the agent produced before it was stopped.
+      status:
+        currentCachedRequest.status === 'suspended' ? 'suspended' : 'ready',
+      output,
+    };
+
+    localAiRequestsCache[aiRequestId] = updatedAiRequest;
+    saveLocalAiRequests();
+
+    return updatedAiRequest;
+  });
+};
+
+/**
+ * Create the `AiRequest` of one studio sub-agent: a child of `parentAiRequestId`,
+ * with the role's prompt and tool subset, that runs exactly one model turn.
+ *
+ * The child is never listed as a top-level chat: it has a `parentAiRequestId`, so
+ * the history ignores it (`AiRequestContext.updateAiRequest`).
+ */
+export const customCreateSubAgentAiRequest = async ({
+  parentAiRequestId,
+  roleId,
+  userRequest,
+  gameProjectJson,
+  projectSpecificExtensionsSummaryJson,
+  spawnContextNote,
+}: {|
+  parentAiRequestId: string,
+  roleId: string,
+  userRequest: string,
+  gameProjectJson: string | null,
+  projectSpecificExtensionsSummaryJson: string | null,
+  spawnContextNote?: string | null,
+|}): Promise<AiRequest> => {
+  const reqId = `local-ai-${Date.now()}-${Math.random()
+    .toString(36)
+    .substr(2, 7)}`;
+
+  return withLocalAiTurnLock(reqId, async () => {
+    const userMessage: AiRequestUserMessage = {
       type: 'message',
       status: 'completed',
       role: 'user',
@@ -1653,47 +2339,62 @@ export const customAddMessageToAiRequest = async ({
         {
           type: 'user_request',
           status: 'completed',
-          text: userMessage,
+          text: userRequest,
         },
       ],
       messageId: `msg-user-${Date.now()}`,
+    };
+
+    const output: Array<AiRequestMessage> = [userMessage];
+
+    const systemPrompt = buildSystemPrompt({
+      gameProjectJson,
+      projectSpecificExtensionsSummaryJson,
+      mode: 'agent',
+      role: roleId,
+      spawnContextNote,
     });
-  }
 
-  const systemPrompt = buildSystemPrompt({
-    gameProjectJson,
-    projectSpecificExtensionsSummaryJson,
-    mode: mode || existing.mode,
+    const openAiMessages = transformGDevelopMessagesToOpenAi(
+      output,
+      systemPrompt
+    );
+
+    const assistantResponse = await sendChatCompletion({
+      messages: openAiMessages,
+      tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
+    });
+
+    const assistantMessage = parseAssistantMessage(
+      assistantResponse,
+      `msg-asst-${Date.now()}`
+    );
+    output.push(assistantMessage);
+
+    const now = new Date().toISOString();
+    const aiRequest: AiRequest = {
+      id: reqId,
+      createdAt: now,
+      updatedAt: now,
+      userId: LOCAL_BYOK_USER_ID,
+      gameProjectJson: gameProjectJson || null,
+      status: 'ready',
+      mode: 'agent',
+      aiConfiguration: { presetId: 'default' },
+      toolsVersion: 'v14',
+      toolOptions: null,
+      parentAiRequestId: parentAiRequestId,
+      error: null,
+      output,
+      lastUserMessagePriceInCredits: 0,
+      totalPriceInCredits: 0,
+    };
+
+    localAiRequestsCache[reqId] = aiRequest;
+    saveLocalAiRequests();
+
+    return aiRequest;
   });
-
-  const openAiMessages = transformGDevelopMessagesToOpenAi(
-    output,
-    systemPrompt
-  );
-
-  const assistantResponse = await sendChatCompletion({
-    messages: openAiMessages,
-    tools: GDEVELOP_OPENAI_TOOLS,
-  });
-
-  const assistantMsgId = `msg-asst-${Date.now()}`;
-  const assistantMessage = parseAssistantMessage(
-    assistantResponse,
-    assistantMsgId
-  );
-  output.push(assistantMessage);
-
-  const updatedAiRequest: AiRequest = {
-    ...existing,
-    updatedAt: new Date().toISOString(),
-    status: 'ready',
-    output,
-  };
-
-  localAiRequestsCache[aiRequestId] = updatedAiRequest;
-  saveLocalAiRequests();
-
-  return updatedAiRequest;
 };
 
 /**
@@ -1756,10 +2457,16 @@ export const customGetAiRequestStatuses = (
 export const customSuspendAiRequest = (aiRequestId: string): AiRequest => {
   const existing = localAiRequestsCache[aiRequestId];
   if (existing) {
-    existing.status = 'suspended';
-    existing.updatedAt = new Date().toISOString();
+    // Replace the cached request rather than mutating it in place: a model turn
+    // may be holding a reference to it and will write its own copy back.
+    const suspended: AiRequest = {
+      ...existing,
+      status: 'suspended',
+      updatedAt: new Date().toISOString(),
+    };
+    localAiRequestsCache[aiRequestId] = suspended;
     saveLocalAiRequests();
-    return existing;
+    return suspended;
   }
   return customGetAiRequest(aiRequestId);
 };
@@ -1857,10 +2564,23 @@ Return your response STRICTLY as a JSON object with this format:
       .trim();
     const parsed: AiRequestSuggestions = JSON.parse(clean);
 
-    if (req.output && req.output.length > 0) {
-      const lastMsg = req.output[req.output.length - 1];
+    // Re-read the cache: a model turn may have written the request back while
+    // the suggestion model was answering.
+    const latest = localAiRequestsCache[aiRequestId] || req;
+    if (latest.output && latest.output.length > 0) {
+      const lastMsgIndex = latest.output.length - 1;
+      const lastMsg = latest.output[lastMsgIndex];
       if (lastMsg.type === 'message' && lastMsg.role === 'assistant') {
-        lastMsg.suggestions = parsed;
+        // Replace the message and the request rather than mutating in place: a
+        // model turn holding this request will write its own copy back, and an
+        // in-place edit would be silently discarded by that write.
+        const updatedOutput = [...latest.output];
+        updatedOutput[lastMsgIndex] = { ...lastMsg, suggestions: parsed };
+        localAiRequestsCache[aiRequestId] = {
+          ...latest,
+          output: updatedOutput,
+          updatedAt: new Date().toISOString(),
+        };
       }
     }
     saveLocalAiRequests();

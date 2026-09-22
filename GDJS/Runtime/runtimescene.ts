@@ -521,11 +521,43 @@ namespace gdjs {
         // instead.
         // - objects having effects rendering outside of their visibility AABB.
 
-        // TODO (3D) culling - add support for 3D object culling?
         this._updateLayersCameraCoordinates(2);
         const allInstancesList = this.getAdhocListOfAllInstances();
         for (let i = 0, len = allInstancesList.length; i < len; ++i) {
           const object = allInstancesList[i];
+
+          // 3D objects report no `getRendererObject()` (see
+          // `RuntimeObject3D.getRendererObject`), so they need their own
+          // culling: their renderer object is the THREE object, and visibility
+          // is decided against the 3D camera frustum of their layer. No safety
+          // margin is used here (unlike the 2D "scale of 2" above): the box is
+          // the object's true conservative extent, so a visible object cannot
+          // be culled by mistake.
+          //
+          // Both 3D object families are caught by the capability, not by a base
+          // class: `CustomRuntimeObject3D` does not extend `RuntimeObject3D`.
+          if (gdjs.CullableRuntimeObject3D.isCullable3D(object)) {
+            const layer = this.getLayer(object.getLayer());
+            const layerRenderer = layer ? layer.getRenderer() : null;
+            const frustum = layerRenderer
+              ? layerRenderer.getThreeFrustum()
+              : null;
+            const isVisible =
+              !object.isHidden() && (!frustum || object.isInFrustum(frustum));
+            const threeObject = object.get3DRendererObject();
+            if (threeObject) threeObject.visible = isVisible;
+
+            // Update effects and perform the pre-render update only if the
+            // object is visible, like the 2D path below.
+            if (isVisible) {
+              this._runtimeGame
+                .getEffectsManager()
+                .updatePreRender(object.getRendererEffects(), object);
+              object.updatePreRender(this);
+            }
+            continue;
+          }
+
           const rendererObject = object.getRendererObject();
           if (rendererObject) {
             if (object.isHidden()) {
