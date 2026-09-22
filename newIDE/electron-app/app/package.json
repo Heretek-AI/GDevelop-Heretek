@@ -13,7 +13,7 @@
     "archiver": "^8.0.0",
     "async": "^3.0.0",
     "axios": "^1.7.0",
-    "chokidar": "4.0.3",
+    "chokidar": "5.0.0",
     "@xhayper/discord-rpc": "^1.3.4",
     "dotenv": "^18.0.0",
     "electron-editor-context-menu": "^1.1.1",
