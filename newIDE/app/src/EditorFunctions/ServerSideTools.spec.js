@@ -37,6 +37,8 @@ describe('server-side handled tools', () => {
       ],
     });
     expect(result.success).toBe(true);
+    // W11: `dependsOn` is only set when the caller sent it, so an omitted
+    // `dependsOn` stays absent rather than being normalized to `[]`.
     expect((result: any).plan).toEqual({
       tasks: [
         {
@@ -44,7 +46,30 @@ describe('server-side handled tools', () => {
           title: 'Write the GDD',
           description: 'Sections: overview, economy.',
           status: 'pending',
-          dependsOn: [],
+        },
+      ],
+    });
+
+    const withDependencies = await launch('create_or_update_plan', {
+      tasks: [
+        {
+          id: 'gdd',
+          title: 'Write the GDD',
+          description: 'Sections: overview, economy.',
+          status: 'pending',
+          dependsOn: [' research '],
+        },
+      ],
+    });
+    expect(withDependencies.success).toBe(true);
+    expect((withDependencies: any).plan).toEqual({
+      tasks: [
+        {
+          id: 'gdd',
+          title: 'Write the GDD',
+          description: 'Sections: overview, economy.',
+          status: 'pending',
+          dependsOn: ['research'],
         },
       ],
     });
