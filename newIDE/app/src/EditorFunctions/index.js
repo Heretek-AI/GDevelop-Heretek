@@ -159,6 +159,10 @@ import {
 import { capScriptExecutionResult } from './ScriptExecution/CapScriptOutput';
 import { isNoOpConsideredSuccess } from './IsNoOpConsideredSuccess';
 import {
+  buildPlanOutput,
+  validatePlanTasks,
+} from '../AiGeneration/Studio/PlanStore';
+import {
   inspectExtension,
   type InspectedCustomBehavior,
   type InspectedCustomObject,
@@ -10550,12 +10554,19 @@ const inspectVariables: EditorFunction = {
 };
 
 const createOrUpdatePlan: EditorFunction = {
-  // No renderForEditor: handled server-side and shown separately via the
-  // OrchestratorPlan component, so nothing to render as a function call.
+  // No renderForEditor: the plan is shown separately via the OrchestratorPlan
+  // component, so nothing to render as a function call.
+  //
+  // Under BYOK there is no server to build the plan, so the editor does it: the
+  // output is the exact shape `getLatestActivePlan` parses (`output.plan.tasks`)
+  // and `OrchestratorPlan` renders, which is what the hosted backend returns for
+  // the same tool.
   launchFunction: async ({ args }) => {
-    return makeGenericFailure(
-      `Unable to create or update plan - this is handled server-side.`
-    );
+    const validation = validatePlanTasks(args ? args.tasks : undefined);
+    if (!validation.success) {
+      return makeGenericFailure(validation.message);
+    }
+    return buildPlanOutput(validation.tasks);
   },
   modifiesProject: false,
 };
@@ -10777,6 +10788,35 @@ const runEditAgent: EditorFunction = {
   launchFunction: async ({ args }) => {
     return makeGenericFailure(
       `Unable to run project edit agent - this is handled server-side.`
+    );
+  },
+  modifiesProject: true,
+};
+
+/**
+ * The local studio's delegation tool.
+ *
+ * Only the BYOK runtime handles this call, before `processEditorFunctionCalls`
+ * runs: it creates a child AI request with the role's prompt and tool subset
+ * (see `AiGeneration/Studio/SpawnSubAgents.js`). Reaching the registry means the
+ * local endpoint is off, or a `run_script` tried to call it - both are failures,
+ * not silent no-ops.
+ */
+const spawnAgent: EditorFunction = {
+  renderForEditor: ({ args }) => {
+    const shortTitle = SafeExtractor.extractStringProperty(args, 'short_title');
+    if (shortTitle && shortTitle.trim()) {
+      return {
+        text: truncateSubAgentTitleByWords(shortTitle),
+      };
+    }
+    return {
+      text: <Trans>Delegating to a studio agent.</Trans>,
+    };
+  },
+  launchFunction: async ({ args }) => {
+    return makeGenericFailure(
+      'spawn_agent is handled by the local studio runtime.'
     );
   },
   modifiesProject: true,
@@ -11032,6 +11072,7 @@ export const editorFunctions: { [string]: EditorFunction } = {
 
   run_explorer_agent: runExplorerAgent,
   run_edit_agent: runEditAgent,
+  spawn_agent: spawnAgent,
   run_tests: runTests,
   run_gameplay_test: runGameplayTest,
   change_gameplay_tests: changeGameplayTests,

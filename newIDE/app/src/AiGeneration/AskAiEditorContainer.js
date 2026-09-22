@@ -77,6 +77,7 @@ import { listAllExamples } from '../Utils/GDevelopServices/Example';
 import UrlStorageProvider from '../ProjectsStorage/UrlStorageProvider';
 import { prepareAiUserContent } from './PrepareAiUserContent';
 import { AiRequestContext } from './AiRequestContext';
+import { useStudioRuntime } from './Studio/UseStudioRuntime';
 import { getAiConfigurationPresetsWithAvailability } from './AiConfiguration';
 import {
   setEditorHotReloadNeeded,
@@ -546,6 +547,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         requestEditApproval,
         resolveEditApproval,
         setIsFetchingSuggestions,
+        activateSubAgent,
       } = React.useContext(AiRequestContext);
       const {
         getEditorFunctionCallResults,
@@ -837,17 +839,17 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             console.info(
               'Skipping send for AI request: some function call results are not finished yet.'
             );
-            return;
+            return false;
           }
           if (hasFunctionsCallsToProcess) {
             console.info(
               'Skipping send for AI request: there are still function calls to process.'
             );
-            return;
+            return false;
           }
 
           // If nothing to send, stop there.
-          if (functionCallOutputs.length === 0 && !userMessage) return;
+          if (functionCallOutputs.length === 0 && !userMessage) return false;
 
           // Paying with credits is only when a user message is sent (and quota is exhausted).
           let payWithCredits = false;
@@ -1002,6 +1004,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
               onOpenExternalLayout(externalLayoutName);
             });
           }
+          return true;
         },
         [
           profile,
@@ -1067,7 +1070,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             createdProject?: ?gdProject,
           |}
         ) => {
-          await onSendMessage({
+          return onSendMessage({
             aiRequestId,
             userMessage: '',
             createdProject: options.createdProject,
@@ -1103,12 +1106,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
       const {
         onProcessFunctionCalls,
         clearApprovedEditBatches,
+        enqueueRequestWrite,
       } = useProcessFunctionCalls({
         project,
         resourceManagementProps,
         editorCallbacks,
         aiRequestsToProcess,
         onSendEditorFunctionCallResults,
+        isStudioEnabled: true,
         getEditorFunctionCallResults,
         addEditorFunctionCallResults,
         onSceneEventsModifiedOutsideEditor,
@@ -1129,6 +1134,21 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         getIsAutoEditEnabled,
         suspendAiRequest,
         requestEditApproval,
+        activateSubAgent,
+        updateAiRequest,
+        isSendingAiRequest,
+      });
+
+      // Closes the loop for locally spawned studio sub-agents: waits for a child
+      // to finish, reports it back to its parent, and updates the plan. A no-op
+      // when no sub-agent is active, so the hosted path is untouched.
+      useStudioRuntime({
+        aiRequests,
+        activeSubAgents,
+        getEditorFunctionCallResults,
+        updateAiRequest,
+        onSendEditorFunctionCallResults,
+        enqueueRequestWrite,
       });
 
       // Wrap onProcessFunctionCalls to bind the selected AI request for the chat UI.

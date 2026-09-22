@@ -172,6 +172,11 @@ module.exports = function (config) {
       './newIDE/app/resources/GDJS/Runtime/Extensions/TextObject/textruntimeobject-pixi-renderer.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/A_RuntimeObject3D.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/A_RuntimeObject3DRenderer.js',
+      // Mirror Extensions/3D/JsExtension.js addIncludeFile order.
+      './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Scene3DTools.js',
+      './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DRuntimeObject.js',
+      './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DInstancePool.js',
+      './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Model3DRuntimeObject3DRenderer.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Cube3DRuntimeObject.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/Cube3DRuntimeObjectPixiRenderer.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/3D/CustomRuntimeObject3D.js',
@@ -190,7 +195,10 @@ module.exports = function (config) {
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/TileMapRuntimeManager.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/TileMapBehavior.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/AbstractTileMapRuntimeObject.js',
+      // The tile map renderer needs the pixi-tilemap plugin at construction.
+      './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/pixi-tilemap/dist/pixi-tilemap.umd.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/tilemapruntimeobject-pixi-renderer.js',
+      './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/simpletilemapruntimeobject.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/tilemapruntimeobject.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/collision/TileMapCollisionMaskRenderer.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/TileMap/collision/TransformedTileMap.js',
@@ -229,6 +237,13 @@ module.exports = function (config) {
       // Assets
       {
         pattern: './GDJS/tests/tests-utils/assets/*.jpg',
+        watched: false,
+        included: false,
+        served: true,
+        nocache: false,
+      },
+      {
+        pattern: './GDJS/tests/tests-utils/assets/*.glb',
         watched: false,
         included: false,
         served: true,

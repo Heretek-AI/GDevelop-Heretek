@@ -23,7 +23,8 @@ Model3DObjectConfiguration::Model3DObjectConfiguration()
     : width(100), height(100), depth(100), rotationX(90), rotationY(0),
       rotationZ(90), modelResourceName(""), materialType("StandardWithoutMetalness"),
       originLocation("ModelOrigin"), centerLocation("CenteredOnZ"),
-      keepAspectRatio(true), crossfadeDuration(0.1f), isCastingShadow(true), isReceivingShadow(true) {}
+      keepAspectRatio(true), crossfadeDuration(0.1f), isCastingShadow(true),
+      isReceivingShadow(true), useInstancing(false) {}
 
 bool Model3DObjectConfiguration::UpdateProperty(const gd::String &propertyName,
                                                 const gd::String &newValue) {
@@ -65,6 +66,10 @@ bool Model3DObjectConfiguration::UpdateProperty(const gd::String &propertyName,
       materialType = "KeepOriginal";
     else
       return false;
+    return true;
+  }
+  if (propertyName == "useInstancing") {
+    useInstancing = newValue == "1" || newValue == "true";
     return true;
   }
   if (propertyName == "originLocation") {
@@ -191,6 +196,14 @@ Model3DObjectConfiguration::GetProperties() const {
       .SetLabel(_("Material"))
       .SetGroup(_("Lighting"));
 
+  objectProperties["useInstancing"]
+      .SetValue(useInstancing ? "true" : "false")
+      .SetType("boolean")
+      .SetLabel(_("Use instancing"))
+      .SetDescription(_("Draw objects sharing the same 3D model and material with a single instanced draw call. Only takes effect for static models made of a single mesh; animated or multi-part models keep the normal renderer."))
+      .SetGroup(_("Performance"))
+      .SetAdvanced(true);
+
   objectProperties["originLocation"]
       .SetValue(originLocation.empty() ? "TopLeft" : originLocation)
       .SetType("choice")
@@ -270,6 +283,7 @@ void Model3DObjectConfiguration::DoUnserializeFrom(
   crossfadeDuration = content.GetDoubleAttribute("crossfadeDuration");
   isCastingShadow = content.GetBoolAttribute("isCastingShadow");
   isReceivingShadow = content.GetBoolAttribute("isReceivingShadow");
+  useInstancing = content.GetBoolAttribute("useInstancing", false);
 
   RemoveAllAnimations();
   auto &animationsElement = content.GetChild("animations");
@@ -301,6 +315,7 @@ void Model3DObjectConfiguration::DoSerializeTo(
   content.SetAttribute("crossfadeDuration", crossfadeDuration);
   content.SetAttribute("isCastingShadow", isCastingShadow);
   content.SetAttribute("isReceivingShadow", isReceivingShadow);
+  content.SetAttribute("useInstancing", useInstancing);
 
   auto &animationsElement = content.AddChild("animations");
   animationsElement.ConsiderAsArrayOf("animation");

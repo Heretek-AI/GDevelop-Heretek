@@ -164,6 +164,9 @@ export type AiRequest = {
   forkedAfterOriginalMessageId?: string | null,
   forkedAfterNewMessageId?: string | null,
   parentAiRequestId?: string | null,
+  // The studio role a sub-agent was spawned with (fork-only; set only on local
+  // sub-agent requests) so its tool subset and prompt survive every turn.
+  studioRoleId?: string | null,
 
   error: AiRequestError | null,
   contextStats?: AiRequestContextStats | null,

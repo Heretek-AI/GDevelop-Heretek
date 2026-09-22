@@ -5,7 +5,8 @@
  */
 namespace gdjs {
   export interface AbstractRuntimeObject3D
-    extends gdjs.RuntimeObject,
+    extends
+      gdjs.RuntimeObject,
       gdjs.Base3DHandler,
       gdjs.Resizable,
       gdjs.Scalable,
@@ -52,6 +53,200 @@ namespace gdjs {
     ): object is AbstractRuntimeObject3D => {
       //@ts-ignore We are checking if the methods are present.
       return object.getZ && object.setZ;
+    };
+  }
+
+  /**
+   * A 3D object that can cull itself against a camera frustum.
+   *
+   * Implemented by both 3D object families - `gdjs.RuntimeObject3D` and
+   * `gdjs.CustomRuntimeObject3D` - which are unrelated classes (the custom one
+   * extends `gdjs.CustomRuntimeObject`), so culling tests for this capability
+   * rather than for a base class.
+   */
+  export interface CullableRuntimeObject3D {
+    /**
+     * Writes the object's conservative axis-aligned box into `box` and returns
+     * it. Allocates nothing.
+     */
+    getAABB3D(box: THREE.Box3): THREE.Box3;
+    /** True when the object's box intersects `frustum`. */
+    isInFrustum(frustum: THREE.Frustum): boolean;
+    /**
+     * Hide/show the object because it left/entered the camera frustum. Routed
+     * through the renderer (not a detached three.js node) so instanced models
+     * can collapse the hidden instance's slot.
+     */
+    setCullingVisible(culled: boolean): void;
+  }
+
+  /** @category Objects > 3D Objects */
+  export namespace CullableRuntimeObject3D {
+    export const isCullable3D = (
+      object: gdjs.RuntimeObject
+    ): object is gdjs.AbstractRuntimeObject3D & CullableRuntimeObject3D => {
+      //@ts-ignore We are checking if the methods are present.
+      return !!(object.getAABB3D && object.isInFrustum);
+    };
+  }
+
+  /**
+   * The accessors the shared AABB maths needs. Both 3D object families have all
+   * of them (`gdjs.RuntimeObject3D` and `gdjs.CustomRuntimeObject3D`).
+   */
+  export type Object3DBoxSource = {
+    getDrawableX(): float;
+    getDrawableY(): float;
+    getDrawableZ(): float;
+    getWidth(): float;
+    getHeight(): float;
+    getDepth(): float;
+    getRotationX(): float;
+    getRotationY(): float;
+    angle: float;
+    /** Scene-space rotation center (not always the box center). */
+    getCenterXInScene(): float;
+    getCenterYInScene(): float;
+    getCenterZInScene(): float;
+  };
+
+  /**
+   * The AABB maths of `CullableRuntimeObject3D`, shared by both 3D object
+   * families so the two cannot drift apart.
+   * @category Objects > 3D Objects
+   */
+  export namespace Object3DCulling {
+    /**
+     * Scratch objects: never returned to callers, never read across calls.
+     * Allocated lazily at first use so that 2D-only games - which never load
+     * `three.js` - can still boot this namespace (it is included unconditionally).
+     */
+    let temporaryBox: THREE.Box3 | null = null;
+    let temporaryMatrix: THREE.Matrix4 | null = null;
+    let temporaryEuler: THREE.Euler | null = null;
+
+    /**
+     * Write the object's conservative axis-aligned box into `box` and return it.
+     *
+     * The box takes the position, the size and the object's Euler rotation
+     * (`ZYX` order, like the renderers) into account: it is the bounding box of
+     * the rotated box, so a visible object can never be culled by mistake. It is
+     * conservative, not tight - a non-axis-aligned rotation yields a larger box
+     * than the object's silhouette, which is the safe direction for culling.
+     *
+     * The box is rotated around the object's rotation center
+     * (`getCenter*InScene`), which is not always the box center (e.g. a
+     * `Model3D` whose origin is at its box corner). A negative size is
+     * normalized so it can never invert the box.
+     *
+     * Allocates nothing.
+     */
+    export const computeAABB = (
+      object: Object3DBoxSource,
+      box: THREE.Box3
+    ): THREE.Box3 => {
+      const width = object.getWidth();
+      const height = object.getHeight();
+      const depth = object.getDepth();
+      const halfWidth = Math.abs(width) / 2;
+      const halfHeight = Math.abs(height) / 2;
+      const halfDepth = Math.abs(depth) / 2;
+      const centerX = object.getDrawableX() + width / 2;
+      const centerY = object.getDrawableY() + height / 2;
+      const centerZ = object.getDrawableZ() + depth / 2;
+
+      if (
+        object.getRotationX() === 0 &&
+        object.getRotationY() === 0 &&
+        object.angle === 0
+      ) {
+        // No rotation: the box is already axis-aligned.
+        box.min.set(
+          centerX - halfWidth,
+          centerY - halfHeight,
+          centerZ - halfDepth
+        );
+        box.max.set(
+          centerX + halfWidth,
+          centerY + halfHeight,
+          centerZ + halfDepth
+        );
+        return box;
+      }
+
+      // Half-extents of the rotated box: for each world axis, the sum of the
+      // absolute contributions of the three local half-extents.
+      const matrix = temporaryMatrix || (temporaryMatrix = new THREE.Matrix4());
+      const euler = temporaryEuler || (temporaryEuler = new THREE.Euler());
+      euler.set(
+        gdjs.toRad(object.getRotationX()),
+        gdjs.toRad(object.getRotationY()),
+        gdjs.toRad(object.angle),
+        'ZYX'
+      );
+      matrix.makeRotationFromEuler(euler);
+      const elements = matrix.elements;
+      const halfExtentX =
+        Math.abs(elements[0]) * halfWidth +
+        Math.abs(elements[4]) * halfHeight +
+        Math.abs(elements[8]) * halfDepth;
+      const halfExtentY =
+        Math.abs(elements[1]) * halfWidth +
+        Math.abs(elements[5]) * halfHeight +
+        Math.abs(elements[9]) * halfDepth;
+      const halfExtentZ =
+        Math.abs(elements[2]) * halfWidth +
+        Math.abs(elements[6]) * halfHeight +
+        Math.abs(elements[10]) * halfDepth;
+
+      // Rotate the box center around the object's rotation center: the box sits
+      // at C' = P + R*(C - P), where P is the rotation pivot and C the box center.
+      const pivotX = object.getCenterXInScene();
+      const pivotY = object.getCenterYInScene();
+      const pivotZ = object.getCenterZInScene();
+      const offsetX = centerX - pivotX;
+      const offsetY = centerY - pivotY;
+      const offsetZ = centerZ - pivotZ;
+      const rotatedCenterX =
+        pivotX +
+        elements[0] * offsetX +
+        elements[4] * offsetY +
+        elements[8] * offsetZ;
+      const rotatedCenterY =
+        pivotY +
+        elements[1] * offsetX +
+        elements[5] * offsetY +
+        elements[9] * offsetZ;
+      const rotatedCenterZ =
+        pivotZ +
+        elements[2] * offsetX +
+        elements[6] * offsetY +
+        elements[10] * offsetZ;
+
+      box.min.set(
+        rotatedCenterX - halfExtentX,
+        rotatedCenterY - halfExtentY,
+        rotatedCenterZ - halfExtentZ
+      );
+      box.max.set(
+        rotatedCenterX + halfExtentX,
+        rotatedCenterY + halfExtentY,
+        rotatedCenterZ + halfExtentZ
+      );
+      return box;
+    };
+
+    /**
+     * True when the object's box intersects `frustum`. Uses the shared scratch
+     * box, so calling it for every object every frame allocates nothing.
+     */
+    export const isInFrustum = (
+      object: Object3DBoxSource,
+      frustum: THREE.Frustum
+    ): boolean => {
+      const scratchBox = temporaryBox || (temporaryBox = new THREE.Box3());
+      computeAABB(object, scratchBox);
+      return frustum.intersectsBox(scratchBox);
     };
   }
 
@@ -1760,7 +1955,7 @@ namespace gdjs {
      * remove null ones.
      */
     updateForces(elapsedTime: float): void {
-      for (let i = 0; i < this._instantForces.length; ) {
+      for (let i = 0; i < this._instantForces.length;) {
         const force = this._instantForces[i];
         const multiplier = force.getMultiplier();
         if (multiplier === 1) {

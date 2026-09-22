@@ -14,6 +14,9 @@ import {
   LOCAL_BYOK_USER_ID,
   _resetCustomAiClientForTesting,
   customCreateAiRequest,
+  customCreateSubAgentAiRequest,
+  customAddMessageToAiRequest,
+  customUpdateAiRequest,
   customGetAiRequest,
   customGetAiRequests,
   customGetAiRequestStatuses,
@@ -25,6 +28,8 @@ import {
   customCreateResourceSearch,
   testConnection,
 } from './CustomAIClient';
+
+import { getToolsForRole } from '../AiGeneration/Studio/Roles';
 
 jest.mock('axios');
 
@@ -474,6 +479,235 @@ describe('CustomAIClient', () => {
       expect(resourceResult.id).toMatch(/^local-resource-/);
       expect(resourceResult.userId).toBe(LOCAL_BYOK_USER_ID);
       expect(resourceResult.results).toEqual([]);
+    });
+  });
+
+  describe('Concurrent local model turns', () => {
+    /** A completion that answers after `delayMs` with a distinct message. */
+    const answerAfter = (content: string, delayMs: number) => {
+      axios.post.mockImplementationOnce(
+        () =>
+          new Promise(resolve =>
+            setTimeout(
+              () =>
+                resolve({
+                  status: 200,
+                  data: {
+                    choices: [{ message: { role: 'assistant', content } }],
+                  },
+                }),
+              delayMs
+            )
+          )
+      );
+    };
+
+    const createRequest = async (userRequest: string) => {
+      answerAfter('ok', 0);
+      return customCreateAiRequest({
+        userRequest,
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'agent',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+    };
+
+    it('serializes two concurrent turns on one request without losing a write', async () => {
+      const aiRequest = await createRequest('Start');
+
+      // The first turn is slow; the second starts while it is still answering.
+      answerAfter('first answer', 20);
+      const firstTurn = customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: '',
+        functionCallOutputs: [
+          { type: 'function_call_output', call_id: 'call-1', output: '{}' },
+        ],
+      });
+      answerAfter('second answer', 0);
+      const secondTurn = customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: '',
+        functionCallOutputs: [
+          { type: 'function_call_output', call_id: 'call-2', output: '{}' },
+        ],
+      });
+
+      const [firstResult, secondResult] = await Promise.all([
+        firstTurn,
+        secondTurn,
+      ]);
+
+      const finalRequest = await customGetAiRequest(aiRequest.id);
+      const assistantTexts = (finalRequest.output || [])
+        .filter(
+          message => message.type === 'message' && message.role === 'assistant'
+        )
+        .map(message => (message: any).text || '');
+
+      // Both answers are present: the second turn did not overwrite the first.
+      expect(assistantTexts).toContain('first answer');
+      expect(assistantTexts).toContain('second answer');
+      // Both tool results are present too.
+      const outputCallIds = (finalRequest.output || [])
+        .filter(message => message.type === 'function_call_output')
+        .map(message => (message: any).call_id);
+      expect(outputCallIds).toEqual(
+        expect.arrayContaining(['call-1', 'call-2'])
+      );
+      // Each turn's own return value carries its own answer.
+      expect(
+        firstResult.output ? firstResult.output.length : 0
+      ).toBeGreaterThan(0);
+      expect(
+        secondResult.output ? secondResult.output.length : 0
+      ).toBeGreaterThan(0);
+    });
+
+    it('does not block concurrent turns on different requests', async () => {
+      const firstRequest = await createRequest('One');
+      const secondRequest = await createRequest('Two');
+
+      answerAfter('slow answer', 20);
+      const slowTurn = customAddMessageToAiRequest({
+        aiRequestId: firstRequest.id,
+        userMessage: '',
+        functionCallOutputs: [],
+      });
+      answerAfter('fast answer', 0);
+      const fastTurn = customAddMessageToAiRequest({
+        aiRequestId: secondRequest.id,
+        userMessage: '',
+        functionCallOutputs: [],
+      });
+
+      // The fast one resolves while the slow one is still waiting.
+      await fastTurn;
+      await slowTurn;
+
+      const first = await customGetAiRequest(firstRequest.id);
+      const second = await customGetAiRequest(secondRequest.id);
+      expect(JSON.stringify(first.output || '').includes('slow answer')).toBe(
+        true
+      );
+      expect(JSON.stringify(second.output || '').includes('fast answer')).toBe(
+        true
+      );
+    });
+
+    it('keeps a suspension that lands during an in-flight turn', async () => {
+      const aiRequest = await createRequest('Suspend me');
+
+      answerAfter('answer after suspend', 20);
+      const turn = customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: '',
+        functionCallOutputs: [],
+      });
+
+      // Suspend while the model is answering.
+      customSuspendAiRequest(aiRequest.id);
+      await turn;
+
+      const finalRequest = await customGetAiRequest(aiRequest.id);
+      // The turn write-back must not resume a suspended request.
+      expect(finalRequest.status).toBe('suspended');
+      // The answer the model produced is still readable.
+      expect(JSON.stringify(finalRequest.output || '')).toContain(
+        'answer after suspend'
+      );
+    });
+  });
+
+  describe('Studio sub-agent role enforcement', () => {
+    /** Mock one assistant reply so a turn completes. */
+    const mockAssistantReply = (content: string) => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content } }] },
+      });
+    };
+
+    const spawnTester = async () => {
+      mockAssistantReply('Spawned.');
+      return customCreateSubAgentAiRequest({
+        parentAiRequestId: 'local-ai-parent',
+        roleId: 'tester',
+        userRequest: 'Verify the grid.',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+    };
+
+    const sentToolNames = (callIndex: number) => {
+      // $FlowFixMe
+      const body = axios.post.mock.calls[callIndex][1];
+      return {
+        names: (body.tools || []).map(tool => tool.function.name),
+        systemPrompt: body.messages[0].content,
+      };
+    };
+
+    it('offers a spawned sub-agent only its role tools and prompt', async () => {
+      await spawnTester();
+      const { names, systemPrompt } = sentToolNames(0);
+      const testerToolNames = getToolsForRole(
+        'tester',
+        GDEVELOP_OPENAI_TOOLS
+      ).map(tool => tool.function.name);
+      expect(names.length).toBeGreaterThan(0);
+      names.forEach(name => expect(testerToolNames).toContain(name));
+      expect(systemPrompt).toContain('QA tester');
+    });
+
+    it('keeps the role tool subset and prompt on later turns', async () => {
+      const child = await spawnTester();
+
+      // A second turn - the critical regression: pre-fix this offered all the
+      // tools and dropped the role prompt.
+      mockAssistantReply('Done.');
+      await customAddMessageToAiRequest({
+        aiRequestId: child.id,
+        userMessage: '',
+        functionCallOutputs: [],
+      });
+
+      const { names, systemPrompt } = sentToolNames(1);
+      const testerToolNames = getToolsForRole(
+        'tester',
+        GDEVELOP_OPENAI_TOOLS
+      ).map(tool => tool.function.name);
+      expect(names.length).toBeGreaterThan(0);
+      names.forEach(name => expect(testerToolNames).toContain(name));
+      expect(systemPrompt).toContain('QA tester');
+    });
+
+    it('writes a mutated request through to the cache', async () => {
+      const child = await spawnTester();
+      const before = (child.output || []).length;
+      const marker: any = {
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        content: [
+          {
+            type: 'output_text',
+            status: 'completed',
+            text: 'marker',
+            annotations: [],
+          },
+        ],
+        messageId: 'msg-marker',
+      };
+      customUpdateAiRequest({
+        ...child,
+        output: [...(child.output || []), marker],
+      });
+      expect(customGetAiRequest(child.id).output.length).toBe(before + 1);
     });
   });
 });

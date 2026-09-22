@@ -493,7 +493,9 @@ namespace gdjs {
      */
     _updateObjectsPreRender() {
       const allInstancesList = this.getAdhocListOfAllInstances();
-      // TODO (3D) culling - add support for 3D object culling?
+      // RuntimeScene overrides this with the culling both 2D and 3D objects
+      // need; this implementation runs only for containers without their own
+      // culling (custom object containers override it too).
       for (let i = 0, len = allInstancesList.length; i < len; ++i) {
         const object = allInstancesList[i];
         const rendererObject = object.getRendererObject();

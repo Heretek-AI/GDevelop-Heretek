@@ -45,6 +45,8 @@ namespace gdjs {
       crossfadeDuration: float;
       isCastingShadow: boolean;
       isReceivingShadow: boolean;
+      /** Opt-in sharing of one `THREE.InstancedMesh` between identical models. */
+      useInstancing?: boolean;
     };
   }
 
@@ -82,6 +84,14 @@ namespace gdjs {
     _modelResourceName: string;
     _materialType: gdjs.Model3DRuntimeObject.MaterialType =
       gdjs.Model3DRuntimeObject.MaterialType.Basic;
+    /**
+     * Whether this instance should share a `THREE.InstancedMesh` with the other
+     * instances of the same model resource, instead of cloning the model.
+     *
+     * The renderer decides whether the model actually allows it; see
+     * `Model3DRuntimeObject3DRenderer._canUseInstancing`.
+     */
+    _useInstancing: boolean = false;
 
     /**
      * The local point of the model that will be at the object position.
@@ -138,6 +148,7 @@ namespace gdjs {
         objectData.content.materialType
       );
       this._crossfadeDuration = objectData.content.crossfadeDuration || 0;
+      this._useInstancing = !!objectData.content.useInstancing;
 
       this.setIsCastingShadow(objectData.content.isCastingShadow);
       this.setIsReceivingShadow(objectData.content.isReceivingShadow);
@@ -504,6 +515,29 @@ namespace gdjs {
     getDrawableZ(): float {
       const originPoint = this._renderer.getOriginPoint();
       return this.getZ() - this.getDepth() * originPoint[2];
+    }
+
+    /**
+     * Called when the object leaves the scene: give its instance slot back to
+     * the shared pool so another object can reuse it. A no-op for an object on
+     * the clone path.
+     */
+    override onDeletedFromScene(): void {
+      if (this._renderer.get3DRendererObject()) {
+        this._renderer.releaseInstancing();
+      }
+      super.onDeletedFromScene();
+    }
+
+    /**
+     * Moving to another layer re-acquires the instance slot from that layer's
+     * pool (the pool key embeds the layer name).
+     */
+    setLayer(layerName: string): void {
+      const wasInstanced = this._renderer.getInstanceSlot() !== null;
+      if (wasInstanced) this._renderer.releaseInstancing();
+      super.setLayer(layerName);
+      if (wasInstanced) this._renderer.trySetupInstancing();
     }
   }
 
