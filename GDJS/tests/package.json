@@ -30,7 +30,7 @@
   "license": "MIT",
   "dependencies": {
     "expect.js": "^0.3.1",
-    "mocha": "^1.21.4"
+    "mocha": "^12.0.2"
   },
   "devDependencies": {
     "@chiragrupani/karma-chromium-edge-launcher": "2.5.1",
