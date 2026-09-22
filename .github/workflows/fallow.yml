@@ -66,42 +66,59 @@ jobs:
         # "the argument '--format <FORMAT>' cannot be used multiple times" and
         # no SARIF file is ever written. Use `--output-file` for the path.
         run: npx --yes fallow@3.27.0 --format sarif --output-file fallow.sarif 2>&1 | tee fallow.log
-      - name: Give each SARIF run a unique category
+      - name: Make the SARIF acceptable to code scanning
         if: always()
-        # `github/codeql-action/upload-sarif` rejects a file whose runs collide
-        # on category:
-        #   "The CodeQL Action does not support uploading multiple SARIF runs
-        #    with the same category."
-        # fallow emits THREE runs (a main one, a `fallow/dupes` one, and another
-        # with no automationDetails at all), and the two with no id both fall
-        # back to the default category. Stamping a distinct
-        # `automationDetails.id` on every run is what code scanning actually
-        # keys on, so this is the fix rather than the upload step's `category:`.
+        # Two fixes, both required and both verified against real output from
+        # the pinned CLI:
+        #
+        # 1. Unique categories. `upload-sarif` rejects a file whose runs collide
+        #    on category:
+        #      "The CodeQL Action does not support uploading multiple SARIF runs
+        #       with the same category."
+        #    fallow emits three runs and two carry no `automationDetails`, so
+        #    both fall back to the default. Code scanning keys on each run's
+        #    `automationDetails.id`, so stamp one per run.
+        #
+        # 2. Drop results that carry no `locations`. The `fallow/dupes` run
+        #    reports code duplication — 239 results, none with a location — and
+        #    code scanning rejects the entire upload:
+        #      "locationFromSarifResult: expected at least one location"
+        #    Those findings have no file/line to annotate, so they cannot be
+        #    represented in code scanning at all. The run is removed instead of
+        #    uploaded empty; duplication is still surfaced by the `audit` job's
+        #    summary and the archived fallow.log.
         run: |
           node -e '
             const fs = require("fs");
             const file = "fallow.sarif";
             if (!fs.existsSync(file)) { console.log("no SARIF written; nothing to fix"); process.exit(0); }
             const sarif = JSON.parse(fs.readFileSync(file, "utf8"));
+            const before = sarif.runs.length;
+            let dropped = 0;
+            sarif.runs = sarif.runs.filter((run) => {
+              const results = run.results || [];
+              const usable = results.filter((r) => (r.locations || []).length > 0);
+              dropped += results.length - usable.length;
+              run.results = usable;
+              return usable.length > 0;
+            });
             sarif.runs.forEach((run, i) => {
               run.automationDetails = { id: `fallow/run-${i}` };
             });
             fs.writeFileSync(file, JSON.stringify(sarif));
-            console.log(`stamped ${sarif.runs.length} run(s): ` +
-              sarif.runs.map(r => r.automationDetails.id).join(", "));
+            console.log(`runs: ${before} -> ${sarif.runs.length}; ` +
+              `dropped ${dropped} location-less result(s); ` +
+              `categories: ${sarif.runs.map((r) => r.automationDetails.id).join(", ") || "(none)"}`);
           '
       - name: Upload SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: fallow.sarif
-          # Code scanning keys analyses by `category`. Without one here, this
-          # upload collides with CodeQL's own run for the same commit and the
-          # step fails with:
-          #   "The CodeQL Action does not support uploading multiple SARIF runs
-          #    with the same category."
-          # A distinct category keeps Fallow's findings separable from CodeQL's.
-          category: fallow
+          # No `category:` here. It applies to the whole upload, not to runs
+          # inside the file, so it does not resolve the intra-file collision —
+          # the step above does that per run. Setting it as well is harmless
+          # but misleading, so it is intentionally absent.
       - name: Archive log
         if: always()
         uses: actions/upload-artifact@v4
