@@ -44,6 +44,43 @@ jobs:
       - name: Run guard
         run: node scripts/security/check-lockfiles.js
 
+  lockfile-sync:
+    name: Lockfile sync (${{ matrix.dir }})
+    # `npm ci` hard-fails when package.json and package-lock.json disagree, but
+    # only the directories that a later job happens to install are ever checked.
+    # That gap let THREE lockfiles rot on master unnoticed (GDJS,
+    # newIDE/electron-app/app, SharedLibs/TileMapHelper) — each one only failed
+    # the moment someone tried to install there. This job installs every
+    # manifest, dry-run, so drift surfaces on the PR that causes it.
+    #
+    # `--ignore-scripts` keeps postinstall hooks (patch-package, import-resources)
+    # out of it: this job only asserts that the lockfile resolves.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - GDevelop.js
+          - GDJS
+          - GDJS/tests
+          - newIDE/app
+          - newIDE/electron-app
+          - newIDE/electron-app/app
+          - newIDE/web-app
+          - newIDE/visual-tests
+          - SharedLibs/TileMapHelper
+          - SharedLibs/ThreeAddons
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Assert lockfile is in sync with package.json
+        working-directory: ${{ matrix.dir }}
+        run: npm ci --dry-run --no-audit --no-fund --ignore-scripts
+
   build-libgd:
     name: Build libGD.js (Emscripten)
     # Slow step (~5–10 min on cold cache). Builds the C++ core via
