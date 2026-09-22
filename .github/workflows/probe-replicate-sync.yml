@@ -1,0 +1,72 @@
+name: Probe - replicate upstream-sync PR step
+
+# THROWAWAY DIAGNOSTIC. Delete after reading the run log.
+#
+# Everything I've tested so far works:
+#   REST POST /pulls                      => OK (PR #142)
+#   gh pr create on a probe branch        => OK (PR #143)
+#   both with token: ${{ secrets.GITHUB_TOKEN }}
+#
+# But the real upstream-sync step still fails with
+#   GraphQL: Resource not accessible by integration (createPullRequest)
+# even though SYNC_PAT is set: false (so it uses GITHUB_TOKEN, the same token).
+#
+# This replicates the EXACT step: same env expression, same branch name, same
+# title/body, and prints results to stdout.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Replicate the sync PR step exactly
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT != '' && secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="upstream-sync-2026-09-22"
+          echo "=== token check ==="
+          echo "SYNC_PAT set: $([ -n "$GH_TOKEN" ] && echo yes || echo no)"
+          echo "GH_TOKEN length: ${#GH_TOKEN}"
+          echo "GH_TOKEN prefix: ${GH_TOKEN:0:4}"
+          echo "=== does the branch exist? ==="
+          git ls-remote --heads origin "$BRANCH" 2>&1 | head -2
+          echo "=== replicate gh pr create with the SAME env expression ==="
+          OUT=$(gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "[Upstream Sync] probe replicate" \
+            --body "probe" 2>&1) || true
+          echo "$OUT" | head -c 800
+          echo ""
+          echo "REPLICATE_RESULT=$(echo "$OUT" | grep -qE '/pull/[0-9]+' && echo OK || echo FAILED)"
+          NUM=$(echo "$OUT" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+' | head -1)
+          if [ -n "$NUM" ]; then
+            gh pr close "$NUM" --comment "probe cleanup" 2>&1 | head -1
+          fi
+          echo "=== control: same call with plain GITHUB_TOKEN ==="
+          unset GH_TOKEN
+          export GH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          OUT2=$(gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "[Upstream Sync] probe control" \
+            --body "probe" 2>&1) || true
+          echo "$OUT2" | head -c 800
+          echo ""
+          echo "CONTROL_RESULT=$(echo "$OUT2" | grep -qE '/pull/[0-9]+' && echo OK || echo FAILED)"
+          NUM2=$(echo "$OUT2" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+' | head -1)
+          if [ -n "$NUM2" ]; then
+            gh pr close "$NUM2" --comment "probe cleanup" 2>&1 | head -1
+          fi
