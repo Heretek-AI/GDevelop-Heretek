@@ -14,7 +14,7 @@
     "esbuild": "^0.25.0",
     "lebab": "^3.1.0",
     "minimist": "^1.2.8",
-    "patch-package": "^6.4.7",
+    "patch-package": "^8.0.1",
     "@esotericsoftware/spine-pixi-v7": "~4.3.13",
     "pixi.js": "7.4.2",
     "recast-navigation": "0.43.1",
