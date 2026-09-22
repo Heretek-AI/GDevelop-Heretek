@@ -107,13 +107,13 @@
   },
   "overrides": {
     "@esotericsoftware/spine-pixi-v7": {
-      "@pixi/assets": "7.4.2",
-      "@pixi/core": "7.4.2",
-      "@pixi/display": "7.4.2",
-      "@pixi/events": "7.4.2",
-      "@pixi/graphics": "7.4.2",
-      "@pixi/mesh": "7.4.2",
-      "@pixi/text": "7.4.2"
+      "@pixi/assets": "7.4.3",
+      "@pixi/core": "7.4.3",
+      "@pixi/display": "7.4.3",
+      "@pixi/events": "7.4.3",
+      "@pixi/graphics": "7.4.3",
+      "@pixi/mesh": "7.4.3",
+      "@pixi/text": "7.4.3"
     },
     "react": "$react",
     "react-dom": "$react-dom",
