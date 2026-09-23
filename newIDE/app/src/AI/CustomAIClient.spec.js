@@ -26,6 +26,7 @@ import {
   customPatchAiRequestAttributes,
   customRetryAiRequest,
   customGetAiRequestSuggestions,
+  sanitizeAiRequestSuggestions,
   customCreateAiGeneratedEvent,
   customCreateAssetSearch,
   customCreateResourceSearch,
@@ -2756,6 +2757,87 @@ describe('CustomAIClient', () => {
       const lastFromCache = cached.output[cached.output.length - 1];
       expect(lastFromCache.suggestions).toBeTruthy();
       expect(lastFromCache.suggestions.suggestions[0].title).toBe('Jump');
+    });
+
+    it('returns null from sanitizeAiRequestSuggestions for wrong-shape payloads', () => {
+      expect(sanitizeAiRequestSuggestions(null)).toBe(null);
+      expect(sanitizeAiRequestSuggestions('nope')).toBe(null);
+      expect(
+        sanitizeAiRequestSuggestions({ suggestions: 'not-an-array' })
+      ).toBe(null);
+      expect(sanitizeAiRequestSuggestions({ suggestions: [] })).toBe(null);
+      expect(
+        sanitizeAiRequestSuggestions({
+          suggestions: [{ title: 'Only title' }],
+        })
+      ).toBe(null);
+      expect(
+        sanitizeAiRequestSuggestions({
+          explanationMessage: 'Next:',
+          suggestions: [{ title: 'T', suggestedMessage: 42 }],
+        })
+      ).toBe(null);
+    });
+
+    it('passes through well-formed suggestions from sanitizeAiRequestSuggestions', () => {
+      const result = sanitizeAiRequestSuggestions({
+        explanationMessage: ' Try this:  ',
+        suggestions: [
+          { title: ' Jump ', suggestedMessage: 'Add a jump action' },
+        ],
+      });
+      expect(result).not.toBe(null);
+      if (!result) return;
+      expect(result.explanationMessage).toBe('Try this:');
+      expect(result.suggestions).toHaveLength(1);
+      expect(result.suggestions[0].title).toBe('Jump');
+      expect(result.suggestions[0].suggestedMessage).toBe('Add a jump action');
+    });
+
+    it('falls back to default suggestions when the model returns wrong-shape JSON', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Seed for wrong-shape suggestions',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'agent',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  explanationMessage: 'Try this next:',
+                  suggestions: 'not-an-array',
+                }),
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customGetAiRequestSuggestions(aiRequest.id);
+      expect(result.suggestions).toHaveLength(3);
+      const lastFromResult = result.output[result.output.length - 1];
+      expect(lastFromResult.suggestions).toBeTruthy();
+      expect(Array.isArray(lastFromResult.suggestions.suggestions)).toBe(true);
+      expect(lastFromResult.suggestions.suggestions).toHaveLength(3);
+
+      const cached = customGetAiRequest(aiRequest.id);
+      const lastFromCache = cached.output[cached.output.length - 1];
+      expect(lastFromCache.suggestions).toBeTruthy();
+      expect(lastFromCache.suggestions.suggestions).toHaveLength(3);
     });
 
     it('falls back to default suggestions on the last message when the model returns malformed JSON', async () => {

@@ -3883,6 +3883,45 @@ export const customForkAiRequest = (
 };
 
 /**
+ * Coerce model output into a safe AiRequestSuggestions shape.
+ * SuggestionLines calls `.length`/`.map` on suggestions.suggestions without a
+ * further guard — a truthy non-array (or missing fields) would crash the chat.
+ * Returns null when the payload is unusable so callers fall back to defaults.
+ */
+export const sanitizeAiRequestSuggestions = (
+  parsed: mixed
+): AiRequestSuggestions | null => {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const source: Object = parsed;
+  const rawItems = source.suggestions;
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return null;
+  const items = [];
+  for (let i = 0; i < rawItems.length; i++) {
+    const item = rawItems[i];
+    if (!item || typeof item !== 'object') return null;
+    const title = typeof item.title === 'string' ? item.title.trim() : '';
+    const suggestedMessage =
+      typeof item.suggestedMessage === 'string'
+        ? item.suggestedMessage.trim()
+        : '';
+    if (!title || !suggestedMessage) return null;
+    items.push({
+      title,
+      suggestedMessage,
+    });
+  }
+  const explanationMessage =
+    typeof source.explanationMessage === 'string' &&
+    source.explanationMessage.trim()
+      ? source.explanationMessage.trim()
+      : 'Here are some things you can do next:';
+  return {
+    explanationMessage,
+    suggestions: items,
+  };
+};
+
+/**
  * Client-side Suggestions Generator.
  */
 export const customGetAiRequestSuggestions = async (
@@ -3992,8 +4031,14 @@ Return your response STRICTLY as a JSON object with this format:
       .replace(/```(?:json)?/gi, '')
       .replace(/```/gi, '')
       .trim();
-    const parsed: AiRequestSuggestions = JSON.parse(clean);
-    return attachSuggestions(parsed);
+    const sanitized = sanitizeAiRequestSuggestions(JSON.parse(clean));
+    if (!sanitized) {
+      return attachSuggestions({
+        explanationMessage: defaultSuggestions.explanationMessage,
+        suggestions: defaultSuggestions.suggestions,
+      });
+    }
+    return attachSuggestions(sanitized);
   } catch (err) {
     // Malformed JSON or a dropped connection: still surface defaults on the
     // last message so the chat is not stuck without next-step actions.

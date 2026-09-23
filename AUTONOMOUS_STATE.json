@@ -1,7 +1,13 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 73,
+  "last_cycle": 74,
   "completed_targets": [
+    {
+      "cycle": 74,
+      "target": "Sanitize wrong-shape local suggestion JSON before attach",
+      "metric_delta": "Before: model returning valid JSON with non-array/missing suggestion items was attached raw — SuggestionLines .length/.map crashed the chat; after: sanitizeAiRequestSuggestions rejects wrong-shape payloads and falls back to defaults. Tests: 383 (+3).",
+      "commit": "fix(ai): sanitize wrong-shape local suggestion JSON"
+    },
     {
       "cycle": 1,
       "target": "Remove AbortSignal/CancelToken listener leak in sendChatCompletion",
@@ -440,6 +446,10 @@
     "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
   ],
   "heuristics": [
+    {
+      "cycle": 74,
+      "note": "SuggestionLines has no second-guard on suggestions.suggestions — sanitize at the source in customGetAiRequestSuggestions before attach, not in the component."
+    },
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
     "Prefer pure JS/TS mocks for local AI endpoint testing to avoid external network calls during CI",
     "The Edit tool collapsed leading whitespace across 2360 lines of CustomAIClient.js — for this codebase prefer python-based exact-text replacement for surgical edits in large Flow files; verify with `git diff --stat` that the footprint matches the intended change",
