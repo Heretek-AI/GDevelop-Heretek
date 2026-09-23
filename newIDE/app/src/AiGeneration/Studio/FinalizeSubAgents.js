@@ -131,6 +131,23 @@ export const isSubAgentFinished = ({
 export const MAX_SUB_AGENT_REPORT_LENGTH = 4000;
 
 /**
+ * Cut a report to `maxLength` without splitting a surrogate pair.
+ *
+ * A plain `slice` can land between the halves of an astral character (an emoji
+ * or rare CJK in a sub-agent's report — realistic for a game studio naming
+ * scenes and objects), leaving a lone high surrogate that encodes to U+FFFD.
+ * The result is written into the parent transcript and sent to the model, so
+ * the replacement character would appear in place of the real text.
+ */
+export const truncateReport = (report: string, maxLength: number): string => {
+  if (report.length <= maxLength) return report;
+  let end = maxLength;
+  const lastCode = report.charCodeAt(end - 1);
+  if (lastCode >= 0xd800 && lastCode <= 0xdbff) end -= 1;
+  return report.slice(0, end) + '\n…(report truncated)';
+};
+
+/**
  * The text written into the parent's `function_call_output`: the sub-agent's
  * last assistant message, prefixed with any failure or turn-limit context and
  * suffixed with its failed calls, then truncated. The message's text is read
@@ -201,9 +218,7 @@ export const buildSubAgentReport = (
   }
 
   if (report.length > MAX_SUB_AGENT_REPORT_LENGTH) {
-    return (
-      report.slice(0, MAX_SUB_AGENT_REPORT_LENGTH) + '\n…(report truncated)'
-    );
+    return truncateReport(report, MAX_SUB_AGENT_REPORT_LENGTH);
   }
   return report;
 };

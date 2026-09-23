@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 137,
+  "last_cycle": 138,
   "completed_targets": [
     {
       "cycle": 75,
@@ -789,6 +789,12 @@
       "target": "Verify the sub-agent sandbox and the no-paywall invariant (no change)",
       "metric_delta": "No code change — verification cycle on two security/correctness boundaries the fork owns. (1) Sub-agent sandbox: traced `run_script` end-to-end — Utils.js derives isReadOnlyScriptContext from the explorer kind or a readOnly studio role, passes it as runScriptReadOnly through EditorFunctionCallRunner into run_script, which then passes allowedFunctionNames (every non-modifying registry function) to buildExposedScriptFunctions; ScriptRunner enforces by absence from its scopedValues, and NON_SCRIPTABLE_FUNCTION_NAMES blocks run_script recursion, spawn_agent, and the server-side tools. (2) modifiesProject accuracy — the flag that both the read-only filter AND the edit-approval prompt depend on: checked BOTH directions programmatically. All 22 mutating tools resolve to modifiesProject:true (nine of them declared in EditorFunctions/Extensions/*.js or GameplayTestTools.js, so a single-file grep misses them — confirmed each there), and all 13 READ_ONLY_TOOL_NAMES resolve to false. Roles.spec.js already pins the role-level invariants. (3) Invariant 1 (no paywall): hasValidSubscriptionPlan still returns true unconditionally; LoadingScreenEditor's watermark and splash-clamp guards derive from it and LocalPreviewLauncher's network-preview/hot-reload SubscriptionCheckers are short-circuited. No regression.",
       "commit": "(no code change — verification cycle)"
+    },
+    {
+      "cycle": 138,
+      "target": "Stop buildSubAgentReport splitting surrogate pairs when truncating",
+      "metric_delta": "buildSubAgentReport capped the report with a plain `report.slice(0, 4000)`, so the cut could land between the halves of an astral character — the same bug as cycle 129 but in a different function, in a file cycle 129 did not touch. Verified: a report whose 4000th code unit is a high surrogate (0xd83c) produced a lone surrogate that encodes to U+FFFD. The report is written into the parent's function_call_output, so the replacement character would reach the parent transcript AND the model. Fixed with an exported truncateReport(report, maxLength) that steps the cut back off a high surrogate; the cap logic now lives in one place. +1 test driving the real caller (buildSubAgentReport, not the helper — a helper-only test passes under the broken caller, which the mutation check caught), mutation-verified: with the plain slice the test's lone-surrogate detector returns true. 23/23 FinalizeSubAgents, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean. (SpawnSubAgents' 3 failures are the known environmental libGD-artifact ones — confirmed identical on stashed HEAD.)",
+      "commit": "fix(ai): keep sub-agent report truncation off a surrogate boundary"
     }
   ],
   "backlog": [
@@ -942,6 +948,7 @@
     "ensureObjectHasProperty only validates the TOP-LEVEL key, so any deeper path on an API response (limits.capabilities.ai.availablePresets) is unverified at runtime despite a non-optional Flow type. Treat nested API-response walks as unchecked and default each level. Also: a bare `npx jest <dir>` in newIDE/app lacks the libGD test artifact, so specs touching global.gd fail — confirm a failure is pre-existing by stashing and re-running before blaming the change.",
     "After finding one unguarded deep API-response walk, sweep the fork-modified files for the same shape rather than fixing one instance: `limits.credits.userBalance.amount` appeared at three more sites after cycle 134's `limits.capabilities.ai.availablePresets`. Extract a single defaulting helper when the same deep read repeats, so the guard cannot drift between copies.",
     "Optional chaining is supported in the app (used in ~8 files) and is the cleanest form for a deep walk on an API response; the fork's Flow files accept it (verified: no new Flow errors, baseline 847 unchanged). The full app Flow baseline is 847 errors and must be compared against stashed HEAD before attributing any error to a change.",
-    "The modifiesProject flag is a security-relevant invariant in two places (the read-only run_script filter and the edit-approval prompt), so audit it in BOTH directions: a mutating tool flagged false leaks into read-only scripts, and a read-only tool flagged true is wrongly withheld. Nine of the flags live in EditorFunctions/Extensions/*.js and GameplayTestTools.js, not in EditorFunctions/index.js — a single-file grep reports them as 'absent' and is misleading."
+    "The modifiesProject flag is a security-relevant invariant in two places (the read-only run_script filter and the edit-approval prompt), so audit it in BOTH directions: a mutating tool flagged false leaks into read-only scripts, and a read-only tool flagged true is wrongly withheld. Nine of the flags live in EditorFunctions/Extensions/*.js and GameplayTestTools.js, not in EditorFunctions/index.js — a single-file grep reports them as 'absent' and is misleading.",
+    "When a bug class is fixed (cycle 129's surrogate-splitting slice), grep for OTHER bare `.slice(0, N)`/`substring` truncations of text that reaches the wire — buildSubAgentReport carried the same defect 9 cycles later. And when adding a helper for a cap, TEST THROUGH THE CALLER: a test that calls truncateReport directly passes even after buildSubAgentReport is reverted to a raw slice; only driving buildSubAgentReport catches it."
   ]
 }

@@ -5,6 +5,8 @@ import {
   getSubAgentReportLabel,
   countAssistantTurns,
   isSubAgentAtTurnCap,
+  truncateReport,
+  MAX_SUB_AGENT_REPORT_LENGTH,
 } from './FinalizeSubAgents';
 import { buildPlanStatusUpdateOutput } from './UseStudioRuntime';
 import { buildPlanOutput } from './PlanStore';
@@ -471,6 +473,47 @@ describe('FinalizeSubAgents', () => {
       expect(plan.tasks[0].agentCallId).toBe('call-1');
       expect(plan.tasks[1].agentCallId).toBe('call-2');
       expect(plan.tasks[1].description).toBe('Units walk the grid.');
+    });
+
+    it('truncating a report does not split a surrogate pair', () => {
+      // A plain slice can land between the halves of an astral character (an
+      // emoji or rare CJK in a report), leaving a lone high surrogate that
+      // encodes to U+FFFD in the parent transcript and in what the model reads.
+      const hasLoneSurrogate = (value: string): boolean => {
+        for (let i = 0; i < value.length; i++) {
+          const code = value.charCodeAt(i);
+          if (code >= 0xd800 && code <= 0xdbff) {
+            const next = value.charCodeAt(i + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+            i++;
+          } else if (code >= 0xdc00 && code <= 0xdfff) return true;
+        }
+        return false;
+      };
+
+      // Drive it through buildSubAgentReport, the real caller: the emoji's high
+      // surrogate sits exactly at the cut, because the report IS the core text.
+      const body =
+        'x'.repeat(MAX_SUB_AGENT_REPORT_LENGTH - 1) + '\u{1F3AE}tail';
+      const subAgent: any = makeSubAgent({
+        id: 'child-1',
+        output: [assistantMessage(body)],
+      });
+      const out = buildSubAgentReport(subAgent, null);
+      expect(out).toContain('(report truncated)');
+      expect(hasLoneSurrogate(out)).toBe(false);
+
+      // A short report is returned untouched, with no truncation marker.
+      const short = buildSubAgentReport(
+        makeSubAgent({ id: 'child-2', output: [assistantMessage('Done.')] }),
+        null
+      );
+      expect(short).toBe('Done.');
+
+      // The helper is surrogate-safe at the boundary too.
+      expect(
+        hasLoneSurrogate(truncateReport('x'.repeat(3999) + '\u{1F3AE}', 4000))
+      ).toBe(false);
     });
 
     it('skips a later malformed plan message instead of rewriting it', () => {
