@@ -2143,6 +2143,80 @@ const SIDE_EFFECT_FREE_TOOLS = new Set([
 /**
  * Parse an OpenAI assistant message response into GDevelop's internal format.
  */
+/**
+ * Validate parsed tool-call arguments against the tool's declared JSON Schema
+ * (subset: required properties, primitive types, enum values). Unknown tools
+ * pass — the schema registry is the source of truth only for known tools.
+ */
+export const validateToolCallArguments = (
+  toolName: string,
+  parsedArgs: Object,
+  tools?: Array<Object> = GDEVELOP_OPENAI_TOOLS
+): {| valid: boolean, errors: Array<string> |} => {
+  const errors: Array<string> = [];
+  const tool = tools.find(
+    candidate =>
+      candidate && candidate.function && candidate.function.name === toolName
+  );
+  const schema = tool && tool.function ? tool.function.parameters : null;
+  if (
+    !schema ||
+    typeof schema !== 'object' ||
+    !schema.properties ||
+    typeof parsedArgs !== 'object' ||
+    parsedArgs === null ||
+    Array.isArray(parsedArgs)
+  ) {
+    return { valid: true, errors };
+  }
+
+  const required: Array<string> = Array.isArray(schema.required)
+    ? schema.required
+    : [];
+  for (const requiredName of required) {
+    if (!(requiredName in parsedArgs)) {
+      errors.push(`Missing required argument '${requiredName}'.`);
+    }
+  }
+
+  const TYPE_CHECKS = {
+    string: value => typeof value === 'string',
+    number: value => typeof value === 'number' && !Number.isNaN(value),
+    boolean: value => typeof value === 'boolean',
+    object: value =>
+      typeof value === 'object' && value !== null && !Array.isArray(value),
+    array: value => Array.isArray(value),
+  };
+
+  for (const argName of Object.keys(parsedArgs)) {
+    const propertySchema = schema.properties[argName];
+    if (!propertySchema) {
+      errors.push(`Unknown argument '${argName}' (not in the tool schema).`);
+      continue;
+    }
+    const expectedType = propertySchema.type;
+    const check = expectedType && TYPE_CHECKS[expectedType];
+    if (check && !check(parsedArgs[argName])) {
+      errors.push(`Argument '${argName}' should be of type '${expectedType}'.`);
+      continue;
+    }
+    if (
+      check &&
+      expectedType === 'string' &&
+      Array.isArray(propertySchema.enum) &&
+      !propertySchema.enum.includes(parsedArgs[argName])
+    ) {
+      errors.push(
+        `Argument '${argName}' must be one of: ${propertySchema.enum
+          .map(value => `'${value}'`)
+          .join(', ')}.`
+      );
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+};
+
 export const parseAssistantMessage = (
   openAiMessageOrChoiceOrResponse: Object,
   messageId?: string
@@ -2202,6 +2276,21 @@ export const parseAssistantMessage = (
               functionName
             )}' had invalid arguments; executing with empty arguments.`
           );
+        } else {
+          const validation = validateToolCallArguments(
+            String(functionName),
+            parsedArgs
+          );
+          if (!validation.valid) {
+            parsedArgs = {};
+            console.warn(
+              `Tool call '${String(
+                functionName
+              )}' arguments failed schema validation: ${validation.errors.join(
+                ' '
+              )} Executing with empty arguments.`
+            );
+          }
         }
         const callId =
           toolCall.id ||

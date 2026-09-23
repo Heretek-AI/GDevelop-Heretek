@@ -32,6 +32,7 @@ import {
   getTokenBudget,
   estimateMessagesTokens,
   trimMessagesToBudget,
+  validateToolCallArguments,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -241,7 +242,7 @@ describe('CustomAIClient', () => {
               type: 'function',
               function: {
                 name: 'create_scene',
-                arguments: '{"sceneName":"Level1"}',
+                arguments: '{"scene_name":"Level1"}',
               },
             },
           ],
@@ -253,7 +254,7 @@ describe('CustomAIClient', () => {
       expect(parsed.functionCalls).toHaveLength(1);
       expect(parsed.functionCalls[0].name).toBe('create_scene');
       expect(parsed.functionCalls[0].callArguments).toEqual({
-        sceneName: 'Level1',
+        scene_name: 'Level1',
       });
     });
 
@@ -373,6 +374,63 @@ describe('CustomAIClient', () => {
 
       const scalarMessage = parseOne('42');
       expect(scalarMessage.functionCalls[0].callArguments).toEqual({});
+    });
+  });
+
+  describe('per-tool schema validation', () => {
+    it('accepts arguments matching the tool schema', () => {
+      const validation = validateToolCallArguments('create_scene', {
+        scene_name: 'Menu',
+      });
+      expect(validation.valid).toBe(true);
+      expect(validation.errors).toEqual([]);
+    });
+
+    it('flags missing required arguments', () => {
+      const validation = validateToolCallArguments('create_scene', {});
+      expect(validation.valid).toBe(false);
+      expect(validation.errors[0]).toContain('scene_name');
+    });
+
+    it('flags wrong argument types and unknown arguments', () => {
+      const wrongType = validateToolCallArguments('create_scene', {
+        scene_name: 42,
+      });
+      expect(wrongType.valid).toBe(false);
+      expect(wrongType.errors[0]).toContain("should be of type 'string'");
+
+      const unknown = validateToolCallArguments('create_scene', {
+        scene_name: 'Menu',
+        not_in_schema: true,
+      });
+      expect(unknown.valid).toBe(false);
+      expect(unknown.errors[0]).toContain('not_in_schema');
+    });
+
+    it('passes unknown tools through unvalidated', () => {
+      const validation = validateToolCallArguments('not_a_real_tool', {
+        anything: 'goes',
+      });
+      expect(validation.valid).toBe(true);
+    });
+
+    it('sanitizes schema-invalid tool calls in parseAssistantMessage', () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-schema',
+            function: { name: 'create_scene', arguments: '{}' },
+          },
+        ],
+      });
+      expect(message.functionCalls[0].callArguments).toEqual({});
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('failed schema validation')
+      );
+      warn.mockRestore();
     });
   });
 

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 10,
+  "last_cycle": 11,
   "completed_targets": [
     {
       "cycle": 1,
@@ -55,6 +55,12 @@
       "target": "Structured tool-call argument validation in parseAssistantMessage",
       "metric_delta": "Before: tool-call arguments accepted any parse result (arrays/scalars included) and executed with whatever the model emitted; malformed JSON silently degraded to {}. After: arguments must parse to a non-null, non-array object \u2014 anything else is sanitized to {} with a console.warn naming the tool, and the function_call content round-trips the sanitized arguments. 3 new tests (valid object, malformed JSON, array/scalar rejection); 44/44 green.",
       "commit": "fix(ai): validate tool-call arguments are JSON objects"
+    },
+    {
+      "cycle": 11,
+      "target": "Per-tool JSON Schema validation of tool-call arguments against GDEVELOP_OPENAI_TOOLS",
+      "metric_delta": "Before: parsed tool arguments only needed to be JSON objects; wrong property names/types (e.g. sceneName vs scene_name) reached tool implementations unvalidated and failed downstream with confusing errors. After: validateToolCallArguments checks required properties, primitive types, enum values, and unknown arguments against each tool's declared parameters; schema-invalid calls are sanitized to {} with a warning listing every violation. One pre-existing spec fixture updated (used a non-schema property name \u2014 pinned the old unvalidated behavior). 5 new tests; 49/49 green.",
+      "commit": "feat(ai): validate tool arguments against tool JSON schemas"
     }
   ],
   "backlog": [
@@ -70,6 +76,7 @@
     "LSP diagnostics on Flow files are TS-parser noise (8006/8008/8010) \u2014 use eslint as the source of truth there",
     "Client is non-streaming (axios POST); SSE-recovery hardening does not apply to current architecture",
     "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted",
-    "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs"
+    "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs",
+    "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)"
   ]
 }
