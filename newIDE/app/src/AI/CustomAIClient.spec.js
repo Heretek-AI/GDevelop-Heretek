@@ -1443,6 +1443,27 @@ describe('CustomAIClient', () => {
       delete global.localStorage;
       _resetCustomAiClientForTesting();
     });
+    it('strips custom headers with CR/LF or hop-by-hop names on load', () => {
+      fakeStorage.setItem(
+        'gd-custom-ai-config',
+        JSON.stringify({
+          baseUrl: 'http://localhost:11434/v1',
+          customHeaders: {
+            'X-Ok': 'yes',
+            'X-Evil': 'value\r\nX-Injected: 1',
+            'Content-Type': 'text/plain',
+            Host: 'evil.example',
+            'Transfer-Encoding': 'chunked',
+            'Bad Name': 'x',
+          },
+        })
+      );
+      _resetCustomAiClientForTesting();
+      const config = getCustomEndpointConfig();
+      expect(config.customHeaders).toEqual({ 'X-Ok': 'yes' });
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
   });
 
   describe('sendChatCompletion cancellation', () => {
@@ -1472,6 +1493,37 @@ describe('CustomAIClient', () => {
       expect(postOptions.signal).toBe(controller.signal);
       // The legacy CancelToken bridge must be gone.
       expect(postOptions.cancelToken).toBeUndefined();
+    });
+
+    it('does not let custom headers replace Content-Type on the request', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'ok' } }],
+        },
+      });
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'qwen2.5-coder',
+          temperature: 0.7,
+          customHeaders: {
+            'Content-Type': 'text/plain',
+            'X-Keep': '1',
+            'X-Bad': 'a\nb',
+            Host: 'evil.example',
+          },
+        },
+      });
+      const headers = axios.post.mock.calls[0][2].headers;
+      expect(headers['Content-Type']).toBe('application/json');
+      expect(headers['X-Keep']).toBe('1');
+      expect(headers['X-Bad']).toBeUndefined();
+      expect(headers.Host).toBeUndefined();
     });
 
     it('uses a configurable timeout when provided, else the 120s default', async () => {

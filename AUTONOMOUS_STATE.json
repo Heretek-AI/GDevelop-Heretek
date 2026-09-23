@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 43,
+  "last_cycle": 44,
   "completed_targets": [
     {
       "cycle": 1,
@@ -253,6 +253,12 @@
       "target": "Flush SSE buffer and TextDecoder on stream end (final line without newline was discarded)",
       "metric_delta": "Before: streamChatCompletion's for-loop always discarded the leftover buffer on done and never flushed the TextDecoder — a final `data: {\"choices\":[{\"delta\":{\"content\":...}}]}` without a trailing newline (common on connection close / some OpenAI-compatible servers) lost its tokens/finish_reason, then the empty-or-partial result fell through to the non-streaming fallback or the 'ended without any content' error. After: line handling is extracted to processSseLine; after the loop, decoder.decode() flushes multi-byte state and any non-empty buffer is processed as a final line. 2 new tests (sole final line without \\n completes without axios.post; split final line across reads preserves 'abcd'). AI suite 300→302 tests / 22 suites green. Diff: CustomAIClient.js +54/-47 refactor+flush, CustomAIClient.spec.js +tests (fork-only), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
       "commit": "fix(ai): process leftover SSE buffer when a stream ends without a newline"
+    },
+    {
+      "cycle": 44,
+      "target": "Harden customHeaders against CR/LF injection and hop-by-hop / Content-Type overrides",
+      "metric_delta": "Before: sanitizeCustomAIConfig only required string values — a persisted (or $Shape-passed) customHeaders entry could carry CR/LF (header splitting), Host/Transfer-Encoding/Connection, or Content-Type: text/plain, and sendChatCompletion/testConnection spread customHeaders over the defaults so Content-Type was overridable at request time even if load-time sanitize ran. After: shared isSafeRequestHeader (RFC7230 token names, no CR/LF/NUL values, reject hop-by-hop + Content-Type) filters on sanitize AND when building request headers (defense in depth for unsanitized $Shape config). 2 new tests (load-time strip, request-time Content-Type kept + X-Keep kept + X-Bad/Host dropped). AI suite 302→304 tests / 22 suites green. Diff: CustomAIClient.js + helper + 2 call sites, CustomAIClient.spec.js +2 (fork-only), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
+      "commit": "fix(ai): harden custom headers against injection and Content-Type override"
     }
   ],
   "backlog": [
@@ -299,6 +305,8 @@
     "Mid-stream drops after partial content recover via the non-streaming fallback; pin that path with a reader mock that yields one delta then throws TypeError on the second read",
     "After the SSE read loop, always flush decoder.decode() and processSseLine(buffer) — leftover buffer holds the final data line when the server omits a trailing newline",
     "sendChatCompletion stream fallback rethrows on user abort AND isStreamTimeout; every other stream failure falls back to exactly one non-streaming request",
-    "Mid-stream drops after partial content recover via non-streaming fallback; pin with a reader mock that yields one delta then throws TypeError"
+    "Mid-stream drops after partial content recover via non-streaming fallback; pin with a reader mock that yields one delta then throws TypeError",
+    "customHeaders must pass isSafeRequestHeader on sanitize AND when building request headers — $Shape config objects can skip sanitizeCustomAIConfig",
+    "Never spread customHeaders over Content-Type defaults; apply safe headers after the fixed Content-Type/Referer/X-Title set"
   ]
 }

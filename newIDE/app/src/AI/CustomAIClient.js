@@ -60,6 +60,38 @@ const MAX_LOCAL_SAVED_REQUESTS = 20;
 let cachedConfig: ?CustomAIConfig = null;
 
 /**
+ * Whether a user-configured header is safe to attach to an outgoing request.
+ * Rejects CR/LF/NUL in the name or value (header injection) and hop-by-hop
+ * headers that would break or redirect the JSON request if left to overrides.
+ * Content-Type is also rejected here: custom headers are applied before the
+ * Authorization/API key, but Content-Type must stay application/json.
+ */
+const isSafeRequestHeader = (name: string, value: string): boolean => {
+  if (typeof name !== 'string' || typeof value !== 'string') return false;
+  // RFC 7230 token (no colon/spaces/controls) — also blocks CR/LF injection.
+  if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name)) return false;
+  // No CR/LF/NUL in values (header splitting).
+  if (/[\r\n\0]/.test(value)) return false;
+  const lower = name.toLowerCase();
+  if (
+    lower === 'content-type' ||
+    lower === 'content-length' ||
+    lower === 'host' ||
+    lower === 'connection' ||
+    lower === 'transfer-encoding' ||
+    lower === 'keep-alive' ||
+    lower === 'upgrade' ||
+    lower === 'te' ||
+    lower === 'trailer' ||
+    lower === 'proxy-authorization' ||
+    lower === 'proxy-connection'
+  ) {
+    return false;
+  }
+  return true;
+};
+
+/**
  * Coerce arbitrary JSON (localStorage) or a `$Shape` update into a
  * well-typed CustomAIConfig. Fail-closed on bad types so a corrupt entry
  * can never crash a model call, poison the live cache, or leak through the
@@ -104,7 +136,10 @@ const sanitizeCustomAIConfig = (input: mixed): CustomAIConfig => {
             // $FlowExpectedError[incompatible-type] Object.entries widens the value type.
             (Object.entries(parsed.customHeaders): Array<
               [string, string]
-            >).filter(([name, value]) => typeof value === 'string')
+            >).filter(
+              ([name, value]) =>
+                typeof value === 'string' && isSafeRequestHeader(name, value)
+            )
           )
         : undefined,
   };
@@ -2512,8 +2547,16 @@ export const sendChatCompletion = async ({
     'Content-Type': 'application/json',
     'HTTP-Referer': 'https://gdevelop.io',
     'X-Title': 'GDevelop IDE',
-    ...(currentConfig.customHeaders || {}),
   };
+  // Apply only safe custom headers; never let them replace Content-Type or
+  // inject CR/LF, even when the config object skipped sanitizeCustomAIConfig.
+  const customHeaders = currentConfig.customHeaders || {};
+  for (const headerName of Object.keys(customHeaders)) {
+    const headerValue = customHeaders[headerName];
+    if (isSafeRequestHeader(headerName, headerValue)) {
+      headers[headerName] = headerValue;
+    }
+  }
 
   if (currentConfig.apiKey && currentConfig.apiKey.trim()) {
     headers['Authorization'] = `Bearer ${currentConfig.apiKey.trim()}`;
@@ -3765,8 +3808,14 @@ export const testConnection = async (
     const headers: { [string]: string } = {
       'HTTP-Referer': 'https://gdevelop.io',
       'X-Title': 'GDevelop IDE',
-      ...(config.customHeaders || {}),
     };
+    const testHeaders = config.customHeaders || {};
+    for (const headerName of Object.keys(testHeaders)) {
+      const headerValue = testHeaders[headerName];
+      if (isSafeRequestHeader(headerName, headerValue)) {
+        headers[headerName] = headerValue;
+      }
+    }
     if (config.apiKey && config.apiKey.trim()) {
       headers['Authorization'] = `Bearer ${config.apiKey.trim()}`;
     }
