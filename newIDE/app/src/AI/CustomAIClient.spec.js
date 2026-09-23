@@ -52,6 +52,7 @@ import {
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
   loadLocalAiRequests,
+  withLocalAiTurnLock,
   loadLocalAiRequestModelOverridesForTesting,
   saveLocalAiRequests,
   _resetCustomAiClientForTesting as _resetForStreamTests,
@@ -4113,6 +4114,67 @@ describe('CustomAIClient', () => {
       expect((await customGetAiRequest(aiRequest.id)).status).toBe('ready');
       expect(JSON.stringify(resumed.output || '')).toContain('resumed answer');
       expect(JSON.stringify(resumed.output || '')).toContain('keep going');
+    });
+  });
+
+  describe('withLocalAiTurnLock', () => {
+    it('serializes turns for the same request', async () => {
+      const order = [];
+      const first = withLocalAiTurnLock('lock-req-1', async () => {
+        order.push('first-start');
+        await new Promise(resolve => setTimeout(resolve, 20));
+        order.push('first-end');
+      });
+      const second = withLocalAiTurnLock('lock-req-1', async () => {
+        order.push('second');
+      });
+      await Promise.all([first, second]);
+      // The second turn must not start until the first released the lock.
+      expect(order).toEqual(['first-start', 'first-end', 'second']);
+    });
+
+    it('does not block a different request', async () => {
+      const order = [];
+      let releaseFirst;
+      const first = withLocalAiTurnLock('lock-req-2', async () => {
+        order.push('held-start');
+        await new Promise(resolve => {
+          releaseFirst = resolve;
+        });
+        order.push('held-end');
+      });
+      // Let the first acquire the lock before queueing the other request.
+      await new Promise(resolve => setTimeout(resolve, 5));
+      const other = withLocalAiTurnLock('lock-req-3', async () => {
+        order.push('other');
+      });
+      await other;
+      expect(order).toEqual(['held-start', 'other']);
+      releaseFirst();
+      await first;
+      expect(order).toEqual(['held-start', 'other', 'held-end']);
+    });
+
+    it('releases the lock when the turn throws, so a queued turn still runs', async () => {
+      // A turn queued WHILE the throwing one holds the lock is the case that
+      // deadlocks if the failure path skips `release`: it waits on a tail that
+      // never settles.
+      const order = [];
+      const failing = withLocalAiTurnLock('lock-req-4', async () => {
+        order.push('failing');
+        throw new Error('turn failed');
+      }).catch(() => order.push('caught'));
+      const queued = withLocalAiTurnLock('lock-req-4', async () => {
+        order.push('queued');
+      });
+
+      const winner = await Promise.race([
+        queued.then(() => 'queued-ran'),
+        new Promise(resolve => setTimeout(() => resolve('timed-out'), 500)),
+      ]);
+      await failing;
+      expect(winner).toBe('queued-ran');
+      expect(order).toEqual(['failing', 'caught', 'queued']);
     });
   });
 

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 142,
+  "last_cycle": 143,
   "completed_targets": [
     {
       "cycle": 75,
@@ -819,6 +819,12 @@
       "target": "Fail closed when a sub-agent's role id cannot be resolved",
       "metric_delta": "Found by the coverage-gap sweep (buildSystemPrompt had no test): buildSystemPrompt called `getStudioRole(role)` which THROWS on an unknown id, and the sub-agent turn path also called `getToolsForRole(studioRoleId)`, which delegates to the same throw. Reachable: `studioRoleId` is read back from a persisted AiRequest on EVERY sub-agent turn (CustomAIClient 3882), and loadLocalAiRequests validates only `id`/`status` — so a stale or corrupted role id killed the turn mid-flight. Worse, the naive no-throw fallback is a privilege escalation: mutation-checked, substituting the full toolset handed an unrecognized-role sub-agent run_script, create_scene and all 22 mutating tools — for an agent that may have been a read-only tester. Fixed by resolving the role through isStudioRoleId and falling back to READ_ONLY_OPENAI_TOOLS (a module-level constant built once from Roles.READ_ONLY_TOOL_NAMES, no per-turn allocation) on both the creation and continue-turn paths; a top-level request with no role still gets every tool. +2 tests asserting the security contract (no offered tool is in MUTATING_TOOL_NAMES), mutation-verified. 461/461 AI+AiGeneration, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
       "commit": "fix(ai): fail closed when a sub-agent role id cannot be resolved"
+    },
+    {
+      "cycle": 143,
+      "target": "Cover withLocalAiTurnLock, the per-request concurrency primitive",
+      "metric_delta": "Second find from the coverage-gap sweep: withLocalAiTurnLock is exported, is the lock every local turn runs inside (customCreateAiRequest, customAddMessageToAiRequest, customCreateSubAgentAiRequest), and had zero direct tests — a bug in it deadlocks the whole chat rather than failing loudly. +3 tests pinning: (1) turns for the SAME id serialize (second starts only after the first releases); (2) a DIFFERENT id is not blocked; (3) a turn queued while a throwing one holds the lock still runs — the real deadlock case. Getting (3) right mattered: my first version called the lock again AFTER the throw, which passes even with release removed because the finally still deletes the tail entry; the queue-during-hold framing reproduces the hang (mutation: release removed -> the queued turn times out at 500ms). 464/464 AI+AiGeneration, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
+      "commit": "test(ai): cover the per-request turn lock"
     }
   ],
   "backlog": [
@@ -978,6 +984,7 @@
     "Run fork specs with `npm test` (react-app-rewired with the CRA babel config), NOT a bare `npx jest`: bare jest fails to transform the repo's .ts files (e.g. UseForceUpdate.ts) and reports a SyntaxError that looks like an environmental failure. The earlier aiGeneration 'libGD missing' failures were also an artifact of bare jest in some suits — prefer `npm test -- --testPathPattern=<name>` to get a trustworthy signal.",
     "CORRECTION to cycles 134/138/139: the '3 SpawnSubAgents / libGD-ProjectHelper failures' were NOT environmental — they were a bare-`npx jest` artifact. `npm test -- --testPathPattern=...` (react-app-rewired + CRA babel, with the libGD test artifact already installed) runs the whole AiGeneration directory green: 261/261 across 14 suites, and 449/449 across the 15 AI+AiGeneration suites. Always use `npm test`; bare jest cannot transform the repo's .ts files and produces misleading SyntaxError/undefined-global failures.",
     "Find coverage gaps programmatically: for each fork-modified file, regex its `export const <name>` list and diff against the spec text — that surfaced aiRequestShouldBeWatched / aiRequestHasWorkInProgress / getSubAgentKind, all live in production with no tests. Also probe reachability before guarding a suspected crash: aiRequestHasWorkInProgress would throw on a null element of editorFunctionCallResults, but processEditorFunctionCalls only ever pushes object literals, so that guard would be dead code.",
-    "When an unknown enum/id must not crash a turn, pick the fallback by PRIVILEGE, not by convenience: getToolsForRole throwing was load-bearing (it stops a read-only role silently gaining mutations), so the no-throw replacement had to be the read-only subset, not the full toolset. Mutation-check the direction — swapping in the full toolset made the new test show create_scene/run_script being offered. Also: buildSystemPrompt had ZERO coverage despite shaping every prompt; the coverage-gap sweep (regex `export const X` vs the spec text) is what surfaced it."
+    "When an unknown enum/id must not crash a turn, pick the fallback by PRIVILEGE, not by convenience: getToolsForRole throwing was load-bearing (it stops a read-only role silently gaining mutations), so the no-throw replacement had to be the read-only subset, not the full toolset. Mutation-check the direction — swapping in the full toolset made the new test show create_scene/run_script being offered. Also: buildSystemPrompt had ZERO coverage despite shaping every prompt; the coverage-gap sweep (regex `export const X` vs the spec text) is what surfaced it.",
+    "To test a lock/mutex, the discriminating case is a turn QUEUED WHILE the lock is held (or while the holder throws) — not a later, sequential acquisition, which passes even when the failure path skips release because cleanup still clears the key. Frame the assertion with a timeout race ('queued-ran' vs 'timed-out 500ms') so a deadlock fails the test instead of hanging the suite."
   ]
 }
