@@ -133,6 +133,26 @@ describe('CustomAIClient', () => {
       expect(result.content).toBe('Simple response with no thinking tag');
     });
 
+    // Built by concatenation so linters/display layers never treat the tag
+    // as markup.
+    const THINK_OPEN = String.fromCharCode(60) + 'think>';
+    const THINK_CLOSE = String.fromCharCode(60) + '/think>';
+
+    it('treats an unclosed think tag as thinking (truncated reasoning)', () => {
+      const input = THINK_OPEN + 'Let me create the object';
+      const result = extractThinkingAndContent(input);
+      expect(result.thinking).toBe('Let me create the object');
+      expect(result.content).toBe('');
+      expect(result.cleanContent).toBe('');
+    });
+
+    it('still extracts closed tags when both open and close exist', () => {
+      const input = THINK_OPEN + 'Answer' + THINK_CLOSE + 'more';
+      const result = extractThinkingAndContent(input);
+      expect(result.thinking).toBe('Answer');
+      expect(result.content).toBe('more');
+    });
+
     it('handles empty or non-string input', () => {
       expect(extractThinkingAndContent('')).toEqual({
         thinking: null,

@@ -1977,6 +1977,20 @@ export const extractThinkingAndContent = (
     return { thinking: thinking || null, cleanContent, content: cleanContent };
   }
 
+  // Truncated reasoning models can emit an unclosed <think> tag
+  // (e.g. generation cut off mid-thought): everything after the opening tag
+  // is thinking, not content — otherwise it leaks into the chat and corrupts
+  // tool-call JSON parsing.
+  const unclosedIndex = rawContent.search(/<think>/i);
+  if (
+    unclosedIndex !== -1 &&
+    rawContent.toLowerCase().indexOf('</think>') === -1
+  ) {
+    const cleanContent = rawContent.slice(0, unclosedIndex).trim();
+    const thinking = rawContent.slice(unclosedIndex + '<think>'.length).trim();
+    return { thinking: thinking || null, cleanContent, content: cleanContent };
+  }
+
   const clean = rawContent.trim();
   return { thinking: null, cleanContent: clean, content: clean };
 };

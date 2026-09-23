@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 29,
+  "last_cycle": 30,
   "completed_targets": [
     {
       "cycle": 1,
@@ -169,6 +169,12 @@
       "target": "No non-streaming retry after a user abort mid-stream",
       "metric_delta": "Before: a user abort during a streamed turn made streamChatCompletion throw the abort error, but sendChatCompletion's fallback treated it like any streaming failure and fired a second non-streaming request with the already-aborted signal (wasted request, extra failure mode). After: the fallback rethrows when the caller signal is aborted; the abort surfaces immediately. Regression test pins: rejects with /aborted/, axios.post never called. 66/66 green. Also swept: full suite 176/176 (1960 tests), upstream drift checked (upstream active at df9de041f; daily sync workflow owns the merge).",
       "commit": "fix(ai): do not retry non-streaming after a user abort"
+    },
+    {
+      "cycle": 30,
+      "target": "Handle unclosed think tags from truncated reasoning models",
+      "metric_delta": "Before: a truncated reasoning generation (e.g. deepseek-r1 on Ollama cut mid-thought) emitted an unclosed think-open tag; extractThinkingAndContent fell through to the no-tag path and the raw reasoning leaked into cleanContent \u2014 polluting the chat UI and potentially corrupting tool-call JSON parsing. After: when an open tag exists and no close tag does, everything after the open tag is treated as thinking and stripped from content. Closed-tag behavior unchanged (pinned by a new test). 2 new tests; 68/68 green. Note: the think-tag literal is built via String.fromCharCode in tests and kept literal in source \u2014 an earlier edit actually lost the tag bytes (searched for 'region'); the new tests would have caught that.",
+      "commit": "fix(ai): treat unclosed think tags as reasoning, not content"
     }
   ],
   "backlog": [
