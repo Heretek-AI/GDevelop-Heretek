@@ -77,13 +77,15 @@ export const buildPlanStatusUpdateOutput = (
   const output = parentRequest.output || [];
 
   // Find the message the plan lives in, from the end, exactly as
-  // `getLatestActivePlan` does.
+  // `getLatestActivePlan` does - including its `Array.isArray` guard on
+  // `tasks`, so a malformed plan message is skipped here too rather than
+  // rewritten into a shape the rest of the plan pipeline cannot read.
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
     if (message.type !== 'function_call_output' || !message.output) continue;
     try {
       const parsed = JSON.parse(message.output);
-      if (parsed && parsed.plan && parsed.plan.tasks) {
+      if (parsed && parsed.plan && Array.isArray(parsed.plan.tasks)) {
         const updatedOutput = [...output];
         updatedOutput[i] = { ...message, output: planOutput };
         return updatedOutput;

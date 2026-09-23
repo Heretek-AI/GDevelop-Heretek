@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 131,
+  "last_cycle": 132,
   "completed_targets": [
     {
       "cycle": 75,
@@ -753,6 +753,12 @@
       "target": "Stop getLatestActivePlan throwing on a non-array plan tasks",
       "metric_delta": "getLatestActivePlan checked `output.plan.tasks` for truthiness only and then called `.some` on it, so a non-array tasks (object, string, number, boolean) threw `TypeError: latestPlan.tasks.some is not a function` — out of a function whose own try/catch covers only JSON.parse. Reachable on the same class of path as cycle 127: the plan output is model-authored and a request restored from localStorage is not shape-revalidated on load, and the function had NO test coverage in AiRequestUtils.spec.js. Blast radius is the studio's whole plan lifecycle: the reader used by UseStudioRuntime.buildPlanStatusUpdateOutput, Utils.js mergePlanResultOutput and the suggestion guard, so a throw would break sub-agent finalization and turn processing while the UI showed nothing. Fixed with Array.isArray. +4 tests (the function had none; includes the last-active-plan, all-done, and malformed-JSON contracts), mutation-checked: reverting to truthiness makes the non-array case throw. 253/253 AiGeneration across 14 suites, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
       "commit": "fix(ai): stop getLatestActivePlan throwing on a non-array plan tasks"
+    },
+    {
+      "cycle": 132,
+      "target": "Apply the same Array.isArray guard to the sibling plan search",
+      "metric_delta": "UseStudioRuntime.buildPlanStatusUpdateOutput duplicates getLatestActivePlan's backward search and had the identical truthiness-only check on `.plan.tasks`. Its consequence is worse than a throw: the later malformed message is matched and REWRITTEN with a freshly built plan, so the plan the rest of the pipeline reads comes from the wrong message and the intended task flip is lost. Test written to discriminate (a valid plan message followed by a malformed one — my first attempt used a malformed-only output and could not distinguish the two guards, caught by the mutation check). Mutation-verified: with the guard reverted the related task stays 'pending' instead of flipping to 'done'. 254/254 AiGeneration across 14 suites, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
+      "commit": "fix(ai): align the sibling plan search with the tasks-array guard"
     }
   ],
   "backlog": [
@@ -900,6 +906,7 @@
     "When auditing an input boundary, check reachability before guarding: getEndpointUrl's endpointPath and maxTokens' negative path both throw/send badly in principle, but no caller or UI can produce those values, so a guard would be dead code. The reachable ones were the storage-hydrated preference values (baseUrl, temperature, timeoutMs) because PreferencesProvider never type-checks a present key.",
     "sliceToTokenBudget and estimateTokens are an inverse pair and must stay one; sliceToTokenBudget also indexes UTF-16 code units, so any cut must not fall between a high and low surrogate (test with a body of repeated 'A<emoji>' — the emoji at an odd offset catches it, whereas emoji placed at the START of a body never hit it because truncation drops the suffix). Slicing a string is not safe on a non-BMP boundary in general.",
     "The AI client's defensive layer is now broad: tool arg validation on both routes, header CRLF blocking, SSE chunk recovery, context budgeting with a CJK-aware estimator, bounded persistence, and surrogate-safe slicing. When re-auditing, prefer probing a documented invariant numerically (e.g. sliceToTokenBudget/estimateTokens as an inverse pair across 1600 slices) over re-reading the code — it catches regressions the eye misses.",
-    "A truthiness check on a value that is then treated as an array is a latent TypeError (`x.tasks && x.tasks.some(...)`). Prefer Array.isArray for anything parsed from model output or restored from localStorage. Also: getLatestActivePlan feeds the studio plan lifecycle from three call sites but had zero spec coverage — when auditing, cross-check that fork-critical readers are actually tested rather than assuming the surrounding suites cover them."
+    "A truthiness check on a value that is then treated as an array is a latent TypeError (`x.tasks && x.tasks.some(...)`). Prefer Array.isArray for anything parsed from model output or restored from localStorage. Also: getLatestActivePlan feeds the studio plan lifecycle from three call sites but had zero spec coverage — when auditing, cross-check that fork-critical readers are actually tested rather than assuming the surrounding suites cover them.",
+    "When fixing a duplicated code path, fix every copy: buildPlanStatusUpdateOutput mirrors getLatestActivePlan's search and carried the same latent bug. Also verify a new test actually discriminates — a malformed-only input passes under both the truthiness and Array.isArray guards; the failing-before case needed a VALID message placed before the malformed one so the unguarded loop would match the later one."
   ]
 }

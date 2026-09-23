@@ -473,6 +473,64 @@ describe('FinalizeSubAgents', () => {
       expect(plan.tasks[1].description).toBe('Units walk the grid.');
     });
 
+    it('skips a later malformed plan message instead of rewriting it', () => {
+      // The search mirrors getLatestActivePlan, including its Array.isArray
+      // guard on `tasks`. With a valid plan message first and a malformed one
+      // after it, a truthiness check matches the later message and rewrites it
+      // into a shape the rest of the plan pipeline cannot read; the guard walks
+      // past it to the valid one.
+      const parent: any = makeSubAgent({
+        id: 'parent-1',
+        output: [
+          {
+            type: 'function_call_output',
+            call_id: 'plan-call',
+            output: JSON.stringify(
+              buildPlanOutput([
+                {
+                  id: 'grid',
+                  title: 'Build the grid',
+                  description: 'A 20x20 grid.',
+                  status: 'pending',
+                  dependsOn: [],
+                },
+              ])
+            ),
+          },
+          {
+            type: 'function_call_output',
+            call_id: 'junk-call',
+            output: JSON.stringify({
+              success: true,
+              plan: { tasks: { '0': { status: 'pending' } } },
+            }),
+          },
+          assistantMessage('Delegating.', [
+            spawnCall('call-1', 'child-1', 'grid'),
+          ]),
+        ],
+      });
+
+      const updatedOutput = buildPlanStatusUpdateOutput(parent, 'call-1');
+      expect(updatedOutput).not.toBeNull();
+      // The valid plan message is the one rewritten, and it stays readable.
+      const planMessage: any = (updatedOutput || []).find(
+        (message: any) =>
+          message.type === 'function_call_output' &&
+          message.call_id === 'plan-call'
+      );
+      const plan = JSON.parse(planMessage.output).plan;
+      expect(Array.isArray(plan.tasks)).toBe(true);
+      expect(plan.tasks[0].status).toBe('done');
+      // The malformed message is left untouched.
+      const junk: any = (updatedOutput || []).find(
+        (message: any) => message.call_id === 'junk-call'
+      );
+      expect(JSON.parse(junk.output).plan.tasks).toEqual({
+        '0': { status: 'pending' },
+      });
+    });
+
     it('returns null when there is no plan, no related task id, or a missing task', () => {
       // No plan at all.
       expect(
