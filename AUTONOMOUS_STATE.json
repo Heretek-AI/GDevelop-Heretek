@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 21,
+  "last_cycle": 22,
   "completed_targets": [
     {
       "cycle": 1,
@@ -121,10 +121,18 @@
       "target": "Local server presets in AI Settings (Ollama / LM Studio / llama.cpp endpoint discovery)",
       "metric_delta": "Before: users had to know and type each local server's default endpoint. After: three preset buttons in Preferences > AI Settings fill the Base URL (http://localhost:11434/v1, :1234/v1, :8080/v1) via the existing setAiCustomBaseUrl path (persisted + sanitized like any config change). Browser-verified end-to-end: presets render, clicking LM Studio and llama.cpp updated the field and persisted to gd-custom-ai-config.",
       "commit": "feat(preferences): local server presets for custom AI endpoints"
+    },
+    {
+      "cycle": 22,
+      "target": "Documentation audit: scripts/README.md accuracy and AGENTS.md stale claim",
+      "metric_delta": "Verified scripts/README.md is fully accurate (every listed script exists; the 'Upstream scripts removed' section documents absent files rather than referencing them as instructions \u2014 fixed by commit 48ed4e38d). Updated AGENTS.md, which still carried the outdated 'partially stale' warning, so future sessions don't re-litigate a solved item.",
+      "commit": "docs: correct stale scripts/README.md note in AGENTS.md"
     }
   ],
   "backlog": [
-    "Editor UX quick wins from docs/HERETEK-ROADMAP.md as they surface in upstream demand"
+    "Per-request model picker in the AI toolbar (roadmap A.2)",
+    "Token/cost meter: persist estimated prompt tokens per request and show a running total (roadmap A.2)",
+    "Heretek README comparison section pointing BYOK seekers at the fork (roadmap A.3)"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",

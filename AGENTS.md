@@ -414,5 +414,6 @@ Cite these rather than inventing behaviour:
   sync procedure. Read it before editing `.fallow.toml`, `.sonarcloud.properties`,
   `fork-divergence.json`, or `.github/workflows/`.
 - `Extensions/README.md`, `newIDE/README-themes.md`, `newIDE/visual-tests/README.md`.
-- Root `scripts/README.md` is **partially stale** — it references `ReleaseProcedure.{bat,sh}` and
-  `CopyWindowsToLinuxReleaseFiles.sh`, which do not exist in this checkout.
+- Root `scripts/README.md` — repository-wide tooling (fork-divergence guard, lockfile checks,
+  translations); its "Upstream scripts removed" section documents scripts that deliberately do not
+  exist here.
