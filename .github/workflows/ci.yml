@@ -36,10 +36,10 @@ jobs:
     name: Lockfile security guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: Run guard
@@ -61,10 +61,10 @@ jobs:
     # rather than a clone: 4ian/GDevelop is ~1.7 GB and this job runs on every PR.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: Compare against upstream 4ian/GDevelop
@@ -92,10 +92,10 @@ jobs:
     # reports every drifted manifest.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: Assert every lockfile is in sync with its package.json
@@ -142,10 +142,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: lockfile-guard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: "npm"
@@ -170,7 +170,7 @@ jobs:
           source /tmp/emsdk/emsdk_env.sh
           npm run build
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: libgd-build
           path: Binaries/embuild/GDevelop.js/
@@ -182,16 +182,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-libgd
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: newIDE/app/package-lock.json
       - name: Download libGD.js build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: libgd-build
           path: Binaries/embuild/GDevelop.js/
@@ -242,16 +242,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-libgd
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: GDevelop.js/package-lock.json
       - name: Download libGD.js build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: libgd-build
           path: Binaries/embuild/GDevelop.js/
@@ -272,10 +272,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: lockfile-guard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: "npm"
