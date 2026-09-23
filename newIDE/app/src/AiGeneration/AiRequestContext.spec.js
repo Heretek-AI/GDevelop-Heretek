@@ -8,6 +8,8 @@ import {
   getAiRequestSummaries,
   getAiRequestSummary,
   suspendAiRequest,
+  updateAiRequest as apiUpdateAiRequest,
+  deleteAiRequest as apiDeleteAiRequest,
   type AiRequest,
   type AiRequestSummary,
   type AiRequestUserMessage,
@@ -666,6 +668,28 @@ describe('AiRequestProvider opening a chat from the history', () => {
       aiRequestSummaries: [],
       nextPageUri: null,
     });
+    mockFn(apiUpdateAiRequest).mockReset();
+    // Hosted-style resolution: archive re-reads archivedAt from the response.
+    mockFn(apiUpdateAiRequest).mockImplementation(
+      async (
+        _getAuth: any,
+        params: {|
+          aiRequestId: string,
+          title?: string | null,
+          archived?: boolean,
+        |}
+      ) => ({
+        ...makeAiRequest(params.aiRequestId, 'ready'),
+        title: params.title !== undefined ? params.title : undefined,
+        archivedAt: params.archived
+          ? '2024-06-01T00:00:00.000Z'
+          : params.archived === false
+          ? null
+          : undefined,
+      })
+    );
+    mockFn(apiDeleteAiRequest).mockReset();
+    mockFn(apiDeleteAiRequest).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -801,6 +825,71 @@ describe('AiRequestProvider opening a chat from the history', () => {
     expect(getContext(contextRef).selectedAiRequest).toEqual(aiRequest);
     expect(
       getContext(contextRef).aiRequestStorage.aiRequestLoadingStates['chat-1']
+    ).toBeUndefined();
+  });
+
+  it('renames and archives a local BYOK request without touching a remote id', async () => {
+    const contextRef = renderProviderToUnmount();
+    const localRequest = makeAiRequest('local-ai-rename-1', 'ready');
+    const storage = () => getContext(contextRef).aiRequestStorage;
+    act(() => {
+      storage().updateAiRequest('local-ai-rename-1', () => localRequest);
+    });
+
+    await act(async () => {
+      await storage().renameAiRequest('local-ai-rename-1', 'Local chat');
+      await flushPromises();
+    });
+
+    expect(mockFn(apiUpdateAiRequest)).toHaveBeenCalledTimes(1);
+    expect(mockFn(apiUpdateAiRequest).mock.calls[0][1].aiRequestId).toBe(
+      'local-ai-rename-1'
+    );
+    expect(mockFn(apiUpdateAiRequest).mock.calls[0][1].title).toBe(
+      'Local chat'
+    );
+
+    await act(async () => {
+      await storage().setAiRequestArchived('local-ai-rename-1', true);
+      await flushPromises();
+    });
+    expect(mockFn(apiUpdateAiRequest)).toHaveBeenCalledTimes(2);
+    expect(mockFn(apiUpdateAiRequest).mock.calls[1][1].archived).toBe(true);
+    expect(mockFn(apiUpdateAiRequest).mock.calls[1][1].aiRequestId).toBe(
+      'local-ai-rename-1'
+    );
+  });
+
+  it('deletes a local BYOK request and removes it from history state', async () => {
+    const contextRef = renderProviderToUnmount();
+    const localRequest = makeAiRequest('local-ai-del-1', 'ready');
+    act(() => {
+      getContext(contextRef).aiRequestStorage.updateAiRequest(
+        'local-ai-del-1',
+        () => localRequest
+      );
+    });
+
+    await act(async () => {
+      await getContext(contextRef).aiRequestStorage.deleteAiRequest(
+        'local-ai-del-1'
+      );
+      await flushPromises();
+    });
+
+    // Generation is mocked here: the call is recorded with the local id.
+    // Hosted-API routing for local-ai-* is covered by Generation.spec.js.
+    expect(mockFn(apiDeleteAiRequest)).toHaveBeenCalledTimes(1);
+    expect(mockFn(apiDeleteAiRequest).mock.calls[0][1].aiRequestId).toBe(
+      'local-ai-del-1'
+    );
+    expect(
+      getContext(contextRef).aiRequestStorage.aiRequests['local-ai-del-1']
+    ).toBeUndefined();
+    expect(
+      getContext(contextRef).aiRequestStorage.aiRequestSummaries[
+        'local-ai-del-1'
+      ]
     ).toBeUndefined();
   });
 });

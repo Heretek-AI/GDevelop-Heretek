@@ -22,6 +22,9 @@ import {
   customGetAiRequestStatuses,
   customSuspendAiRequest,
   customForkAiRequest,
+  customDeleteAiRequest,
+  customPatchAiRequestAttributes,
+  customRetryAiRequest,
   customGetAiRequestSuggestions,
   customCreateAiGeneratedEvent,
   customCreateAssetSearch,
@@ -1421,6 +1424,127 @@ describe('CustomAIClient', () => {
       const forked = await customForkAiRequest(aiRequest.id);
       expect(forked.id).not.toBe(aiRequest.id);
       expect(forked.output.length).toBe(aiRequest.output.length);
+    });
+
+    it('patches title and archived attributes on a local request', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Patch me' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Patch target',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      const renamed = customPatchAiRequestAttributes(aiRequest.id, {
+        title: 'My chat',
+      });
+      expect(renamed.title).toBe('My chat');
+      expect(renamed.archivedAt).toBeUndefined();
+      expect(customGetAiRequest(aiRequest.id).title).toBe('My chat');
+
+      const archived = customPatchAiRequestAttributes(aiRequest.id, {
+        archived: true,
+      });
+      expect(archived.archivedAt).toBeTruthy();
+      expect(customGetAiRequest(aiRequest.id).archivedAt).toBeTruthy();
+
+      const restored = customPatchAiRequestAttributes(aiRequest.id, {
+        archived: false,
+      });
+      expect(restored.archivedAt).toBeNull();
+    });
+
+    it('returns a fallback when patching an unknown local request', () => {
+      const fallback = customPatchAiRequestAttributes('local-ai-missing', {
+        title: 'Nope',
+      });
+      expect(fallback.id).toBe('local-ai-missing');
+      expect(fallback.title).toBeUndefined();
+    });
+
+    it('deletes a local request and drops its per-request registries', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Delete me' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Delete target',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+      customSetAiRequestModelOverride(aiRequest.id, 'llama3');
+      expect(
+        customGetAiRequests().aiRequests.some(r => r.id === aiRequest.id)
+      ).toBe(true);
+
+      customDeleteAiRequest(aiRequest.id);
+
+      expect(
+        customGetAiRequests().aiRequests.some(r => r.id === aiRequest.id)
+      ).toBe(false);
+      expect(customGetAiRequestModelOverride(aiRequest.id)).toBe('');
+      // Missing id still safe.
+      expect(() => customDeleteAiRequest('local-ai-missing')).not.toThrow();
+    });
+
+    it('retries a failed local request by clearing the error', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            { message: { role: 'assistant', content: 'Fail then retry' } },
+          ],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Retry target',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      // Force a terminal error like the local loop would.
+      customUpdateAiRequest({
+        ...customGetAiRequest(aiRequest.id),
+        status: 'error',
+        error: { code: 'server_error', message: 'boom' },
+      });
+
+      const retried = customRetryAiRequest(aiRequest.id);
+      expect(retried.status).toBe('ready');
+      expect(retried.error).toBeNull();
+      expect(retried.retriesInARowCount).toBe(1);
+      expect(retried.retriedAfterMessagesCount).toBe(
+        (retried.output || []).length
+      );
+      expect(customGetAiRequest(aiRequest.id).status).toBe('ready');
+
+      // Retrying a non-errored request is a no-op.
+      const again = customRetryAiRequest(aiRequest.id);
+      expect(again.retriesInARowCount).toBe(1);
+    });
+
+    it('returns a fallback when retrying an unknown local request', () => {
+      const fallback = customRetryAiRequest('local-ai-missing');
+      expect(fallback.id).toBe('local-ai-missing');
+      expect(fallback.status).toBe('ready');
     });
 
     it('returns suggestions for an AI request', async () => {

@@ -15,6 +15,9 @@ import {
   customGetAiRequestStatuses,
   customSuspendAiRequest,
   customForkAiRequest,
+  customDeleteAiRequest,
+  customPatchAiRequestAttributes,
+  customRetryAiRequest,
   customGetAiRequestSuggestions,
   customCreateAiGeneratedEvent,
   customCreateAssetSearch,
@@ -504,7 +507,24 @@ export const getAiRequestSummaries = async (
   nextPageUri: ?string,
 }> => {
   if (isCustomEndpointEnabled()) {
-    return customGetAiRequests();
+    const { aiRequests, nextPageUri } = customGetAiRequests();
+    // Match the hosted /ai-request-summary contract: summaries only (no
+    // sub-agents), filtered by archived state and game when asked.
+    const aiRequestSummaries = aiRequests
+      .filter(aiRequest => {
+        if (aiRequest.parentAiRequestId) return false;
+        if (
+          gameId !== undefined &&
+          gameId !== null &&
+          (aiRequest.gameId || null) !== gameId
+        )
+          return false;
+        if (filter === 'active') return !aiRequest.archivedAt;
+        if (filter === 'archived') return !!aiRequest.archivedAt;
+        return true;
+      })
+      .map(getAiRequestSummary);
+    return { aiRequestSummaries, nextPageUri };
   }
 
   const authorizationHeader = await getAuthorizationHeader();
@@ -710,6 +730,10 @@ export const retryAiRequest = async (
   getAuthorizationHeader: () => Promise<string>,
   { userId, aiRequestId }: {| userId: string, aiRequestId: string |}
 ): Promise<AiRequest> => {
+  if (aiRequestId.startsWith('local-ai-')) {
+    return customRetryAiRequest(aiRequestId);
+  }
+
   const authorizationHeader = await getAuthorizationHeader();
   const response = await apiClient.post(
     `/ai-request/${aiRequestId}/action/retry`,
@@ -763,6 +787,10 @@ export const updateAiRequest = async (
     archived?: boolean,
   |}
 ): Promise<AiRequest> => {
+  if (aiRequestId.startsWith('local-ai-')) {
+    return customPatchAiRequestAttributes(aiRequestId, { title, archived });
+  }
+
   const authorizationHeader = await getAuthorizationHeader();
   const attributes: { title?: string | null, archived?: boolean } = {};
   if (title !== undefined) attributes.title = title;
@@ -783,6 +811,11 @@ export const deleteAiRequest = async (
   getAuthorizationHeader: () => Promise<string>,
   { userId, aiRequestId }: {| userId: string, aiRequestId: string |}
 ): Promise<void> => {
+  if (aiRequestId.startsWith('local-ai-')) {
+    customDeleteAiRequest(aiRequestId);
+    return;
+  }
+
   const authorizationHeader = await getAuthorizationHeader();
   await apiClient.delete(`/ai-request/${aiRequestId}`, {
     params: { userId },

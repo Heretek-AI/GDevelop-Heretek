@@ -173,6 +173,7 @@
     "newIDE/app/src/Utils/Array.ts",
     "newIDE/app/src/Utils/Delay.ts",
     "newIDE/app/src/Utils/GDevelopServices/ApiConfigs.spec.js",
+    "newIDE/app/src/Utils/GDevelopServices/Generation.spec.js",
     "newIDE/app/src/Utils/UseForceUpdate.ts",
     "newIDE/app/src/Utils/UseIsMounted.ts",
     "newIDE/app/src/Utils/UseTimeout.ts",

@@ -36,6 +36,8 @@ import { type EditApprovalRequest } from './Utils';
 import {
   customUpdateAiRequest,
   customSuspendAiRequest,
+  isCustomEndpointEnabled,
+  LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
 
 type EditorFunctionCallResultsStorage = {|
@@ -250,7 +252,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       gameId: ?string,
       forceUri?: {| list: 'recents' | 'game', uri: string |},
     |}) => {
-      if (!profile) return;
+      if (!profile && !isCustomEndpointEnabled()) return;
 
       setIsLoading(true);
       setError(null);
@@ -260,13 +262,13 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
           forceUri && forceUri.list === 'game'
             ? null
             : getAiRequestSummaries(getAuthorizationHeader, {
-                userId: profile.id,
+                userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
                 forceUri: forceUri ? forceUri.uri : null,
                 filter,
               }),
           gameId && (!forceUri || forceUri.list === 'game')
             ? getAiRequestSummaries(getAuthorizationHeader, {
-                userId: profile.id,
+                userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
                 forceUri: forceUri ? forceUri.uri : null,
                 filter,
                 gameId,
@@ -405,11 +407,11 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
 
   const refreshAiRequest = React.useCallback(
     async (aiRequestId: string): Promise<void> => {
-      if (!profile) return;
+      if (!profile && !aiRequestId.startsWith('local-ai-')) return;
 
       try {
         const updatedAiRequest = await getAiRequest(getAuthorizationHeader, {
-          userId: profile.id,
+          userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
           aiRequestId: aiRequestId,
         });
         updateAiRequest(updatedAiRequest.id, () => updatedAiRequest);
@@ -433,7 +435,12 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
    */
   const loadAiRequest = React.useCallback(
     async (aiRequestId: string): Promise<void> => {
-      if (!profile) return;
+      if (
+        !profile &&
+        !aiRequestId.startsWith('local-ai-') &&
+        !isCustomEndpointEnabled()
+      )
+        return;
 
       setAiRequestLoadingStates(previousStates => ({
         ...previousStates,
@@ -441,13 +448,13 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       }));
       try {
         let aiRequest = await getAiRequest(getAuthorizationHeader, {
-          userId: profile.id,
+          userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
           aiRequestId,
         });
         if (aiRequestHasWorkInProgress(aiRequest, null)) {
           try {
             aiRequest = await apiSuspendAiRequest(getAuthorizationHeader, {
-              userId: profile.id,
+              userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
               aiRequestId,
             });
           } catch (error) {
@@ -504,9 +511,20 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
     []
   );
 
+  // Local BYOK chats (and any chat while a custom endpoint is enabled) must be
+  // renameable/archivable/deletable without a logged-in profile — the hosted
+  // API is never involved for local-ai-* ids.
+  const canMutateAiRequest = React.useCallback(
+    (aiRequestId: string): boolean =>
+      !!profile ||
+      aiRequestId.startsWith('local-ai-') ||
+      isCustomEndpointEnabled(),
+    [profile]
+  );
+
   const renameAiRequest = React.useCallback(
     async (aiRequestId: string, title: string): Promise<void> => {
-      if (!profile) return;
+      if (!canMutateAiRequest(aiRequestId)) return;
       const newTitle = title.trim() || null;
       const aiRequestSummary = state.aiRequestSummaries[aiRequestId];
       const previousTitle =
@@ -519,7 +537,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       try {
         await retryIfFailed({ times: 2 }, () =>
           apiUpdateAiRequest(getAuthorizationHeader, {
-            userId: profile.id,
+            userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
             aiRequestId,
             title: newTitle,
           })
@@ -533,6 +551,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       }
     },
     [
+      canMutateAiRequest,
       getAuthorizationHeader,
       profile,
       state.aiRequestSummaries,
@@ -542,7 +561,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
 
   const setAiRequestArchived = React.useCallback(
     async (aiRequestId: string, archived: boolean): Promise<void> => {
-      if (!profile) return;
+      if (!canMutateAiRequest(aiRequestId)) return;
       const aiRequestSummary = state.aiRequestSummaries[aiRequestId];
       const previousArchivedAt =
         (aiRequestSummary && aiRequestSummary.archivedAt) || null;
@@ -557,7 +576,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       try {
         const updatedAiRequest = await retryIfFailed({ times: 2 }, () =>
           apiUpdateAiRequest(getAuthorizationHeader, {
-            userId: profile.id,
+            userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
             aiRequestId,
             archived,
           })
@@ -576,6 +595,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       }
     },
     [
+      canMutateAiRequest,
       getAuthorizationHeader,
       profile,
       state.aiRequestSummaries,
@@ -585,7 +605,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
 
   const deleteAiRequest = React.useCallback(
     async (aiRequestId: string): Promise<void> => {
-      if (!profile) return;
+      if (!canMutateAiRequest(aiRequestId)) return;
 
       // Optimistic update: the chat disappears right away.
       setState(previousState => {
@@ -603,7 +623,7 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       try {
         await retryIfFailed({ times: 2 }, () =>
           apiDeleteAiRequest(getAuthorizationHeader, {
-            userId: profile.id,
+            userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
             aiRequestId,
           })
         );
@@ -615,7 +635,12 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
         fetchAiRequestSummaries();
       }
     },
-    [getAuthorizationHeader, profile, fetchAiRequestSummaries]
+    [
+      canMutateAiRequest,
+      getAuthorizationHeader,
+      profile,
+      fetchAiRequestSummaries,
+    ]
   );
 
   React.useEffect(

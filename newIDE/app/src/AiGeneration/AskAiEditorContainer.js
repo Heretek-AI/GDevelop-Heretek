@@ -1036,10 +1036,12 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
       // charges back the usage it refunded when the request failed).
       const onRetryAfterError = React.useCallback(
         async () => {
-          if (!selectedAiRequestId || !profile) return;
+          if (!selectedAiRequestId) return;
+          // Local BYOK chats retry through the local cache (no profile needed).
+          if (!profile && !selectedAiRequestId.startsWith('local-ai-')) return;
           try {
             const aiRequest = await retryAiRequest(getAuthorizationHeader, {
-              userId: profile.id,
+              userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
               aiRequestId: selectedAiRequestId,
             });
             updateAiRequest(aiRequest.id, () => aiRequest);

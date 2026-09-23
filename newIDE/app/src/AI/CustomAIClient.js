@@ -3315,6 +3315,73 @@ export const customUpdateAiRequest = (aiRequest: AiRequest): void => {
 };
 
 /**
+ * Client-side Delete AI Request: drop it (and any per-request registries)
+ * from the local cache. Mirrors the hosted DELETE /ai-request/{id}.
+ */
+export const customDeleteAiRequest = (aiRequestId: string): void => {
+  // Cancel any in-flight turn before dropping the request so a late write
+  // cannot resurrect it in the cache.
+  abortTurnsForRequest(aiRequestId);
+  delete localAiRequestsCache[aiRequestId];
+  delete localAiRequestTrimCounts[aiRequestId];
+  delete localAiRequestTokenTotals[aiRequestId];
+  delete localAiRequestModelOverrides[aiRequestId];
+  delete localAiRequestPartialContent[aiRequestId];
+  delete localAiTurnTails[aiRequestId];
+  saveLocalAiRequests();
+};
+
+/**
+ * Client-side PATCH of the user-editable attributes (title / archived),
+ * mirroring the hosted PATCH /ai-request/{id}.
+ */
+export const customPatchAiRequestAttributes = (
+  aiRequestId: string,
+  attributes: {| title?: string | null, archived?: boolean |}
+): AiRequest => {
+  const existing = localAiRequestsCache[aiRequestId];
+  if (!existing) return customGetAiRequest(aiRequestId);
+
+  const now = new Date().toISOString();
+  // Replace the cached request rather than mutating it in place (see
+  // customSuspendAiRequest): a model turn may hold a reference to the old copy.
+  const updated: AiRequest = { ...existing, updatedAt: now };
+  if (attributes.title !== undefined) updated.title = attributes.title;
+  if (attributes.archived !== undefined) {
+    updated.archivedAt = attributes.archived ? now : null;
+  }
+  localAiRequestsCache[aiRequestId] = updated;
+  saveLocalAiRequests();
+  return updated;
+};
+
+/**
+ * Client-side Retry after a failed turn: clear the terminal error so the
+ * conversation can continue (the local loop has no server-side resume — the
+ * next send picks up from the last message already in the cache).
+ */
+export const customRetryAiRequest = (aiRequestId: string): AiRequest => {
+  const existing = localAiRequestsCache[aiRequestId];
+  if (!existing) return customGetAiRequest(aiRequestId);
+  if (existing.status !== 'error') return existing;
+
+  const outputLength = (existing.output || []).length;
+  const retried: AiRequest = {
+    ...existing,
+    status: 'ready',
+    error: null,
+    updatedAt: new Date().toISOString(),
+    // Track retries the same way the hosted API does so canRetryAiRequest
+    // still applies to local chats after they are resumed.
+    retriedAfterMessagesCount: outputLength,
+    retriesInARowCount: (existing.retriesInARowCount || 0) + 1,
+  };
+  localAiRequestsCache[aiRequestId] = retried;
+  saveLocalAiRequests();
+  return retried;
+};
+
+/**
  * Client-side Fork AI Request.
  */
 export const customForkAiRequest = (

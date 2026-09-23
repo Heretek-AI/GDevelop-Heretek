@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 34,
+  "last_cycle": 35,
   "completed_targets": [
     {
       "cycle": 1,
@@ -199,18 +199,25 @@
       "target": "Stop trusting terminal 'error' event-generation statuses (backlog #2 from the cycle-33 scout)",
       "metric_delta": "generateEvents poll loop previously only special-cased 'suspended'; a terminal 'error' status fell through to generationCompleted: true, handing the consumer an errored (possibly partially-filled) event to apply \u2014 it surfaced at best as a misleading 'no generated events' tool result. Now 'error' returns generationCompleted: false with the event's own error message, which the consumer already maps to an infrastructure failure. Also bounded the previously-unlimited silent poll-retry: 5 consecutive getAiGeneratedEvent failures now fail fast with a clear message instead of burning the full 180s budget and reporting a bogus timeout (counter resets on a successful poll).",
       "commit": "fix(ai): treat terminal event-generation errors as failures"
+    },
+    {
+      "cycle": 35,
+      "target": "Route local-ai lifecycle (update/delete/retry) through local cache + fix summaries shape + allow lifecycle without profile",
+      "metric_delta": "Before: getAiRequestSummaries custom path returned {aiRequests,nextPageUri} but callers spread recentsPage.aiRequestSummaries \u2192 TypeError for custom-endpoint users; update/delete/retry of local-ai-* could hit the hosted API (or no-op without a profile). After: custom summaries map customGetAiRequests() \u2192 {aiRequestSummaries,nextPageUri} (sub-agents excluded, archived/game filters applied); update/delete/retry short-circuit on local-ai-* via customPatchAiRequestAttributes/customDeleteAiRequest/customRetryAiRequest; rename/archive/delete/load/fetch work without a profile when local-ai-* or custom endpoint is enabled (LOCAL_BYOK_USER_ID fallback). canMutateAiRequest is a useCallback dep-clean helper. New Generation.spec.js (5 tests) + CustomAIClient lifecycle tests (5) + context rename/archive/delete tests (2). Gates: ESLint 0 on 7 files, prettier clean, 272/272 AI+AiGeneration+GDevelopServices tests, divergence green (Generation.spec.js recorded forkOnly).",
+      "commit": "fix(ai): route local AI request lifecycle through the local cache"
     }
   ],
   "backlog": [
-    "Watch loop polls local-ai-* ids against the hosted API for logged-in BYOK users (aiRequestShouldBeWatched)",
-    "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)"
+    "Watch loop: getAiRequestStatuses/getAiRequest already route local-ai-*; verify aiRequestShouldBeWatched never forces a hosted status poll when only local ids are watched (cycle-35 summaries/lifecycle fixed)",
+    "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
+    "OnRetryAfterError: consider allowing custom-endpoint ids (non local-ai- prefix) without profile when isCustomEndpointEnabled() \u2014 currently only local-ai- prefix is allowed"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
     "Prefer pure JS/TS mocks for local AI endpoint testing to avoid external network calls during CI",
     "The Edit tool collapsed leading whitespace across 2360 lines of CustomAIClient.js \u2014 for this codebase prefer python-based exact-text replacement for surgical edits in large Flow files; verify with `git diff --stat` that the footprint matches the intended change",
     "LSP diagnostics on Flow files are TS-parser noise (8006/8008/8010) \u2014 use eslint as the source of truth there",
-    "Client is non-streaming (axios POST); SSE-recovery hardening does not apply to current architecture",
+    "SSE is available behind CustomAIConfig.streaming (cycle 27) with non-streaming fallback; recovery hardening should target streamChatCompletion, not assume axios-only",
     "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted",
     "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs",
     "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)",
@@ -222,6 +229,8 @@
     "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it",
     "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD \u2014 compare counts, not grep positions",
     "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes \u2014 the 5003-message benchmark caught a bookkeeping bug the unit tests missed",
-    "eslint --fix resolves import/first ordering automatically \u2014 prefer it over manual import relocation when inserting components mid-file"
+    "eslint --fix resolves import/first ordering automatically \u2014 prefer it over manual import relocation when inserting components mid-file",
+    "axios.create() is automocked to undefined under jest.mock('axios'); Generation hosted paths need a factory mock that returns {get,post,patch,delete} from create()",
+    "seedLocalRequest in Generation.spec uses axios.post once \u2014 clear the post mock before asserting hosted API was not called"
   ]
 }
