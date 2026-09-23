@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 89,
+  "last_cycle": 90,
   "completed_targets": [
     {
       "cycle": 75,
@@ -530,6 +530,12 @@
       "target": "Charge whole tool calls in the message estimate",
       "metric_delta": "414->417 tests; estimateMessagesTokens counted only tool_calls[].function.arguments, ignoring the tool name, the call id, and the tool_call_id echoed back on role:'tool' replies. Measured over 30 tool exchanges the estimate was 150 tokens against a true 810 - an 81.5% under-count, because the tool names here are long (change_scene_properties_layers_effects_groups). The prompt therefore read as comfortably inside the budget while the request was over it, and the trims meant to prevent that never fired. All four fields are now counted; 2 files, +78/-9",
       "commit": "fix(ai): charge whole tool calls in the message estimate"
+    },
+    {
+      "cycle": 90,
+      "target": "Bill reasoning output in the local cost meter",
+      "metric_delta": "417->419 tests; all three addTokenUsage call sites passed estimateTokens(assistantResponse.content), so streamed reasoning_content was never added to the per-chat token total. Since cycle 80 the stream carries that field, and a reasoning model can spend most of its output on it, so the local cost meter under-reported exactly the models whose usage users watch for. completionOutputTokens totals content + reasoning_content and every call site uses it. The test is differential (same turn with and without a reasoning delta) because the ~220-token system prompt dominates the absolute total and a flat threshold passed both before and after. 2 files, +112/-3",
+      "commit": "fix(ai): bill reasoning output in the local cost meter"
     }
   ],
   "backlog": [
@@ -639,6 +645,7 @@
     "A deterministic stream failure must not trigger the non-streaming fallback (same as isStreamTimeout): flag it (isOutputBudgetExhausted) and rethrow, or the user waits a second full timeout for an identical failure.",
     "A streaming client must not assume a 200 response is SSE: a proxy that ignores stream:true returns a JSON completion, which yields no data: lines and looks like an empty stream. Check the content type before parsing, and keep the non-JSON case on the normal fallback path.",
     "estimateMessagesTokens must count every field the model receives: tool name, call id and tool_call_id were omitted, under-counting a tool-heavy transcript by 81%. When adding a field to an outgoing message, add it to the estimator in the same change.",
-    "Before fixing a suspected race, confirm the operations can overlap: sub-agent turns are awaited sequentially in the spawn loop, so the shared parent partialContent key is safe to clear there, and scoping the cleanup to the child id would have left the parent key stale (permanently suppressing the cold-start hint). I reverted that change."
+    "Before fixing a suspected race, confirm the operations can overlap: sub-agent turns are awaited sequentially in the spawn loop, so the shared parent partialContent key is safe to clear there, and scoping the cleanup to the child id would have left the parent key stale (permanently suppressing the cold-start hint). I reverted that change.",
+    "A cost/usage meter must total every field a completion returns: reasoning_content was omitted after cycle 80 started carrying it. Pin such accounting with a differential test (run the same turn with and without the field) — an absolute threshold is swamped by the system prompt and passes either way."
   ]
 }

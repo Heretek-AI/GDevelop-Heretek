@@ -348,6 +348,18 @@ const noteSystemCompactedIfChanged = (
  */
 const localAiRequestTokenTotals: { [id: string]: number } = {};
 
+/**
+ * Tokens a completion billed for: its answer plus any chain of thought.
+ *
+ * A reasoning model can spend most of its output on `reasoning_content`
+ * (cycle 80 made the stream carry it), so counting only `content` would under-
+ * report the local cost meter for exactly the models whose usage users watch.
+ * A non-streamed reply carries the same field, so both paths total the same.
+ */
+const completionOutputTokens = (response: Object): number =>
+  estimateTokens(response && response.content) +
+  estimateTokens(response && response.reasoning_content);
+
 const addTokenUsage = (
   aiRequestId: string,
   promptTokens: number,
@@ -3463,7 +3475,7 @@ export const customCreateAiRequest = async ({
   addTokenUsage(
     reqId,
     estimateMessagesTokens(budgetedMessages),
-    estimateTokens(assistantResponse.content)
+    completionOutputTokens(assistantResponse)
   );
 
   const now = new Date().toISOString();
@@ -3665,7 +3677,7 @@ export const customAddMessageToAiRequest = async ({
     addTokenUsage(
       aiRequestId,
       estimateMessagesTokens(budgetedMessages),
-      estimateTokens(assistantResponse.content)
+      completionOutputTokens(assistantResponse)
     );
 
     const assistantMsgId = `msg-asst-${Date.now()}`;
@@ -3821,7 +3833,7 @@ export const customCreateSubAgentAiRequest = async ({
     addTokenUsage(
       parentAiRequestId || reqId,
       estimateMessagesTokens(budgetedMessages),
-      estimateTokens(assistantResponse.content)
+      completionOutputTokens(assistantResponse)
     );
 
     const assistantMessage = parseAssistantMessage(

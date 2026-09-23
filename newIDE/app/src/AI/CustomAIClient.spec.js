@@ -3700,6 +3700,103 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('local cost meter counts reasoning output', () => {
+    it('bills a streamed chain of thought, not only the answer', async () => {
+      // Differential: run the same create twice, once with a reasoning delta
+      // and once without. The prompt (a ~220-token system message) dominates
+      // the absolute total, so only the *difference* proves reasoning is
+      // billed — a flat threshold passed with and without the fix.
+      const runCreate = async (withReasoning: boolean) => {
+        const encoder = new TextEncoder();
+        const reasoningText = 'Reasoning '.repeat(40); // ~100 tokens
+        const lines = [];
+        if (withReasoning) {
+          lines.push(
+            'data: ' +
+              JSON.stringify({
+                choices: [{ delta: { reasoning_content: reasoningText } }],
+              }) +
+              '\n'
+          );
+        }
+        lines.push(
+          'data: ' +
+            JSON.stringify({ choices: [{ delta: { content: 'Done.' } }] }) +
+            '\n',
+          'data: ' +
+            JSON.stringify({
+              choices: [{ delta: {}, finish_reason: 'stop' }],
+            }) +
+            '\n',
+          'data: [DONE]\n'
+        );
+        const sse = lines.join('');
+        let readCount = 0;
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          headers: { get: () => 'text/event-stream' },
+          body: {
+            getReader: () => ({
+              read: async () => {
+                readCount += 1;
+                if (readCount === 1) {
+                  return { done: false, value: encoder.encode(sse) };
+                }
+                return { done: true, value: undefined };
+              },
+            }),
+          },
+        });
+        const created = await customCreateAiRequest({
+          userRequest: 'start',
+          mode: 'chat',
+        });
+        return {
+          total: customGetAiRequestTokenTotal(created.id),
+          reasoningTokens: estimateTokens(reasoningText),
+        };
+      };
+
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'deepseek-r1',
+        temperature: 0.7,
+        streaming: true,
+      });
+
+      const withReasoning = await runCreate(true);
+      const without = await runCreate(false);
+
+      // Identical prompt and answer: the only difference is the chain of
+      // thought, which must be billed.
+      expect(withReasoning.total - without.total).toBe(
+        withReasoning.reasoningTokens
+      );
+    });
+
+    it('still counts a plain answer with no reasoning', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            { message: { role: 'assistant', content: 'x'.repeat(400) } },
+          ],
+        },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      expect(customGetAiRequestTokenTotal(created.id)).toBeGreaterThan(
+        estimateTokens('x'.repeat(400))
+      );
+    });
+  });
+
   describe('message estimate counts whole tool calls', () => {
     it('charges the tool name and call id, not only the arguments', () => {
       // A tool call costs more than its arguments: the model also receives the
