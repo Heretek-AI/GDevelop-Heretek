@@ -12,11 +12,17 @@ import { type EditorFunctionCallResult } from '../EditorFunctions';
 import { type RelatedAiRequestLastMessages } from '../EditorFunctions';
 
 /** The text typed by the user in one of their messages. */
-export const getUserRequestText = (message: AiRequestUserMessage): string =>
-  message.content
-    .filter(content => content.type === 'user_request')
-    .map(content => content.text)
+export const getUserRequestText = (message: AiRequestUserMessage): string => {
+  // `content` comes from the server unvalidated (a hosted summary carries the
+  // raw first message). A payload missing it, or holding a non-array, would
+  // throw here and take the chat list down with it, so tolerate both.
+  const content = message && message.content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter(item => item && item.type === 'user_request' && item.text)
+    .map(item => item.text)
     .join(' ');
+};
 
 /**
  * The name of a chat: the title the user gave to it, or its first message

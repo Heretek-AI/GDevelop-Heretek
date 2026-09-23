@@ -1,5 +1,7 @@
 // @flow
 import {
+  getUserRequestText,
+  getAiRequestSummaryTitle,
   getAllSubAgentFunctionCalls,
   getFunctionCallsToProcess,
   getPendingSubAgentFunctionCalls,
@@ -580,5 +582,112 @@ describe('canStartAiRequestCreate', () => {
   it('allows local/BYOK create without a profile when the endpoint is on', () => {
     expect(canStartAiRequestCreate(null, true)).toBe(true);
     expect(canStartAiRequestCreate(undefined, true)).toBe(true);
+  });
+});
+
+describe('getUserRequestText', () => {
+  const userMessage = text => ({
+    type: 'message',
+    status: 'completed',
+    role: 'user',
+    content: [{ type: 'user_request', status: 'completed', text }],
+  });
+
+  it('reads the user request text', () => {
+    expect(getUserRequestText((userMessage('Add a player'): any))).toBe(
+      'Add a player'
+    );
+  });
+
+  it('joins multiple user_request entries', () => {
+    expect(
+      getUserRequestText(
+        ({
+          type: 'message',
+          status: 'completed',
+          role: 'user',
+          content: [
+            { type: 'user_request', status: 'completed', text: 'one' },
+            { type: 'user_request', status: 'completed', text: 'two' },
+          ],
+        }: any)
+      )
+    ).toBe('one two');
+  });
+
+  it('returns empty for a message without a content array', () => {
+    // A hosted summary carries the raw first message; a payload missing
+    // `content` used to throw here, which would take the chat list down.
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getUserRequestText(({ type: 'message', role: 'user' }: any))).toBe(
+      ''
+    );
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getUserRequestText(({ content: null }: any))).toBe('');
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getUserRequestText(({ content: 'nope' }: any))).toBe('');
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getUserRequestText((null: any))).toBe('');
+  });
+
+  it('ignores entries that are not user requests or lack text', () => {
+    expect(
+      getUserRequestText(
+        ({
+          type: 'message',
+          status: 'completed',
+          role: 'user',
+          content: [
+            null,
+            { type: 'output_text', status: 'completed', text: 'answer' },
+            { type: 'user_request', status: 'completed' },
+            { type: 'user_request', status: 'completed', text: 'real' },
+          ],
+        }: any)
+      )
+    ).toBe('real');
+  });
+});
+
+describe('getAiRequestSummaryTitle', () => {
+  it('prefers the given title', () => {
+    expect(
+      getAiRequestSummaryTitle(
+        ({
+          title: 'My chat',
+          firstUserMessage: null,
+        }: any)
+      )
+    ).toBe('My chat');
+  });
+
+  it('falls back to the first message when there is no title', () => {
+    expect(
+      getAiRequestSummaryTitle(
+        ({
+          title: null,
+          firstUserMessage: {
+            type: 'message',
+            status: 'completed',
+            role: 'user',
+            content: [
+              { type: 'user_request', status: 'completed', text: 'From msg' },
+            ],
+          },
+        }: any)
+      )
+    ).toBe('From msg');
+  });
+
+  it('returns empty rather than throwing on a malformed first message', () => {
+    expect(
+      getAiRequestSummaryTitle(
+        ({
+          title: null,
+          // $FlowFixMe deliberately malformed for the guard.
+          firstUserMessage: { type: 'message', role: 'user' },
+        }: any)
+      )
+    ).toBe('');
   });
 });
