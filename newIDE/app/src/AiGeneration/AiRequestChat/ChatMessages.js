@@ -51,7 +51,10 @@ import { getSubscriptionPlanToUpsell } from '../../Profile/Subscription/Subscrip
 import PreferencesContext from '../../MainFrame/Preferences/PreferencesContext';
 import { CreditsPackageStoreContext } from '../../AssetStore/CreditsPackages/CreditsPackageStoreContext';
 import RobotIcon from '../../ProjectCreation/RobotIcon';
-import { isCustomEndpointEnabled } from '../../AI/CustomAIClient';
+import {
+  isCustomEndpointEnabled,
+  customGetAiRequestContextTrimCount,
+} from '../../AI/CustomAIClient';
 import CheckCircle from '@material-ui/icons/CheckCircle';
 import Link from '../../UI/Link';
 import { type FileMetadata } from '../../ProjectsStorage';
@@ -1251,6 +1254,22 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
             return [];
           })
           .filter(Boolean)}
+
+        {customGetAiRequestContextTrimCount(aiRequest.id) > 0 && !isWorking ? (
+          <Line justifyContent="flex-start">
+            <Text
+              noMargin
+              displayInlineAsSpan
+              size="body-small"
+              color="secondary"
+            >
+              <Trans>
+                Older messages were trimmed to fit the AI model's context
+                window.
+              </Trans>
+            </Text>
+          </Line>
+        ) : null}
 
         {aiRequest.status === 'error' ? (
           <Line justifyContent="flex-start">

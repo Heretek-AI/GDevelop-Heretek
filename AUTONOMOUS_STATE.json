@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 12,
+  "last_cycle": 13,
   "completed_targets": [
     {
       "cycle": 1,
@@ -67,12 +67,17 @@
       "target": "Sanitize persisted custom-AI config on load (localStorage trust boundary)",
       "metric_delta": "Before: getCustomEndpointConfig spread raw localStorage JSON over defaults \u2014 a mistyped/corrupt entry (temperature: 42, customHeaders: [..], timeoutMs: 'fast') flowed straight into request building and header construction. After: every field coerced to its declared type on load (booleans strict, strings type-checked, temperature clamped to [0,1], positive-number guards on timeoutMs/maxTokens, customHeaders filtered to string->string entries); corrupt JSON still falls back to defaults. Full suite baseline also established this cycle: 176 suites / 1944 tests, all passing. 3 new tests; 52/52 module green.",
       "commit": "fix(ai): sanitize persisted custom-AI config on load"
+    },
+    {
+      "cycle": 13,
+      "target": "Surface history trimming in the AI chat UI",
+      "metric_delta": "Before: context trims were console.warn-only \u2014 users had no explanation when the agent 'forgot' old exchanges. After: trims are counted per request in a fork-only in-memory registry (customGetAiRequestContextTrimCount; sub-agent trims attributed to the parent chat), and ChatMessages renders a secondary note 'Older messages were trimmed to fit the AI model's context window.' when the count is non-zero and the chat is not working. New test proves trims are recorded against the parent chat id and reset with client state; 53/53 green, flow clean, dev+prod compiles green.",
+      "commit": "feat(ai): surface context trimming in the AI chat"
     }
   ],
   "backlog": [
     "Add timeoutMs field to the custom-AI preferences dialog UI (config currently localStorage-only)",
     "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
-    "Surface trimmed-message count in the AI chat UI instead of console.warn only",
     "Per-tool JSON Schema validation of tool arguments against GDEVELOP_OPENAI_TOOLS parameter definitions"
   ],
   "heuristics": [

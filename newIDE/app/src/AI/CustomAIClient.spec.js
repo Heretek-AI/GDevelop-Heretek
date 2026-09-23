@@ -33,6 +33,7 @@ import {
   estimateMessagesTokens,
   trimMessagesToBudget,
   validateToolCallArguments,
+  customGetAiRequestContextTrimCount,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -498,6 +499,56 @@ describe('CustomAIClient', () => {
       // No orphan tool messages remain.
       expect(trimmed.filter(m => m.role === 'tool')).toEqual([]);
       expect(trimmed[0]).toBe(system);
+    });
+  });
+
+  describe('context trim count surfacing', () => {
+    it('records trims against the parent chat and resets on reset', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'orchestrate',
+      });
+
+      // Build enough history that trimming has something to drop: a huge
+      // user turn (~25k estimated tokens) answered by the model.
+      const bigRequest = 'x'.repeat(100000);
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'done' } }],
+        },
+      });
+      await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: bigRequest,
+      });
+
+      // Now the next turn replays that huge history: it must be trimmed.
+      axios.post.mockImplementationOnce(
+        (url, body, options) =>
+          new Promise((resolve, reject) => {
+            options.signal.addEventListener('abort', () =>
+              reject(new Error('canceled'))
+            );
+          })
+      );
+      const pending = customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: 'continue',
+      });
+      await new Promise(r => setTimeout(r, 50));
+      customSuspendAiRequest(created.id);
+      // The chat-turn path absorbs a user-initiated stop: it resolves with
+      // the suspended request instead of rejecting.
+      const stopped = await pending;
+      expect(stopped.status).toBe('suspended');
+
+      expect(customGetAiRequestContextTrimCount(created.id)).toBeGreaterThan(0);
+      _resetCustomAiClientForTesting();
+      expect(customGetAiRequestContextTrimCount(created.id)).toBe(0);
     });
   });
 

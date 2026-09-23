@@ -207,6 +207,17 @@ const localAiRequestAbortControllers: {
   |},
 } = {};
 
+/**
+ * Number of history messages trimmed to fit the context budget, per request:
+ * the chat UI surfaces this so users understand why the agent may have
+ * "forgotten" old exchanges.
+ */
+const localAiRequestTrimCounts: { [id: string]: number } = {};
+
+export const customGetAiRequestContextTrimCount = (
+  aiRequestId: string
+): number => localAiRequestTrimCounts[aiRequestId] || 0;
+
 const registerTurnAbortController = (
   aiRequestId: string,
   parentAiRequestId?: string | null
@@ -390,6 +401,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestAbortControllers)) {
     delete localAiRequestAbortControllers[key];
+  }
+  for (const key of Object.keys(localAiRequestTrimCounts)) {
+    delete localAiRequestTrimCounts[key];
   }
   for (const key of Object.keys(localAiTurnTails)) {
     delete localAiTurnTails[key];
@@ -2583,9 +2597,11 @@ export const customAddMessageToAiRequest = async ({
       getTokenBudget(getCustomEndpointConfig())
     );
     if (budgetedMessages.length < openAiMessages.length) {
+      const trimmedCount = openAiMessages.length - budgetedMessages.length;
+      localAiRequestTrimCounts[aiRequestId] =
+        (localAiRequestTrimCounts[aiRequestId] || 0) + trimmedCount;
       console.warn(
-        `[CustomAIClient] Trimmed ${openAiMessages.length -
-          budgetedMessages.length} old message(s) to fit the model context budget.`
+        `[CustomAIClient] Trimmed ${trimmedCount} old message(s) to fit the model context budget.`
       );
     }
 
@@ -2716,6 +2732,15 @@ export const customCreateSubAgentAiRequest = async ({
       openAiMessages,
       getTokenBudget(getCustomEndpointConfig())
     );
+    if (budgetedMessages.length < openAiMessages.length) {
+      const trimmedCount = openAiMessages.length - budgetedMessages.length;
+      const countKey = parentAiRequestId || reqId;
+      localAiRequestTrimCounts[countKey] =
+        (localAiRequestTrimCounts[countKey] || 0) + trimmedCount;
+      console.warn(
+        `[CustomAIClient] Trimmed ${trimmedCount} old message(s) to fit the model context budget.`
+      );
+    }
 
     const abortController = registerTurnAbortController(
       reqId,
