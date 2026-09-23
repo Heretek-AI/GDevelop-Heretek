@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 93,
+  "last_cycle": 94,
   "completed_targets": [
     {
       "cycle": 75,
@@ -554,6 +554,12 @@
       "target": "Show a reasoning model's chain of thought in the chat",
       "metric_delta": "420->424 tests; parseAssistantMessage extracted `thinking` from reasoning_content (and from  blocks) but emitted it only as a top-level field, while the message's `content` array carried text and function calls. No component read `.thinking`, so a reasoning model's chain of thought was computed on every turn and then discarded; ChatMessages already had a `type === 'reasoning'` render branch that nothing could ever reach. The reasoning entry is now emitted first in `content` (thinking precedes the answer), so the existing branch renders it — including for a turn that stopped after thinking, where it is the only visible content. 2 files, +79/-0",
       "commit": "fix(ai): show a reasoning model's thinking in the chat"
+    },
+    {
+      "cycle": 94,
+      "target": "Emit the answer type the chat actually renders",
+      "metric_delta": "424->426 tests; parseAssistantMessage pushed the local assistant answer as type:'text', but ChatMessages renders only 'output_text' and 'reasoning' and returns null for anything else, RenderItem.messageContent's union admits only those two, and FinalizeSubAgents reads 'output_text' as the server shape ('text' only as a local special case). The BYOK path's own answer text therefore hit `return null` and rendered as nothing. Found by applying cycle 93's heuristic (a UI branch with no producer) to the sibling type list. Now emits 'output_text' with annotations, keeping the top-level `text` FinalizeSubAgents falls back to; 2 files, +8/-1 plus test updates",
+      "commit": "fix(ai): emit the answer type the chat actually renders"
     }
   ],
   "backlog": [
@@ -667,6 +673,7 @@
     "A cost/usage meter must total every field a completion returns: reasoning_content was omitted after cycle 80 started carrying it. Pin such accounting with a differential test (run the same turn with and without the field) — an absolute threshold is swamped by the system prompt and passes either way.",
     "JS object key order is insertion order: writing to an existing key does not move it. Any recency cap over Object.keys must sort by the timestamp the rest of the app uses (updatedAt here), or continuing an old entry evicts the newest ones.",
     "Dead render branches reveal dropped data: ChatMessages had a `type === 'reasoning'` case that no producer ever satisfied, because parseAssistantMessage kept `thinking` in a top-level field no component read. When a UI branch has no matching producer, check whether the data is being discarded upstream rather than assuming it is used elsewhere.",
-    "In this spec file, build  tags with String.fromCharCode(60) + 'think>' as the existing fixtures do — a literal angle bracket in a prompt/attachment round trip can arrive stripped, which silently changes what the test feeds the parser."
+    "In this spec file, build  tags with String.fromCharCode(60) + 'think>' as the existing fixtures do — a literal angle bracket in a prompt/attachment round trip can arrive stripped, which silently changes what the test feeds the parser.",
+    "Cycle-93 tests asserted type:'text' and passed — a test written from the implementation encodes the bug instead of catching it. When a value must satisfy a consumer contract, assert against the consumer's own union (RenderItem.messageContent allows only 'output_text' | 'reasoning'), not what the producer happens to emit."
   ]
 }

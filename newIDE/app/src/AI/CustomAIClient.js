@@ -3188,9 +3188,15 @@ export const parseAssistantMessage = (
   }
   if (cleanContent) {
     contentArray.push({
-      type: 'text',
+      // 'output_text' is the type every consumer expects: ChatMessages renders
+      // only that (and 'reasoning'), RenderItem's messageContent union admits
+      // only those two, and FinalizeSubAgents reads it as the server's shape.
+      // The local parser emitted 'text', which no branch handles, so the
+      // assistant's own answer rendered as nothing.
+      type: 'output_text',
       status: 'completed',
       text: cleanContent,
+      annotations: [],
     });
   }
 

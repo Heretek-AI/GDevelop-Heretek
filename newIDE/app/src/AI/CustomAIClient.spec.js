@@ -3772,6 +3772,33 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('local answers use the type the chat renders', () => {
+    it('emits output_text, not text, for the assistant answer', () => {
+      // ChatMessages renders only `output_text` and `reasoning`, and
+      // RenderItem's messageContent union admits only those two. The local
+      // parser emitted `text`, which hit `return null` — the assistant's own
+      // answer rendered as nothing at all in a BYOK chat.
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: 'Here is the answer.',
+      });
+      expect(message.content).toHaveLength(1);
+      expect(message.content[0].type).toBe('output_text');
+      expect(message.content[0].text).toBe('Here is the answer.');
+      // The union the renderer uses does not include 'text' at all.
+      expect(message.content.some(item => item.type === 'text')).toBe(false);
+    });
+
+    it('keeps the plain-text top-level field as well', () => {
+      // FinalizeSubAgents falls back to message.text, so it must stay.
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: 'Report body.',
+      });
+      expect(message.text).toBe('Report body.');
+    });
+  });
+
   describe('reasoning is emitted as rendered content', () => {
     it('puts the reasoning entry before the answer text', () => {
       // The chat renders content in order and the chat UI's `reasoning`
@@ -3790,9 +3817,12 @@ describe('CustomAIClient', () => {
         summary: { text: 'Let me plan the scene.', type: 'summary_text' },
       });
       expect(message.content[1]).toEqual({
-        type: 'text',
+        // 'output_text' is what ChatMessages renders and what RenderItem
+        // admits; 'text' was handled by no branch, so the answer vanished.
+        type: 'output_text',
         status: 'completed',
         text: 'Here is the answer.',
+        annotations: [],
       });
     });
 
@@ -3808,9 +3838,10 @@ describe('CustomAIClient', () => {
       expect(message.content[0].type).toBe('reasoning');
       expect(message.content[0].summary.text).toBe('Working it out.');
       expect(message.content[1]).toEqual({
-        type: 'text',
+        type: 'output_text',
         status: 'completed',
         text: 'Result.',
+        annotations: [],
       });
     });
 
