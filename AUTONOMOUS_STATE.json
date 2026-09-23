@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 33,
+  "last_cycle": 34,
   "completed_targets": [
     {
       "cycle": 1,
@@ -193,10 +193,15 @@
       "target": "Stop button works for local BYOK requests (was a silent no-op)",
       "metric_delta": "Before: suspendAiRequest early-returned when no profile existed \u2014 the common Heretek local session \u2014 so clicking Stop (or refusing an inline edit) did nothing: no suspended status, no cache write, and the agent loop kept running; with a profile it additionally sent 'local-ai-*' ids to the hosted API (unhandled rejection could abort editor close). After: local-ai-* requests are suspended via customSuspendAiRequest (which also aborts their in-flight model turn) before any hosted call; the hosted apiSuspendAiRequest is wrapped so its failure never escapes into requestClose. Provider test added: local request suspended in cache, hosted API untouched; 17/17 context suite green.",
       "commit": "fix(ai): suspend local BYOK requests on Stop"
+    },
+    {
+      "cycle": 34,
+      "target": "Stop trusting terminal 'error' event-generation statuses (backlog #2 from the cycle-33 scout)",
+      "metric_delta": "generateEvents poll loop previously only special-cased 'suspended'; a terminal 'error' status fell through to generationCompleted: true, handing the consumer an errored (possibly partially-filled) event to apply \u2014 it surfaced at best as a misleading 'no generated events' tool result. Now 'error' returns generationCompleted: false with the event's own error message, which the consumer already maps to an infrastructure failure. Also bounded the previously-unlimited silent poll-retry: 5 consecutive getAiGeneratedEvent failures now fail fast with a clear message instead of burning the full 180s budget and reporting a bogus timeout (counter resets on a successful poll).",
+      "commit": "fix(ai): treat terminal event-generation errors as failures"
     }
   ],
   "backlog": [
-    "generateEvents poll loop reports terminal 'error' status as generationCompleted: true (UseGenerateEvents.js:154-190)",
     "Watch loop polls local-ai-* ids against the hosted API for logged-in BYOK users (aiRequestShouldBeWatched)",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)"
   ],

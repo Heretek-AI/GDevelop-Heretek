@@ -150,6 +150,8 @@ export const useGenerateEvents = ({
         const maxPollIntervalMs = 5000;
         const startTime = Date.now();
         let pollIntervalMs = 1000;
+        let consecutivePollFailures = 0;
+        const maxConsecutivePollFailures = 5;
         let aiGeneratedEvent = createResult.aiGeneratedEvent;
         while (aiGeneratedEvent.status === 'working') {
           await delay(pollIntervalMs);
@@ -162,11 +164,23 @@ export const useGenerateEvents = ({
                 aiGeneratedEventId: aiGeneratedEvent.id,
               }
             );
+            consecutivePollFailures = 0;
           } catch (error) {
+            consecutivePollFailures++;
             console.warn(
               'Error while checking status of AI generated event - continuing...',
               error
             );
+            // A permanent failure (permissions revoked, event purged) would
+            // otherwise be retried silently until the whole time budget
+            // burned, surfacing as a misleading timeout.
+            if (consecutivePollFailures >= maxConsecutivePollFailures) {
+              return {
+                generationCompleted: false,
+                errorMessage:
+                  'Lost contact with the AI event generation service (repeated failures while checking the status).',
+              };
+            }
           }
           pollIntervalMs = getBackedOffIntervalInMs(
             pollIntervalMs,
@@ -184,6 +198,18 @@ export const useGenerateEvents = ({
         if (aiGeneratedEvent.status === 'suspended') {
           return {
             generationAborted: true,
+          };
+        }
+
+        // A terminal 'error' status is an infrastructure failure, not a
+        // successful generation: reporting it as completed would hand the
+        // consumer an errored (possibly partially-filled) event to apply.
+        if (aiGeneratedEvent.status === 'error') {
+          return {
+            generationCompleted: false,
+            errorMessage:
+              (aiGeneratedEvent.error && aiGeneratedEvent.error.message) ||
+              'The AI event generation failed.',
           };
         }
 
