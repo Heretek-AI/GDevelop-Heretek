@@ -625,7 +625,9 @@ export const createAiRequest = async (
     toolsVersion: string,
   |}
 ): Promise<AiRequest> => {
-  if (isCustomEndpointEnabled()) {
+  // Offline BYOK (local-byok-user) must create locally even if the endpoint
+  // toggle was flipped off after the session started.
+  if (isCustomEndpointEnabled() || (userId && userId.startsWith('local-'))) {
     return customCreateAiRequest({
       userRequest,
       gameProjectJson,
@@ -1042,7 +1044,13 @@ export const createAiGeneratedEvent = async (
     estimatedComplexity: number | null,
   |}
 ): Promise<CreateAiGeneratedEventResult> => {
-  if (isCustomEndpointEnabled()) {
+  // Local chats (local-ai-*) and offline BYOK users must not hit the hosted
+  // event-generation API when the endpoint toggle is off (mixed history).
+  if (
+    isCustomEndpointEnabled() ||
+    (userId && userId.startsWith('local-')) ||
+    (relatedAiRequestId && relatedAiRequestId.startsWith('local-ai-'))
+  ) {
     return customCreateAiGeneratedEvent({
       sceneName,
       eventsDescription,
@@ -1188,7 +1196,11 @@ export const createAssetSearch = async (
     lastAssistantMessages?: string[],
   |}
 ): Promise<AssetSearch> => {
-  if (isCustomEndpointEnabled()) {
+  if (
+    isCustomEndpointEnabled() ||
+    (userId && userId.startsWith('local-')) ||
+    (relatedAiRequestId && relatedAiRequestId.startsWith('local-ai-'))
+  ) {
     return customCreateAssetSearch({ searchTerms, objectType });
   }
 
@@ -1233,7 +1245,7 @@ export const createResourceSearch = async (
     resourceKind: string,
   |}
 ): Promise<ResourceSearch> => {
-  if (isCustomEndpointEnabled()) {
+  if (isCustomEndpointEnabled() || (userId && userId.startsWith('local-'))) {
     return customCreateResourceSearch({ searchTerms, resourceKind });
   }
 

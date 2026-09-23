@@ -7,6 +7,10 @@ import {
   deleteAiRequest,
   retryAiRequest,
   sendAiRequestFeedback,
+  createAiRequest,
+  createAssetSearch,
+  createResourceSearch,
+  createAiGeneratedEvent,
 } from './Generation';
 import {
   setCustomEndpointConfig,
@@ -329,5 +333,137 @@ describe('Generation local-ai lifecycle routing', () => {
     const ids = page.aiRequestSummaries.map(summary => summary.id);
     expect(ids).toContain(local.id);
     expect(page.nextPageUri).toBe(null);
+  });
+
+  it('creates a local chat when userId is local-* even with the endpoint toggle off', async () => {
+    // $FlowFixMe
+    axios.post.mockClear();
+    // $FlowFixMe
+    axios.post.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        choices: [{ message: { role: 'assistant', content: 'hi' } }],
+      },
+    });
+
+    const created = await createAiRequest(authHeader, {
+      userId: 'local-byok-user',
+      userRequest: 'Hello',
+      gameProjectJson: null,
+      gameProjectJsonUserRelativeKey: null,
+      projectSpecificExtensionsSummaryJson: null,
+      projectSpecificExtensionsSummaryJsonUserRelativeKey: null,
+      payWithCredits: false,
+      mode: 'chat',
+      aiConfiguration: { presetId: 'default' },
+      gameId: null,
+    });
+    expect(created.id).toMatch(/^local-ai-/);
+    // $FlowFixMe — shared axios/apiClient mock: only the model endpoint may fire.
+    const urls = axios.post.mock.calls.map(call => String(call[0]));
+    expect(urls.some(url => url.includes('/chat/completions'))).toBe(true);
+    expect(urls.some(url => url.includes('/ai-request'))).toBe(false);
+  });
+
+  it('returns a local asset search for a local-* userId with the endpoint toggle off', async () => {
+    const post = (apiClient: any).post;
+    if (typeof post === 'function') post.mockReset();
+
+    const assetSearch = await createAssetSearch(authHeader, {
+      userId: 'local-byok-user',
+      searchTerms: 'sprite',
+      objectType: 'sprite',
+    });
+    expect(assetSearch.id).toMatch(/^local-asset-search-/);
+    if (typeof post === 'function') expect(post).not.toHaveBeenCalled();
+  });
+
+  it('returns a local resource search for a local-* userId with the endpoint toggle off', async () => {
+    const post = (apiClient: any).post;
+    if (typeof post === 'function') post.mockReset();
+
+    const resourceSearch = await createResourceSearch(authHeader, {
+      userId: 'local-byok-user',
+      searchTerms: 'player.png',
+      resourceKind: 'image',
+    });
+    expect(resourceSearch.id).toMatch(/^local-resource-search-/);
+    if (typeof post === 'function') expect(post).not.toHaveBeenCalled();
+  });
+
+  it('generates events from a local chat without calling the hosted event API', async () => {
+    // $FlowFixMe
+    axios.post.mockClear();
+    // $FlowFixMe — Local event generation calls the model endpoint only.
+    axios.post.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: JSON.stringify({
+                operationName: 'insert',
+                operationTargetEvent: null,
+                generatedEvents: '[]',
+                diagnosticLines: [],
+                undeclaredVariables: [],
+                undeclaredObjectVariables: {},
+                missingObjectBehaviors: {},
+                missingResources: [],
+              }),
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await createAiGeneratedEvent(authHeader, {
+      userId: 'user-1',
+      gameProjectJson: null,
+      gameProjectJsonUserRelativeKey: null,
+      projectSpecificExtensionsSummaryJson: null,
+      projectSpecificExtensionsSummaryJsonUserRelativeKey: null,
+      scope: { type: 'scene', scene_name: 'Scene' },
+      functionName: null,
+      sceneName: 'Scene',
+      eventsDescription: 'spawn player',
+      eventBatches: null,
+      extensionNamesList: '',
+      objectsList: '',
+      existingEventsJson: null,
+      existingEventsJsonUserRelativeKey: null,
+      placementHint: null,
+      relatedAiRequestId: 'local-ai-from-chat',
+      estimatedComplexity: null,
+    });
+    expect(result.creationSucceeded).toBe(true);
+    // $FlowFixMe — shared axios/apiClient mock: assert on URLs.
+    const urls = axios.post.mock.calls.map(call => String(call[0]));
+    expect(urls.some(url => url.includes('/chat/completions'))).toBe(true);
+    expect(urls.some(url => url.includes('/ai-generated-event'))).toBe(false);
+  });
+
+  it('still hits the hosted asset-search API for a non-local userId when the endpoint is off', async () => {
+    const post = (apiClient: any).post;
+    if (typeof post === 'function') {
+      post.mockReset();
+      post.mockResolvedValueOnce({
+        data: { id: 'hosted-asset-1', results: [] },
+        status: 200,
+        headers: {},
+      });
+    }
+
+    const assetSearch = await createAssetSearch(authHeader, {
+      userId: 'user-1',
+      searchTerms: 'sprite',
+      objectType: 'sprite',
+    });
+    expect(assetSearch.id).toBe('hosted-asset-1');
+    if (typeof post === 'function') {
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post.mock.calls[0][0]).toBe('/asset-search');
+    }
   });
 });
