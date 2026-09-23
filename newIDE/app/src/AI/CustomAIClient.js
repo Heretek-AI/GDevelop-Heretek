@@ -2790,6 +2790,17 @@ const streamChatCompletion = async ({
       .map(index => toolCalls[index])
       .filter(toolCall => toolCall && toolCall.function.name);
 
+    if (finishReason === 'length' && !content) {
+      // A reasoner that ran out of output budget has already spent it on
+      // its thinking: blaming a dropped connection would send the user to
+      // debug their network when the fix is to raise the output limit.
+      // $FlowFixMe[prop-missing] flag read by sendChatCompletion below.
+      const budgetError: any = new Error(
+        'The model used its whole output budget before writing an answer. Raise the max output tokens in the AI preferences, or ask for a shorter answer.'
+      );
+      budgetError.isOutputBudgetExhausted = true;
+      throw budgetError;
+    }
     if (
       !content &&
       toolCallsArray.length === 0 &&
@@ -2925,6 +2936,10 @@ export const sendChatCompletion = async ({
       // double the stall. Surface the timeout immediately with its guidance.
       // $FlowFixMe[prop-missing] optional flag set by streamChatCompletion.
       if (streamError && streamError.isStreamTimeout) throw streamError;
+      // Deterministic: the same budget applies to a non-streaming retry, which
+      // would only double the wait before failing identically.
+      // $FlowFixMe[prop-missing] flag set by streamChatCompletion.
+      if (streamError && streamError.isOutputBudgetExhausted) throw streamError;
       // Some endpoints reject streaming or drop mid-stream; a single
       // non-streaming retry keeps the turn alive at worst-case latency.
       console.warn(

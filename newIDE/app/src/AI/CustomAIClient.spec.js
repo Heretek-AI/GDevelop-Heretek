@@ -1724,6 +1724,53 @@ describe('CustomAIClient', () => {
       expect(axios.post).not.toHaveBeenCalled();
     });
 
+    it('blames the output budget, not the network, when reasoning was truncated', async () => {
+      const encoder = new TextEncoder();
+      const sse = [
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: { reasoning_content: 'thinking...' } }],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: {}, finish_reason: 'length' }],
+          }) +
+          '\n',
+        'data: [DONE]\n',
+      ].join('');
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(sse) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      // Capture the message once: the fetch mock yields a single stream.
+      let thrownMessage = '';
+      try {
+        await sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: streamConfig,
+        });
+      } catch (error) {
+        thrownMessage = error.message;
+      }
+      expect(thrownMessage).toMatch(/output tokens/);
+      // The misleading network diagnosis must be gone.
+      expect(thrownMessage).not.toMatch(/dropped mid-stream/);
+    });
+
     it('carries streamed reasoning_content into the assembled message', async () => {
       // Reasoning models (DeepSeek-R1, qwq, Ollama reasoning builds) stream
       // their chain of thought on `reasoning_content`. The non-streaming path
