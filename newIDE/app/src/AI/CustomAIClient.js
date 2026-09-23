@@ -619,15 +619,24 @@ export const estimateMessagesTokens = (openAiMessages: Array<Object>): number =>
       typeof content === 'string'
         ? estimateTokens(content)
         : estimateTokens(content ? JSON.stringify(content) : '');
-    const toolCallTokens = (message.tool_calls || []).reduce(
-      (toolSum, toolCall) =>
-        toolSum +
-        estimateTokens(
-          toolCall && toolCall.function && toolCall.function.arguments
-        ),
-      0
-    );
-    return sum + contentTokens + toolCallTokens;
+    // A tool call costs more than its arguments: the model also receives the
+    // name and id, and a `role: 'tool'` reply carries the call id back. Those
+    // were ignored, so a transcript of 30 tool exchanges under-counted by
+    // ~80% (150 vs 810 tokens) — an estimate that reads as comfortably inside
+    // the budget while the request is over it. Tool names are long here
+    // (`change_scene_properties_layers_effects_groups`), so this is not
+    // rounding noise.
+    let toolCallTokens = 0;
+    for (const toolCall of message.tool_calls || []) {
+      if (!toolCall) continue;
+      const fn = toolCall.function || {};
+      toolCallTokens +=
+        estimateTokens(toolCall.id) +
+        estimateTokens(fn.name) +
+        estimateTokens(fn.arguments);
+    }
+    const toolOutputTokens = estimateTokens(message.tool_call_id);
+    return sum + contentTokens + toolCallTokens + toolOutputTokens;
   }, 0);
 
 const SYSTEM_STRUCTURE_MARKER = 'Current Project Structure:\n';

@@ -3700,6 +3700,66 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('message estimate counts whole tool calls', () => {
+    it('charges the tool name and call id, not only the arguments', () => {
+      // A tool call costs more than its arguments: the model also receives the
+      // name and id. Counting only arguments under-reported a 30-exchange
+      // transcript by ~80%, so the prompt read as inside the budget while it
+      // was over it.
+      const message = {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            id: 'call_abcdefghij',
+            type: 'function',
+            function: {
+              name: 'change_scene_properties_layers_effects_groups',
+              arguments: '{"a":1}',
+            },
+          },
+        ],
+      };
+      const argumentsOnly = estimateTokens('{"a":1}');
+      const estimate = estimateMessagesTokens([message]);
+      expect(estimate).toBeGreaterThan(argumentsOnly);
+      // The name alone is longer than the arguments here, so the difference is
+      // substantial rather than a rounding detail.
+      expect(estimate).toBe(
+        estimateTokens('call_abcdefghij') +
+          estimateTokens('change_scene_properties_layers_effects_groups') +
+          argumentsOnly
+      );
+    });
+
+    it('charges the call id echoed back on a tool reply', () => {
+      const toolReply = {
+        role: 'tool',
+        tool_call_id: 'call_abcdefghij',
+        content: '{"ok":true}',
+      };
+      expect(estimateMessagesTokens([toolReply])).toBe(
+        estimateTokens('{"ok":true}') + estimateTokens('call_abcdefghij')
+      );
+    });
+
+    it('counts a partial tool call and tolerates a null entry', () => {
+      // $FlowFixMe deliberately malformed entries for the guards. A call with
+      // only an id still costs that id; a null entry costs nothing and must
+      // not throw.
+      expect(
+        estimateMessagesTokens([
+          { role: 'assistant', content: null, tool_calls: [null] },
+        ])
+      ).toBe(0);
+      expect(
+        estimateMessagesTokens([
+          { role: 'assistant', content: null, tool_calls: [{ id: 'c1' }] },
+        ])
+      ).toBe(estimateTokens('c1'));
+    });
+  });
+
   describe('output allowance in the context budget', () => {
     const base = {
       enabled: true,

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 88,
+  "last_cycle": 89,
   "completed_targets": [
     {
       "cycle": 75,
@@ -524,6 +524,12 @@
       "target": "Use a JSON body when a server ignores stream:true",
       "metric_delta": "411->414 tests; streamChatCompletion fed every 200 body to the SSE parser without checking the content type, so a proxy that ignores stream:true and answers with an ordinary JSON completion produced no data: lines and read as an empty stream — starting a full non-streaming retry for an answer already in hand (a second complete wait). A non-event-stream content type now parses the body as the completion and returns it directly; a non-JSON body still falls through to the existing single non-streaming retry. 2 files, +134/-0",
       "commit": "fix(ai): use a JSON body when a server ignores stream:true"
+    },
+    {
+      "cycle": 89,
+      "target": "Charge whole tool calls in the message estimate",
+      "metric_delta": "414->417 tests; estimateMessagesTokens counted only tool_calls[].function.arguments, ignoring the tool name, the call id, and the tool_call_id echoed back on role:'tool' replies. Measured over 30 tool exchanges the estimate was 150 tokens against a true 810 - an 81.5% under-count, because the tool names here are long (change_scene_properties_layers_effects_groups). The prompt therefore read as comfortably inside the budget while the request was over it, and the trims meant to prevent that never fired. All four fields are now counted; 2 files, +78/-9",
+      "commit": "fix(ai): charge whole tool calls in the message estimate"
     }
   ],
   "backlog": [
@@ -631,6 +637,8 @@
     "Reachability decides whether a guard test is real: a null mid-list passed on both the fixed and unfixed code because it never entered the drop branch — the crash needed the null to follow an assistant whose tool_calls had already started dropToolOutputs. Build the input that reaches the exact branch, then confirm it fails before the fix.",
     "Index-anchored Python edits are only safe when the anchor is unique and the slice bounds are verified: deleting a duplicated guard condition by index removed the same line from a sibling guard, silently turning an empty-stream fallback into a throw. After any slice edit, assert the diff has the expected insertion/deletion counts (here: 0 deletions).",
     "A deterministic stream failure must not trigger the non-streaming fallback (same as isStreamTimeout): flag it (isOutputBudgetExhausted) and rethrow, or the user waits a second full timeout for an identical failure.",
-    "A streaming client must not assume a 200 response is SSE: a proxy that ignores stream:true returns a JSON completion, which yields no data: lines and looks like an empty stream. Check the content type before parsing, and keep the non-JSON case on the normal fallback path."
+    "A streaming client must not assume a 200 response is SSE: a proxy that ignores stream:true returns a JSON completion, which yields no data: lines and looks like an empty stream. Check the content type before parsing, and keep the non-JSON case on the normal fallback path.",
+    "estimateMessagesTokens must count every field the model receives: tool name, call id and tool_call_id were omitted, under-counting a tool-heavy transcript by 81%. When adding a field to an outgoing message, add it to the estimator in the same change.",
+    "Before fixing a suspected race, confirm the operations can overlap: sub-agent turns are awaited sequentially in the spawn loop, so the shared parent partialContent key is safe to clear there, and scoping the cleanup to the child id would have left the parent key stale (permanently suppressing the cold-start hint). I reverted that change."
   ]
 }
