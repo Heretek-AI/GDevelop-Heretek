@@ -489,16 +489,17 @@ export const withLocalAiTurnLock = async <T>(
 };
 
 /**
- * Rough token estimate for prompt-budget purposes: ~4 characters per token.
- * Deliberately dependency-free and local-only — good enough to decide whether
- * the context window is in danger, not to bill anyone.
+ * Rough token estimate for prompt-budget purposes. Deliberately
+ * dependency-free and local-only — good enough to decide whether the context
+ * window is in danger, not to bill anyone exactly.
+ *
+ * ASCII text costs about four characters per token, but non-Latin scripts do
+ * not: CJK is roughly one token per character, and a project whose object and
+ * scene names are Chinese (GDevelop ships zh_CN/ja_JP/ko_KR) is mostly
+ * non-ASCII. Counting those at the ASCII rate under-reported such prompts by
+ * ~4x, so the "budget" permitted the over-window request it exists to prevent.
+ * Non-ASCII code units are therefore charged one token each.
  */
-// Non-Latin scripts tokenize far denser than English: CJK is roughly one
-// token per character, not one per four. A project whose object and scene
-// names are Chinese (GDevelop ships zh_CN/ja_JP/ko_KR) is mostly non-ASCII, so
-// a flat chars/4 count under-reports it by ~4x and the "budget" then permits
-// an over-window request. Count those code units separately, at 1 token each,
-// and the ASCII remainder at the usual 1-per-4.
 const NON_LATIN_TOKEN_RATIO = 1;
 
 const countNonAsciiChars = (text: string): number => {

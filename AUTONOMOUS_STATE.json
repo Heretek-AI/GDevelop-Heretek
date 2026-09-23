@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 91,
+  "last_cycle": 92,
   "completed_targets": [
     {
       "cycle": 75,
@@ -542,6 +542,12 @@
       "target": "Prune persisted local chats by recency, not insertion order",
       "metric_delta": "419->420 tests; saveLocalAiRequests kept `keys.slice(-20)` of Object.keys, which is insertion order. Re-assigning an existing chat after a new turn does not move its key, so continuing an older chat left it in its original slot and it was the one evicted — the newest conversations disappeared on reload while stale ones survived. Verified pre-fix: continuing local-ai-0 among 21 chats persisted 1..20 and dropped 0. Keys are now sorted by updatedAt (the same field customGetAiRequests sorts on) with unparsable timestamps last. 2 files, +66/-2",
       "commit": "fix(ai): prune persisted local chats by recency, not insertion order"
+    },
+    {
+      "cycle": 92,
+      "target": "Correct the estimateTokens docblock after the script-aware change",
+      "metric_delta": "420 tests (unchanged); the docblock still read '~4 characters per token' while the code below counted CJK at one token per character, and a second comment block repeated the same explanation. Stale documentation left by cycle 83 is worse than none here: the estimator's unit is the premise every budget and trim rests on, and a reader trusting the comment would reintroduce the 4x under-count. One accurate docblock now states both rates and why. Comment-only, no behaviour change; 1 file, +10/-9",
+      "commit": "docs(ai): state both token rates in the estimateTokens docblock"
     }
   ],
   "backlog": [
