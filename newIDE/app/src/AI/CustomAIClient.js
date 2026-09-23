@@ -238,6 +238,41 @@ const addTokenUsage = (
 export const customGetAiRequestTokenTotal = (aiRequestId: string): number =>
   localAiRequestTokenTotals[aiRequestId] || 0;
 
+/**
+ * Per-request model override: an empty string clears the override and falls
+ * back to the globally configured model. Survives via the request-scoped
+ * registries until the client state is reset.
+ */
+const localAiRequestModelOverrides: { [id: string]: string } = {};
+
+export const customSetAiRequestModelOverride = (
+  aiRequestId: string,
+  model: string
+): void => {
+  const trimmedModel = (model || '').trim();
+  if (trimmedModel) {
+    localAiRequestModelOverrides[aiRequestId] = trimmedModel;
+  } else {
+    delete localAiRequestModelOverrides[aiRequestId];
+  }
+};
+
+export const customGetAiRequestModelOverride = (aiRequestId: string): string =>
+  localAiRequestModelOverrides[aiRequestId] || '';
+
+/**
+ * Effective endpoint config for one request: the global config with the
+ * per-request model override applied (used for the request and its
+ * sub-agents, so the whole chat stays on one model).
+ */
+export const getEffectiveConfigForRequest = (
+  aiRequestId: string
+): CustomAIConfig => {
+  const config = getCustomEndpointConfig();
+  const modelOverride = localAiRequestModelOverrides[aiRequestId];
+  return modelOverride ? { ...config, model: modelOverride } : config;
+};
+
 const registerTurnAbortController = (
   aiRequestId: string,
   parentAiRequestId?: string | null
@@ -467,6 +502,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestTokenTotals)) {
     delete localAiRequestTokenTotals[key];
+  }
+  for (const key of Object.keys(localAiRequestModelOverrides)) {
+    delete localAiRequestModelOverrides[key];
   }
   for (const key of Object.keys(localAiTurnTails)) {
     delete localAiTurnTails[key];
@@ -2711,7 +2749,7 @@ export const customAddMessageToAiRequest = async ({
     // the system prompt or the newest exchange) before burning the request.
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
-      getTokenBudget(getCustomEndpointConfig())
+      getTokenBudget(getEffectiveConfigForRequest(aiRequestId))
     );
     if (budgetedMessages.length < openAiMessages.length) {
       const trimmedCount = openAiMessages.length - budgetedMessages.length;
@@ -2730,6 +2768,7 @@ export const customAddMessageToAiRequest = async ({
         tools: studioRoleId
           ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
           : GDEVELOP_OPENAI_TOOLS,
+        config: getEffectiveConfigForRequest(aiRequestId),
         signal: abortController.signal,
       });
     } catch (error) {
@@ -2852,7 +2891,7 @@ export const customCreateSubAgentAiRequest = async ({
 
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
-      getTokenBudget(getCustomEndpointConfig())
+      getTokenBudget(getEffectiveConfigForRequest(parentAiRequestId || reqId))
     );
     if (budgetedMessages.length < openAiMessages.length) {
       const trimmedCount = openAiMessages.length - budgetedMessages.length;
@@ -2873,6 +2912,7 @@ export const customCreateSubAgentAiRequest = async ({
       assistantResponse = await sendChatCompletion({
         messages: budgetedMessages,
         tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
+        config: getEffectiveConfigForRequest(parentAiRequestId || reqId),
         signal: abortController.signal,
       });
     } finally {

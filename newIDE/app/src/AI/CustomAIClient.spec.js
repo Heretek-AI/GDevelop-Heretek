@@ -35,6 +35,8 @@ import {
   validateToolCallArguments,
   customGetAiRequestContextTrimCount,
   customGetAiRequestTokenTotal,
+  customSetAiRequestModelOverride,
+  customGetAiRequestModelOverride,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -708,6 +710,79 @@ describe('CustomAIClient', () => {
       ).rejects.toThrow(
         /^AI Provider Error \(500\): internal shuffle failure$/
       );
+    });
+  });
+
+  describe('per-request model override', () => {
+    it('sends the overridden model for the request turns', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start a chat',
+      });
+
+      customSetAiRequestModelOverride(created.id, 'deepseek-chat');
+      expect(customGetAiRequestModelOverride(created.id)).toBe('deepseek-chat');
+
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: 'continue',
+      });
+
+      const requestPayload = axios.post.mock.calls[1][1];
+      expect(requestPayload.model).toBe('deepseek-chat');
+
+      // Empty string clears the override: back to the global model.
+      customSetAiRequestModelOverride(created.id, '');
+      expect(customGetAiRequestModelOverride(created.id)).toBe('');
+    });
+
+    it('sub-agents inherit the parent chat model override', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const parent = await customCreateAiRequest({
+        userRequest: 'orchestrate',
+      });
+      customSetAiRequestModelOverride(parent.id, 'llama3.2');
+
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      await customCreateSubAgentAiRequest({
+        parentAiRequestId: parent.id,
+        roleId: 'developer',
+        userRequest: 'do the work',
+      });
+
+      const requestPayload = axios.post.mock.calls[1][1];
+      expect(requestPayload.model).toBe('llama3.2');
+    });
+
+    it('keeps the global model when no override is set', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start a chat',
+      });
+      expect(customGetAiRequestModelOverride(created.id)).toBe('');
+      const requestPayload = axios.post.mock.calls[0][1];
+      expect(requestPayload.model).toBe('qwen2.5-coder');
     });
   });
 

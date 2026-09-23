@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 24,
+  "last_cycle": 25,
   "completed_targets": [
     {
       "cycle": 1,
@@ -139,10 +139,16 @@
       "target": "Benchmark-driven fix: exact token accounting in the history trimmer",
       "metric_delta": "Benchmarked trimMessagesToBudget on a synthetic 5003-message / 5.4M-token history: the benchmark exposed that tool outputs dropped via the pairing flag never had their tokens subtracted from the internal estimate, and the arbitrary +4-per-message fudge made bookkeeping drift from the real estimate \u2014 the trimmer over-dropped history and could exit over budget. Fixed: paired tool outputs now decrement the estimate, and the fudge is removed so bookkeeping is exact (verified: internal estimate == estimateMessagesTokens after trim within the budget). Regression test added (30 tool pairs, budget fits exactly 3 pairs \u2014 asserts kept >= 2 pairs, last-2 preserved, real estimate <= budget); 59/59 green. Roadmap A.3 also verified already satisfied: the fork README carries the full BYOK comparison section.",
       "commit": "fix(ai): exact token accounting in history trimmer"
+    },
+    {
+      "cycle": 25,
+      "target": "Per-request model override plumbing (roadmap A.2 groundwork)",
+      "metric_delta": "Before: every turn of every chat used the single globally-configured model \u2014 no way to run one chat on a different model. After: localAiRequestModelOverrides registry + customSetAiRequestModelOverride/customGetAiRequestModelOverride + getEffectiveConfigForRequest; turn functions (chat turn, sub-agent turn) pass the effective config to sendChatCompletion and use it for the token budget, so a chat and all its sub-agents stay on the overridden model. Empty string clears the override. 3 new tests (override applied to payload, sub-agent inheritance, global fallback); 62/62 green. UI picker still to come.",
+      "commit": "feat(ai): per-request model override plumbing"
     }
   ],
   "backlog": [
-    "Per-request model picker in the AI toolbar (roadmap A.2)",
+    "Model picker UI in the AI chat (plumbing: customSetAiRequestModelOverride ready)",
     "Stream responses from local endpoints behind a config flag (SSE) to reduce time-to-first-token in the agent loop"
   ],
   "heuristics": [
