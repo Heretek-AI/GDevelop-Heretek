@@ -486,6 +486,36 @@ const archivedParameterByFilter = {
   all: 'any',
 };
 
+/**
+ * Local BYOK chats from the client cache, shaped like the hosted
+ * /ai-request-summary contract (summaries only, no sub-agents), filtered by
+ * archived state and game when asked. Always available offline — independent
+ * of whether the custom endpoint toggle is currently on.
+ */
+const getLocalAiRequestSummaries = ({
+  filter,
+  gameId,
+}: {|
+  filter: AiRequestSummariesFilter,
+  gameId?: ?string,
+|}): Array<AiRequestSummary> => {
+  const { aiRequests } = customGetAiRequests();
+  return aiRequests
+    .filter(aiRequest => {
+      if (aiRequest.parentAiRequestId) return false;
+      if (
+        gameId !== undefined &&
+        gameId !== null &&
+        (aiRequest.gameId || null) !== gameId
+      )
+        return false;
+      if (filter === 'active') return !aiRequest.archivedAt;
+      if (filter === 'archived') return !!aiRequest.archivedAt;
+      return true;
+    })
+    .map(getAiRequestSummary);
+};
+
 export const getAiRequestSummaries = async (
   getAuthorizationHeader: () => Promise<string>,
   {
@@ -506,54 +536,54 @@ export const getAiRequestSummaries = async (
   aiRequestSummaries: Array<AiRequestSummary>,
   nextPageUri: ?string,
 }> => {
-  if (isCustomEndpointEnabled()) {
-    const { aiRequests, nextPageUri } = customGetAiRequests();
-    // Match the hosted /ai-request-summary contract: summaries only (no
-    // sub-agents), filtered by archived state and game when asked.
-    const aiRequestSummaries = aiRequests
-      .filter(aiRequest => {
-        if (aiRequest.parentAiRequestId) return false;
-        if (
-          gameId !== undefined &&
-          gameId !== null &&
-          (aiRequest.gameId || null) !== gameId
-        )
-          return false;
-        if (filter === 'active') return !aiRequest.archivedAt;
-        if (filter === 'archived') return !!aiRequest.archivedAt;
-        return true;
-      })
-      .map(getAiRequestSummary);
-    return { aiRequestSummaries, nextPageUri };
+  // Always list local BYOK chats (from the client cache) so toggling the
+  // custom endpoint off or logging out does not hide them. The hosted page is
+  // fetched only when a real profile userId is given — LOCAL_BYOK is offline.
+  const localSummaries = getLocalAiRequestSummaries({ filter, gameId });
+  if (userId === LOCAL_BYOK_USER_ID) {
+    return { aiRequestSummaries: localSummaries, nextPageUri: null };
   }
 
   const authorizationHeader = await getAuthorizationHeader();
   const uri = forceUri || '/ai-request-summary';
 
-  // $FlowFixMe[incompatible-type]
-  const response = await apiClient.get(uri, {
-    headers: {
-      Authorization: authorizationHeader,
-    },
-    params: forceUri
-      ? { userId }
-      : {
-          userId,
-          perPage: 10,
-          archived: archivedParameterByFilter[filter],
-          gameId: gameId || undefined,
-        },
-  });
-  const nextPageUri = response.headers.link
-    ? extractNextPageUriFromLinkHeader(response.headers.link)
-    : null;
-  return {
-    aiRequestSummaries: ensureIsArray({
+  try {
+    // $FlowFixMe[incompatible-type]
+    const response = await apiClient.get(uri, {
+      headers: {
+        Authorization: authorizationHeader,
+      },
+      params: forceUri
+        ? { userId }
+        : {
+            userId,
+            perPage: 10,
+            archived: archivedParameterByFilter[filter],
+            gameId: gameId || undefined,
+          },
+    });
+    const nextPageUri = response.headers.link
+      ? extractNextPageUriFromLinkHeader(response.headers.link)
+      : null;
+    const hostedSummaries = ensureIsArray({
       data: response.data,
       endpointName: '/ai-request-summary of Generation API',
-    }),
-    nextPageUri,
-  };
+    });
+    // Merge (statuses already do this for local-ai-* ids): local first, then
+    // the hosted page. The UI re-sorts by createdAt before display.
+    return {
+      aiRequestSummaries: [...localSummaries, ...hostedSummaries],
+      nextPageUri,
+    };
+  } catch (error) {
+    // Offline / hosted outage: still show whatever local chats exist rather
+    // than blanking the history. Re-throw only when there is nothing to fall
+    // back to, so the context can surface its retry UI.
+    if (localSummaries.length > 0 || isCustomEndpointEnabled()) {
+      return { aiRequestSummaries: localSummaries, nextPageUri: null };
+    }
+    throw error;
+  }
 };
 
 export const createAiRequest = async (

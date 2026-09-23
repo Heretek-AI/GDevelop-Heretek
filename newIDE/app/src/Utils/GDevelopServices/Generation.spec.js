@@ -255,4 +255,79 @@ describe('Generation local-ai lifecycle routing', () => {
     expect(patch).toHaveBeenCalledTimes(1);
     expect(patch.mock.calls[0][0]).toBe('/ai-request/hosted-1');
   });
+
+  it('lists local chats without the custom endpoint toggle (offline BYOK)', async () => {
+    // Endpoint left disabled (afterEach/beforeEach default).
+    const local = await seedLocalRequest();
+    // $FlowFixMe
+    const get = (apiClient: any).get;
+    if (typeof get === 'function') get.mockReset();
+
+    const page = await getAiRequestSummaries(authHeader, {
+      userId: 'local-byok-user',
+      forceUri: null,
+      filter: 'active',
+    });
+    const ids = page.aiRequestSummaries.map(summary => summary.id);
+    expect(ids).toContain(local.id);
+    // Offline session must never hit the hosted history endpoint.
+    if (typeof get === 'function') expect(get).not.toHaveBeenCalled();
+    expect(page.nextPageUri).toBe(null);
+  });
+
+  it('merges local chats into the hosted history when a profile userId is used', async () => {
+    const local = await seedLocalRequest();
+    // $FlowFixMe
+    const get = (apiClient: any).get;
+    if (typeof get === 'function') {
+      get.mockReset();
+      get.mockResolvedValueOnce({
+        data: [
+          {
+            id: 'hosted-1',
+            title: 'Hosted chat',
+            archivedAt: null,
+            gameId: null,
+            createdAt: '2024-01-01T00:00:00.000Z',
+            updatedAt: '2024-01-01T00:00:00.000Z',
+            userId: 'user-1',
+            status: 'ready',
+            mode: 'chat',
+            error: null,
+            output: [],
+          },
+        ],
+        headers: {},
+      });
+    }
+
+    const page = await getAiRequestSummaries(authHeader, {
+      userId: 'user-1',
+      forceUri: null,
+      filter: 'all',
+    });
+    const ids = page.aiRequestSummaries.map(summary => summary.id);
+    expect(ids).toContain(local.id);
+    expect(ids).toContain('hosted-1');
+    if (typeof get === 'function') expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to local chats when the hosted history request fails', async () => {
+    const local = await seedLocalRequest();
+    // $FlowFixMe
+    const get = (apiClient: any).get;
+    if (typeof get === 'function') {
+      get.mockReset();
+      get.mockRejectedValueOnce(new Error('network down'));
+    }
+
+    const page = await getAiRequestSummaries(authHeader, {
+      userId: 'user-1',
+      forceUri: null,
+      filter: 'active',
+    });
+    const ids = page.aiRequestSummaries.map(summary => summary.id);
+    expect(ids).toContain(local.id);
+    expect(page.nextPageUri).toBe(null);
+  });
 });

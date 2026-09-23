@@ -1044,3 +1044,159 @@ describe('AiRequestProvider opening a chat from the history', () => {
     ).toBeUndefined();
   });
 });
+
+describe('AiRequestProvider history reload after logout', () => {
+  beforeEach(() => {
+    mockFn(getAiRequest).mockReset();
+    mockFn(getAiRequestStatuses).mockReset();
+    mockFn(getAiRequestStatuses).mockResolvedValue([]);
+    mockFn(fetchAiSettings).mockReset();
+    mockFn(fetchAiSettings).mockResolvedValue(null);
+    mockFn(getAiRequestSummaries).mockReset();
+    mockFn(getAiRequestSummaries).mockResolvedValue({
+      aiRequestSummaries: [],
+      nextPageUri: null,
+    });
+    // Endpoint off: the old early-return skipped the summary fetch entirely,
+    // so local chats vanished from the history after logout.
+    setCustomEndpointConfig({
+      enabled: false,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+  });
+
+  afterEach(() => {
+    setCustomEndpointConfig({
+      enabled: false,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+  });
+
+  it('fetches local summaries when the provider mounts logged out without a custom endpoint', async () => {
+    const localSummary = {
+      id: 'local-ai-after-logout',
+      title: 'Local chat',
+      archivedAt: null,
+      gameId: null,
+      createdAt: '2024-06-01T00:00:00.000Z',
+      updatedAt: '2024-06-01T00:00:00.000Z',
+      userId: 'local-byok-user',
+      status: 'ready',
+      mode: 'chat',
+      error: null,
+      output: [],
+    };
+    mockFn(getAiRequestSummaries).mockResolvedValue({
+      aiRequestSummaries: [localSummary],
+      nextPageUri: null,
+    });
+
+    const { contextRef } = renderProvider(makeLoggedOutUser());
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(mockFn(getAiRequestSummaries)).toHaveBeenCalled();
+    const call = mockFn(getAiRequestSummaries).mock.calls[0];
+    expect(call[1].userId).toBe('local-byok-user');
+    // $FlowFixMe[incompatible-use]
+    expect(
+      contextRef.current.aiRequestStorage.aiRequestSummaries[
+        'local-ai-after-logout'
+      ]
+    ).toBeTruthy();
+  });
+
+  it('clears hosted chats on logout then reloads local summaries', async () => {
+    // Start authenticated with a hosted summary already in state.
+    const hostedSummary = {
+      id: 'hosted-1',
+      title: 'Hosted chat',
+      archivedAt: null,
+      gameId: null,
+      createdAt: '2024-06-01T00:00:00.000Z',
+      updatedAt: '2024-06-01T00:00:00.000Z',
+      userId: 'user-1',
+      status: 'ready',
+      mode: 'chat',
+      error: null,
+      output: [],
+    };
+    const localSummary = {
+      ...hostedSummary,
+      id: 'local-ai-keep',
+      userId: 'local-byok-user',
+    };
+
+    let setUser;
+    const SwitchableUser = () => {
+      const [user, setNextUser] = React.useState(makeAuthenticatedUser());
+      setUser = setNextUser;
+      return (
+        <AuthenticatedUserContext.Provider value={user}>
+          <AiRequestProvider>
+            <ContextCapture contextRef={capturedRef} />
+          </AiRequestProvider>
+        </AuthenticatedUserContext.Provider>
+      );
+    };
+    const capturedRef: { current: AiRequestContextState | null } = {
+      current: null,
+    };
+
+    mockFn(getAiRequestSummaries).mockResolvedValue({
+      aiRequestSummaries: [hostedSummary],
+      nextPageUri: null,
+    });
+
+    let renderer;
+    act(() => {
+      renderer = TestRenderer.create(<SwitchableUser />);
+    });
+    await act(async () => {
+      await flushPromises();
+    });
+    if (!capturedRef.current) throw new Error('Context not captured');
+    // Authenticated mount does not auto-fetch history (the Ask AI pane does);
+    // seed it the same way the pane would.
+    await act(async () => {
+      await capturedRef.current.aiRequestStorage.fetchAiRequestSummaries();
+      await flushPromises();
+    });
+    expect(
+      capturedRef.current.aiRequestStorage.aiRequestSummaries['hosted-1']
+    ).toBeTruthy();
+
+    // After logout, summaries come from the local cache only.
+    mockFn(getAiRequestSummaries).mockResolvedValue({
+      aiRequestSummaries: [localSummary],
+      nextPageUri: null,
+    });
+    await act(async () => {
+      if (!setUser) throw new Error('setUser not ready');
+      setUser(makeLoggedOutUser());
+      await flushPromises();
+    });
+
+    expect(mockFn(getAiRequestSummaries).mock.calls.length).toBeGreaterThan(1);
+    const lastCall = mockFn(getAiRequestSummaries).mock.calls[
+      mockFn(getAiRequestSummaries).mock.calls.length - 1
+    ];
+    expect(lastCall[1].userId).toBe('local-byok-user');
+    if (!capturedRef.current) throw new Error('Context not captured');
+    // Hosted chats were wiped; the reloaded local chat is present.
+    expect(
+      capturedRef.current.aiRequestStorage.aiRequestSummaries['hosted-1']
+    ).toBeUndefined();
+    expect(
+      capturedRef.current.aiRequestStorage.aiRequestSummaries['local-ai-keep']
+    ).toBeTruthy();
+    if (renderer) renderer.unmount();
+  });
+});

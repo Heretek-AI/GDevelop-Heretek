@@ -253,8 +253,10 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
       gameId: ?string,
       forceUri?: {| list: 'recents' | 'game', uri: string |},
     |}) => {
-      if (!profile && !isCustomEndpointEnabled()) return;
-
+      // Always call getAiRequestSummaries: offline/local sessions list the
+      // BYOK cache (userId LOCAL_BYOK), authenticated sessions merge that cache
+      // with the hosted page. An early return here hid local chats after
+      // logout whenever the custom endpoint was toggled off.
       setIsLoading(true);
       setError(null);
 
@@ -644,15 +646,26 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
     ]
   );
 
+  // Keep the active filter without putting it in the logout effect deps —
+  // a filter change while logged out must not wipe loaded chats again.
+  const aiRequestSummariesFilterRef = React.useRef(aiRequestSummariesFilter);
+  aiRequestSummariesFilterRef.current = aiRequestSummariesFilter;
+
   React.useEffect(
     () => {
-      // Reset AI requests when the user logs out.
+      // Reset AI requests when the user logs out, then reload whatever local
+      // BYOK chats remain in the client cache — wiping without a reload left
+      // the history empty even though localStorage still held the chats.
       if (!profile) {
         setState(emptyAiRequestsState);
         setAiRequestLoadingStates({});
+        fetchAiRequestSummariesPages({
+          filter: aiRequestSummariesFilterRef.current,
+          gameId: null,
+        });
       }
     },
-    [profile]
+    [profile, fetchAiRequestSummariesPages]
   );
 
   // Store send states in a ref so that isSendingAiRequest reads are
