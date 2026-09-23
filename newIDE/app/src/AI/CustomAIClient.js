@@ -3163,9 +3163,16 @@ export const sendChatCompletion = async ({
   const payload: Object = {
     model: currentConfig.model || 'qwen2.5-coder',
     messages,
+    // Clamped here, not only in sanitizeCustomAIConfig: this function accepts a
+    // raw `config` (`config || getCustomEndpointConfig()`), and testConnection
+    // merges a caller-supplied partial config over the stored one, so an
+    // out-of-range value reaches the wire unclamped. A non-finite value also
+    // serializes to `"temperature": null`, which strict OpenAI-compatible
+    // servers reject rather than ignore.
     temperature:
-      typeof currentConfig.temperature === 'number'
-        ? currentConfig.temperature
+      typeof currentConfig.temperature === 'number' &&
+      Number.isFinite(currentConfig.temperature)
+        ? Math.max(0, Math.min(1, currentConfig.temperature))
         : 0.7,
   };
 

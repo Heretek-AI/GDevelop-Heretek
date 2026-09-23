@@ -891,6 +891,53 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('wire temperature bound', () => {
+    it('clamps an out-of-range temperature on the bypass path', async () => {
+      // sendChatCompletion accepts a raw config, and testConnection merges a
+      // caller-supplied partial over the stored one, so sanitizeCustomAIConfig
+      // is not always in the path. An unclamped 42 (or a NaN that serializes
+      // to null) reached the provider.
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'llama3.2',
+          temperature: 42,
+        },
+      });
+
+      expect(axios.post.mock.calls[0][1].temperature).toBe(1);
+    });
+
+    it('replaces a non-finite temperature with the default', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'llama3.2',
+          temperature: NaN,
+        },
+      });
+
+      // Not null: JSON.stringify(NaN) is `null`, which strict servers reject.
+      expect(axios.post.mock.calls[0][1].temperature).toBe(0.7);
+    });
+  });
+
   describe('request timeout bound', () => {
     it('never passes an overflowing timeout to axios', async () => {
       // sendChatCompletion takes a raw `config`, bypassing

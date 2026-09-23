@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 125,
+  "last_cycle": 126,
   "completed_targets": [
     {
       "cycle": 75,
@@ -717,6 +717,12 @@
       "target": "Bound the request timeout so setTimeout cannot overflow to 1 ms",
       "metric_delta": "timeoutMs was validated only as `> 0`, at both the persisted-config load and the request-time resolution, with no upper bound — and the preferences field fed `parseInt` straight in. setTimeout (and axios, which wraps it) stores its delay in a 32-bit signed integer: any value above 2^31-1 is clamped to 1 ms by the runtime (proven locally: a 3e9 ms delay fires after 2 ms). So an oversized timeout silently aborted every request almost instantly, with a misleading 'timed out after 3000000000 ms' message. Added MAX_TIMEOUT_MS = 2147483647 and clamped at all three entry points: sanitizeCustomAIConfig (load), sendChatCompletion's request-time resolution (the raw-config bypass path), and the preferences input. +2 tests, each mutation-checked: with its clamp removed the request-time test sees axios handed 3000000000, the load-time test sees the config keep 3000000000. 182/182 file, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
       "commit": "fix(ai): bound the request timeout to what setTimeout can hold"
+    },
+    {
+      "cycle": 126,
+      "target": "Clamp wire temperature on the raw-config bypass path",
+      "metric_delta": "Same class as cycle 125, found by auditing its siblings. temperature was clamped in sanitizeCustomAIConfig and in the preferences input, but NOT where the payload is built — and sendChatCompletion accepts a raw `config` (`config || getCustomEndpointConfig()`), while testConnection merges a caller-supplied partial config over the stored one before calling it. So the Test Connection button sent values.aiCustomTemperature from localStorage unclamped: 42 reached the provider, and NaN serialized to `\"temperature\": null`, which strict OpenAI-compatible servers reject rather than ignore. Now clamped to [0,1] with a Number.isFinite guard at payload construction, matching what sanitizeCustomAIConfig and the dialog already agree on. +2 tests, both mutation-checked (pre-fix: 42 sent, NaN sent). 184/184 file, eslint --max-warnings=0, prettier clean.",
+      "commit": "fix(ai): clamp wire temperature on the raw-config bypass path"
     }
   ],
   "backlog": [
@@ -858,6 +864,7 @@
     "The workflows are only one deprecation source: after bumping the actions/* majors, re-scan the per-job check-run annotations, because third-party actions (e.g. github/codeql-action/upload-sarif) carry their own runtime. The remaining v4 references in extract-translations/update-translations/update-extension-translations are intentional — those workflows are upstream-guarded and report `skipped` in this fork.",
     ".circleci/config.yml is upstream-identical (absent from fork-divergence.json) — do not edit it, per MAINTENANCE.md's 'leave it' rule; it already tracks cimg/node:24.x. Only .github/workflows/** is fork-owned and sync-protected.",
     "In LOCAL_SERVER_ERROR_HINTS the order of entries is load-bearing: the VRAM pattern ends with a broad /too large/i, so any new pattern must be listed before it or genuine mismatches occur. Context overflow is a 400 whose remedy is 'start a new chat / larger window', not 'smaller quantization'.",
-    "setTimeout (and axios's `timeout`) clamps any delay above 2^31-1 ms to 1 ms rather than to the maximum — so an unbounded user-supplied timeout does not merely fail to wait, it aborts instantly. Any config value that becomes a timer delay needs an upper bound, not just a `> 0` check. Clamp at BOTH sanitizeCustomAIConfig and the sendChatCompletion resolution, because `config || getCustomEndpointConfig()` lets a caller pass a raw unsanitized config."
+    "setTimeout (and axios's `timeout`) clamps any delay above 2^31-1 ms to 1 ms rather than to the maximum — so an unbounded user-supplied timeout does not merely fail to wait, it aborts instantly. Any config value that becomes a timer delay needs an upper bound, not just a `> 0` check. Clamp at BOTH sanitizeCustomAIConfig and the sendChatCompletion resolution, because `config || getCustomEndpointConfig()` lets a caller pass a raw unsanitized config.",
+    "The wire payload is the last line of defence and needs its own bounds: sendChatCompletion's `config || getCustomEndpointConfig()` and testConnection's spread-merge both let unsanitized values through, so validate numeric fields (temperature, timeoutMs) at payload construction rather than trusting only sanitizeCustomAIConfig. Also: JSON.stringify(NaN) is `null`, so a non-finite number is not ignored by the server — it becomes an explicit null argument."
   ]
 }
