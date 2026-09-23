@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 59,
+  "last_cycle": 60,
   "completed_targets": [
     {
       "cycle": 1,
@@ -349,13 +349,18 @@
       "target": "fix local/BYOK create path: canPayForAiRequest blocked when hosted quota exhausted",
       "metric_delta": "327->330 tests; create/continue gates use canAffordAiRequest (custom endpoint short-circuits); 5 files, +100/-17",
       "commit": "fix(ai): let local BYOK create/continue despite exhausted hosted quota"
+    },
+    {
+      "cycle": 60,
+      "target": "surface system project-structure compaction as a distinct local chat notice",
+      "metric_delta": "330->333 tests; systemCompacted flag on create/add/sub-agent budget paths; ChatMessages notice covers system-only compaction; 3 files, +191/-2",
+      "commit": "fix(ai): surface system structure compaction in the local chat notice"
     }
   ],
   "backlog": [
     "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) \u2014 empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps",
-    "Surface a distinct UI notice when the system project structure was compacted (trim count today only increments when message count drops)"
+    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
@@ -412,6 +417,7 @@
     "Every local model turn that returns a response must call addTokenUsage \u2014 create, addMessage, and sub-agent paths; a missing call under-reports the chat cost meter without failing any status test",
     "Successful local model writes must set error:null (create/retry already did; ordinary addMessage left the prior error for FinalizeSubAgents and any status-agnostic .error reader)",
     "trimMessagesToBudget never drops role:system \u2014 an oversized system prompt must be compacted (truncate Current Project Structure first) before history dropping; create/first turn must call trim like addMessage",
-    "Any canPayForAiRequest gate on a create/continue path must short-circuit on isCustomEndpointEnabled(); the send button already does \u2014 align all gates through canAffordAiRequest"
+    "Any canPayForAiRequest gate on a create/continue path must short-circuit on isCustomEndpointEnabled(); the send button already does \u2014 align all gates through canAffordAiRequest",
+    "compactSystemMessageToBudget changes the system prompt without incrementing localAiRequestTrimCounts (message-count trims only). Always pair it with noteSystemCompactedIfChanged + customGetAiRequestSystemCompacted and surface system-only compaction distinctly in ChatMessages \u2014 history-only notices hide structure loss."
   ]
 }

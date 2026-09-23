@@ -276,6 +276,47 @@ export const customGetAiRequestContextTrimCount = (
 ): number => localAiRequestTrimCounts[aiRequestId] || 0;
 
 /**
+ * Whether the system project-structure prompt was compacted for this request.
+ * History trims only drop conversation messages; system compaction silently
+ * shortens the structure the model sees — surface that distinctly in the UI.
+ */
+const localAiRequestSystemCompacted: { [id: string]: boolean } = {};
+
+export const customGetAiRequestSystemCompacted = (
+  aiRequestId: string
+): boolean => !!localAiRequestSystemCompacted[aiRequestId];
+
+const noteSystemCompactedIfChanged = (
+  aiRequestId: string,
+  beforeMessages: Array<Object>,
+  afterMessages: Array<Object>
+): void => {
+  let beforeContent = '';
+  let afterContent = '';
+  for (let i = 0; i < beforeMessages.length; i++) {
+    const message = beforeMessages[i];
+    if (message && message.role === 'system') {
+      beforeContent = message.content;
+      break;
+    }
+  }
+  for (let i = 0; i < afterMessages.length; i++) {
+    const message = afterMessages[i];
+    if (message && message.role === 'system') {
+      afterContent = message.content;
+      break;
+    }
+  }
+  if (
+    typeof beforeContent === 'string' &&
+    typeof afterContent === 'string' &&
+    beforeContent !== afterContent
+  ) {
+    localAiRequestSystemCompacted[aiRequestId] = true;
+  }
+};
+
+/**
  * Cumulative estimated tokens (prompt + response) consumed per request, for
  * the local/BYOK cost meter in the chat UI. Estimate only (chars/4) — never
  * a billing figure.
@@ -653,6 +694,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestTrimCounts)) {
     delete localAiRequestTrimCounts[key];
+  }
+  for (const key of Object.keys(localAiRequestSystemCompacted)) {
+    delete localAiRequestSystemCompacted[key];
   }
   for (const key of Object.keys(localAiRequestTokenTotals)) {
     delete localAiRequestTokenTotals[key];
@@ -3096,6 +3140,7 @@ export const customCreateAiRequest = async ({
     openAiMessages,
     getTokenBudget(createConfig)
   );
+  noteSystemCompactedIfChanged(reqId, openAiMessages, budgetedMessages);
   if (budgetedMessages.length < openAiMessages.length) {
     const trimmedCount = openAiMessages.length - budgetedMessages.length;
     localAiRequestTrimCounts[reqId] =
@@ -3270,6 +3315,7 @@ export const customAddMessageToAiRequest = async ({
       openAiMessages,
       getTokenBudget(getEffectiveConfigForRequest(aiRequestId))
     );
+    noteSystemCompactedIfChanged(aiRequestId, openAiMessages, budgetedMessages);
     if (budgetedMessages.length < openAiMessages.length) {
       const trimmedCount = openAiMessages.length - budgetedMessages.length;
       localAiRequestTrimCounts[aiRequestId] =
@@ -3446,6 +3492,11 @@ export const customCreateSubAgentAiRequest = async ({
       openAiMessages,
       getTokenBudget(getEffectiveConfigForRequest(parentAiRequestId || reqId))
     );
+    noteSystemCompactedIfChanged(
+      parentAiRequestId || reqId,
+      openAiMessages,
+      budgetedMessages
+    );
     if (budgetedMessages.length < openAiMessages.length) {
       const trimmedCount = openAiMessages.length - budgetedMessages.length;
       const countKey = parentAiRequestId || reqId;
@@ -3619,6 +3670,7 @@ export const customDeleteAiRequest = (aiRequestId: string): void => {
   abortTurnsForRequest(aiRequestId);
   delete localAiRequestsCache[aiRequestId];
   delete localAiRequestTrimCounts[aiRequestId];
+  delete localAiRequestSystemCompacted[aiRequestId];
   delete localAiRequestTokenTotals[aiRequestId];
   delete localAiRequestModelOverrides[aiRequestId];
   delete localAiRequestPartialContent[aiRequestId];

@@ -37,6 +37,7 @@ import {
   trimMessagesToBudget,
   validateToolCallArguments,
   customGetAiRequestContextTrimCount,
+  customGetAiRequestSystemCompacted,
   customGetAiRequestTokenTotal,
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
@@ -786,6 +787,124 @@ describe('CustomAIClient', () => {
       );
       // llama3.2 budget = 4096; leave exchange reserve inside compaction.
       expect(estimateMessagesTokens(body.messages)).toBeLessThanOrEqual(4096);
+      // The structure was compacted: surface that to the chat UI.
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(true);
+    });
+  });
+
+  describe('system structure compaction surfacing', () => {
+    it('leaves the flag false when the system prompt already fits the budget', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+      });
+      expect(created.status).toBe('ready');
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(false);
+
+      const body = axios.post.mock.calls[0][1];
+      const systemMessage = (body.messages || []).find(
+        m => m.role === 'system'
+      );
+      expect(systemMessage.content).not.toContain(
+        'truncated to fit the model context window'
+      );
+    });
+
+    it('records compaction against the request and clears on reset and delete', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      const hugeProject = JSON.stringify({
+        scenes: Array.from({ length: 800 }, (_, i) => ({
+          name: 'Scene' + i,
+          events: Array.from({ length: 20 }, (_, j) => ({
+            type: 'Event' + j,
+            code: 'y'.repeat(150),
+          })),
+        })),
+      });
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: hugeProject,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+      });
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(true);
+
+      customDeleteAiRequest(created.id);
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(false);
+
+      // Recreate with a compact system and confirm reset still clears.
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const small = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+      });
+      expect(customGetAiRequestSystemCompacted(small.id)).toBe(false);
+      _resetCustomAiClientForTesting();
+      expect(customGetAiRequestSystemCompacted(small.id)).toBe(false);
+    });
+
+    it('flags system compaction on a later addMessage turn when the structure grows', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+      });
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(false);
+
+      // History-trim path does not change the system prompt → flag stays false.
+      const bigRequest = 'x'.repeat(100000);
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'done' } }],
+        },
+      });
+      await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: bigRequest,
+      });
+      expect(customGetAiRequestContextTrimCount(created.id)).toBeGreaterThan(0);
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(false);
     });
   });
 

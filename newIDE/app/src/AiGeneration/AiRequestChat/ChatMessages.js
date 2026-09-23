@@ -61,6 +61,7 @@ import RobotIcon from '../../ProjectCreation/RobotIcon';
 import {
   isCustomEndpointEnabled,
   customGetAiRequestContextTrimCount,
+  customGetAiRequestSystemCompacted,
   customGetAiRequestTokenTotal,
   customGetAiRequestPartialContent,
 } from '../../AI/CustomAIClient';
@@ -1284,7 +1285,8 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
 
         {!isWorking &&
         (customGetAiRequestContextTrimCount(aiRequest.id) > 0 ||
-          customGetAiRequestTokenTotal(aiRequest.id) > 0) ? (
+          customGetAiRequestTokenTotal(aiRequest.id) > 0 ||
+          customGetAiRequestSystemCompacted(aiRequest.id)) ? (
           <Line justifyContent="flex-start">
             <Text
               noMargin
@@ -1296,9 +1298,25 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
                 <Trans>
                   ≈{customGetAiRequestTokenTotal(aiRequest.id).toLocaleString()}{' '}
                   tokens used locally
-                  {customGetAiRequestContextTrimCount(aiRequest.id) > 0
+                  {customGetAiRequestContextTrimCount(aiRequest.id) > 0 &&
+                  customGetAiRequestSystemCompacted(aiRequest.id)
+                    ? ' — older messages and the project structure were trimmed to fit the context window.'
+                    : customGetAiRequestContextTrimCount(aiRequest.id) > 0
                     ? ' — older messages were trimmed to fit the context window.'
+                    : customGetAiRequestSystemCompacted(aiRequest.id)
+                    ? ' — the project structure was truncated to fit the context window.'
                     : '.'}
+                </Trans>
+              ) : customGetAiRequestContextTrimCount(aiRequest.id) > 0 &&
+                customGetAiRequestSystemCompacted(aiRequest.id) ? (
+                <Trans>
+                  Older messages and the project structure were trimmed to fit
+                  the AI model's context window.
+                </Trans>
+              ) : customGetAiRequestSystemCompacted(aiRequest.id) ? (
+                <Trans>
+                  The project structure was truncated to fit the AI model's
+                  context window.
                 </Trans>
               ) : (
                 <Trans>
