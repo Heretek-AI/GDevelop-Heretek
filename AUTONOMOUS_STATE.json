@@ -449,8 +449,9 @@
     {
       "cycle": 76,
       "target": "Surface a first-token wait hint while a local model cold-starts",
-      "metric_delta": "380->384 tests (4 new hook/timer tests + 5 predicate tests); a cold Ollama/LM Studio load leaves the stream silent past COLD_START_HINT_DELAY_MS (15s), so the chat now says it is waiting on the first token instead of leaving an idle chat indistinguishable from a hung one; clears the moment bytes arrive; hidden for hosted requests; no network calls added; 3 files, +259/-1",
-      "commit": "feat(ai): explain a silent local model cold start in the chat"
+      "metric_delta": "380->384 tests (4 new hook/timer tests + 5 predicate tests); a cold Ollama/LM Studio load leaves the stream silent past COLD_START_HINT_DELAY_MS (15s), so the chat now says it is waiting on the first token instead of leaving an idle chat indistinguishable from a hung one; clears the moment bytes arrive; hidden for hosted requests; no network calls added; 3 files, +271/-4",
+      "commit": "feat(ai): explain a silent local model cold start in the chat",
+      "verification": "npm test (react-app-rewired) over src/AI + src/AiGeneration: 339/339 pass, 14 suites. NOTE: an earlier revision of this entry reported '3 pre-existing failures' — that was an artifact of running bare `npx jest`, which has transform:null and so parses the fork's .ts files with the Flow plugin. Bare npx jest is not a valid verification path here."
     }
   ],
   "backlog": [
@@ -542,6 +543,8 @@
     "Failed-send UX: setLastSendError must drive a visible Send again label (not only error text) — lastSendError already clears on setSendingAiRequest(true) retry, so gate on hasSendError && !isWorking and never while Stop/cancel is active",
     "The Edit tool re-indents regions it did not change in these large Flow files (ChatMessages.js: 1384/1326 churn for a 60-line addition) — use python exact-text replacement and verify with `git diff -w --stat` that it matches the plain `--stat`",
     "Local-model UX timers belong in AiRequestChat/Utils.js as a hook (useLocalColdStartHint) driven by a readHasBytes callback — ChatMessages.js pulls CSS-module imports that Jest cannot parse, so component-level timer tests need the hook extracted, and Utils.js imports are type-only (elided) so it stays lightweight in tests",
-    "Jest specs for hooks/components here use @jest-environment jsdom as the FIRST file comment, react-dom/client createRoot + act from react-dom/test-utils (React 18 removed create from test-utils)"
+    "Jest specs for hooks/components here use @jest-environment jsdom as the FIRST file comment, react-dom/client createRoot + act from react-dom/test-utils (React 18 removed create from test-utils)",
+    "MUST run `CI=true npm test -- <pattern>` (react-app-rewired), never bare `npx jest`, in newIDE/app: bare jest reports transform:null and parses the fork's .ts files (Utils/Array|Delay|UseForceUpdate|UseIsMounted|UseTimeout) with the Flow plugin, producing bogus 'Test suite failed to run' errors and 'Unexpected token' on TS type args. It cost a full false-negative diagnosis; all 339 AI tests pass.",
+    "ChatMessages.js component-level rendering is impractical in Jest (CSS-module imports aren't transformed); keep timer/decision logic in AiRequestChat/Utils.js (type-only imports are elided) and test it there."
   ]
 }
