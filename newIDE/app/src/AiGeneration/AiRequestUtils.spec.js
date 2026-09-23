@@ -10,6 +10,7 @@ import {
   shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
   canRetryAiRequestForSession,
+  canSendFeedbackForSession,
   isFailedAiRequestStart,
   getStandaloneCreateOutcome,
 } from './AiRequestUtils';
@@ -497,5 +498,24 @@ describe('canRetryAiRequestForSession', () => {
   it('refuses non-local ids without a profile (hosted /action/retry needs auth)', () => {
     expect(canRetryAiRequestForSession(null, 'hosted-1')).toBe(false);
     expect(canRetryAiRequestForSession(undefined, 'hosted-1')).toBe(false);
+  });
+});
+
+describe('canSendFeedbackForSession', () => {
+  it('allows any profile for any request id', () => {
+    expect(canSendFeedbackForSession({ id: 'user-1' }, 'hosted-1')).toBe(true);
+    expect(canSendFeedbackForSession({ id: 'user-1' }, 'local-ai-1')).toBe(
+      true
+    );
+  });
+
+  it('allows local-ai-* without a profile (offline BYOK)', () => {
+    expect(canSendFeedbackForSession(null, 'local-ai-abc')).toBe(true);
+    expect(canSendFeedbackForSession(undefined, 'local-ai-abc')).toBe(true);
+  });
+
+  it('refuses non-local ids without a profile (hosted set-feedback needs auth)', () => {
+    expect(canSendFeedbackForSession(null, 'hosted-1')).toBe(false);
+    expect(canSendFeedbackForSession(undefined, 'hosted-1')).toBe(false);
   });
 });

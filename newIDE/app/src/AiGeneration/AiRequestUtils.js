@@ -61,6 +61,17 @@ export const canRetryAiRequestForSession = (
 ): boolean => !!profile || aiRequestId.startsWith('local-ai-');
 
 /**
+ * Whether this session may send message feedback for one request id.
+ * Mirrors canRetryAiRequestForSession: any profile, or a local-ai-* id that
+ * lives only in the local cache (the Generation layer short-circuits those
+ * before any hosted call). Hosted non-local ids without a profile are refused.
+ */
+export const canSendFeedbackForSession = (
+  profile: ?{ id: string },
+  aiRequestId: string
+): boolean => !!profile || aiRequestId.startsWith('local-ai-');
+
+/**
  * Whether a createAiRequest return value is a first-turn failure or cancel
  * that must not be treated as a successful start (local BYOK returns
  * status:'error' on failure and status:'suspended' when the user aborts a hung

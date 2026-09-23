@@ -878,6 +878,11 @@ export const sendAiRequestFeedback = async (
     freeFormDetails?: string,
   |}
 ): Promise<AiRequest> => {
+  // Local BYOK chats have no hosted feedback store — never POST local-ai-*
+  // ids to the Generation API (same short-circuit as retry/suspend/delete).
+  if (aiRequestId.startsWith('local-ai-')) {
+    return customGetAiRequest(aiRequestId);
+  }
   const authorizationHeader = await getAuthorizationHeader();
   const response = await apiClient.post(
     `/ai-request/${aiRequestId}/action/set-feedback`,

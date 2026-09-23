@@ -6,6 +6,7 @@ import {
   updateAiRequest,
   deleteAiRequest,
   retryAiRequest,
+  sendAiRequestFeedback,
 } from './Generation';
 import {
   setCustomEndpointConfig,
@@ -215,6 +216,26 @@ describe('Generation local-ai lifecycle routing', () => {
     expect(axios.post).toHaveBeenCalledTimes(1);
     expect(String(axios.post.mock.calls[0][0])).toContain('/chat/completions');
     expect(customGetAiRequest(aiRequest.id).status).toBe('ready');
+  });
+
+  it('returns feedback for a local request without calling the hosted API', async () => {
+    const aiRequest = await seedLocalRequest();
+    // seedLocalRequest POSTs once (local create); clear before asserting.
+    // $FlowFixMe
+    axios.post.mockClear();
+    // $FlowFixMe
+    const post = (apiClient: any).post;
+    if (typeof post === 'function') post.mockReset();
+
+    const returned = await sendAiRequestFeedback(authHeader, {
+      userId: 'user-1',
+      aiRequestId: aiRequest.id,
+      messageIndex: 0,
+      feedback: 'like',
+    });
+    expect(returned.id).toBe(aiRequest.id);
+    expect(axios.post).not.toHaveBeenCalled();
+    if (typeof post === 'function') expect(post).not.toHaveBeenCalled();
   });
 
   it('still hits the hosted API for non-local ids when custom endpoint is off', async () => {

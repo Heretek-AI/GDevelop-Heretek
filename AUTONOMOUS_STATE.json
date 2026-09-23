@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 62,
+  "last_cycle": 63,
   "completed_targets": [
     {
       "cycle": 1,
@@ -367,6 +367,12 @@
       "target": "Resume a stopped local AI request on the next explicit send",
       "metric_delta": "338->339 tests; customAddMessageToAiRequest flips suspended→ready under the turn lock only when payload has non-empty userMessage or functionCallOutputs; empty continuation / mid-turn Stop still honor suspension; 2 files, +65/-25",
       "commit": "fix(ai): resume a stopped local chat when the user sends again"
+    },
+    {
+      "cycle": 63,
+      "target": "Local feedback parity: sendAiRequestFeedback was the last Generation API without a local-ai short-circuit; editor refused offline feedback; stand-alone form onSendFeedback was a hard no-op",
+      "metric_delta": "339->343 tests; sendAiRequestFeedback returns customGetAiRequest for local-ai-* without POSTing; canSendFeedbackForSession shared by editor+standalone (profile | local-ai-*); LOCAL_BYOK_USER_ID fallback; 6 files, +85/-3",
+      "commit": "fix(ai): route local feedback without hosted set-feedback"
     }
   ],
   "backlog": [
@@ -432,6 +438,7 @@
     "Any canPayForAiRequest gate on a create/continue path must short-circuit on isCustomEndpointEnabled(); the send button already does — align all gates through canAffordAiRequest",
     "compactSystemMessageToBudget changes the system prompt without incrementing localAiRequestTrimCounts (message-count trims only). Always pair it with noteSystemCompactedIfChanged + customGetAiRequestSystemCompacted and surface system-only compaction distinctly in ChatMessages — history-only notices hide structure loss.",
     "Local create only writes localAiRequestsCache on settle, so the UI never sees the id mid-flight: track pending create ids + an early createAbortRequested flag; Stop-before-register must arm the flag, Stop-while-hung must abortTurnsForRequest on each pending id, and finally/reset must clear both. In hang tests wait for axios.post.mock.calls.length >= 1 (not > 1) after jest.clearAllMocks().",
-    "Resume-on-send must be gated on an explicit payload (userMessage or functionCallOutputs); unconditionally flipping suspended→ready at turn start races with a Stop that lands before the lock and broke the mid-turn suspension invariant."
+    "Resume-on-send must be gated on an explicit payload (userMessage or functionCallOutputs); unconditionally flipping suspended→ready at turn start races with a Stop that lands before the lock and broke the mid-turn suspension invariant.",
+    "sendAiRequestFeedback is the last Generation method that must short-circuit local-ai-* before any auth/apiClient call — every other lifecycle method already does; canSendFeedbackForSession mirrors canRetryAiRequestForSession for offline gates"
   ]
 }

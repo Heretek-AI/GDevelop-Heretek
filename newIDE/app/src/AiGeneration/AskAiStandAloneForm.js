@@ -7,6 +7,7 @@ import {
   addMessageToAiRequest,
   createAiRequest,
   retryAiRequest,
+  sendAiRequestFeedback,
   type AiRequest,
   type AiRequestMessageAssistantFunctionCall,
 } from '../Utils/GDevelopServices/Generation';
@@ -25,6 +26,7 @@ import {
   getStandaloneCreateOutcome,
   canRetryAiRequestForSession,
   canSendAiRequestForSession,
+  canSendFeedbackForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
 } from './AiRequestUtils';
@@ -835,7 +837,29 @@ export const AskAiStandAloneForm = ({
         price={aiRequestPrice}
         availableCredits={availableCredits}
         isRefreshingLimits={isRefreshingLimits}
-        onSendFeedback={async () => {}}
+        onSendFeedback={async (
+          aiRequestId,
+          messageIndex,
+          feedback,
+          reason,
+          freeFormDetails
+        ) => {
+          if (!canSendFeedbackForSession(profile, aiRequestId)) return;
+          try {
+            await retryIfFailed({ times: 2 }, () =>
+              sendAiRequestFeedback(getAuthorizationHeader, {
+                userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
+                aiRequestId,
+                messageIndex,
+                feedback,
+                reason,
+                freeFormDetails,
+              })
+            );
+          } catch (error) {
+            console.error('Error sending feedback: ', error);
+          }
+        }}
         hasOpenedProject={!!project}
         onStop={async () => {
           // No form request yet: cancel a hung local create (pending registry).

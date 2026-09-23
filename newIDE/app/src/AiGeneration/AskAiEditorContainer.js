@@ -56,6 +56,7 @@ import { type EditorCallbacks } from '../EditorFunctions';
 import {
   isFailedAiRequestStart,
   canRetryAiRequestForSession,
+  canSendFeedbackForSession,
   aiRequestHasWorkInProgress,
   canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
@@ -1324,11 +1325,11 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           // $FlowFixMe[missing-local-annot]
           freeFormDetails
         ) => {
-          if (!profile) return;
+          if (!canSendFeedbackForSession(profile, aiRequestId)) return;
           try {
             await retryIfFailed({ times: 2 }, () =>
               sendAiRequestFeedback(getAuthorizationHeader, {
-                userId: profile.id,
+                userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
                 aiRequestId,
                 messageIndex,
                 feedback,
