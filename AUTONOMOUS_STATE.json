@@ -1,0 +1,28 @@
+{
+  "engine_version": "1.0.0",
+  "last_cycle": 1,
+  "completed_targets": [
+    {
+      "cycle": 1,
+      "target": "Remove AbortSignal/CancelToken listener leak in sendChatCompletion",
+      "metric_delta": "Before: one leaked 'abort' listener per request pinned to long-lived caller signals; after: axios 1.19 consumes the AbortSignal natively and releases it when the request settles. Zero behavior change for callers (isCancel/aborted error path preserved). Diff: -16/+3 lines in CustomAIClient.js + 3 regression tests (signal passthrough, pre-aborted signal, mid-request abort).",
+      "commit": "fix(ai): pass AbortSignal directly to axios in sendChatCompletion"
+    }
+  ],
+  "backlog": [
+    "Thread optional AbortSignal through customCreateAiRequest/customAddMessageToAiRequest/customCreateSubAgentAiRequest so suspended turns can cancel in-flight requests (currently tokens keep flowing after suspend)",
+    "Add configurable timeoutMs to CustomAIConfig (hardcoded 120000ms kills slow local models mid-agent-loop)",
+    "Surface a hint when a 401 comes back and no API key is configured (hosted providers)",
+    "Add BYOK structured JSON schema validation for Event Sheet generation",
+    "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
+    "Add local model token-budget calculator for GDevelop scene context",
+    "Add offline mock test runner for local LLM copilot actions"
+  ],
+  "heuristics": [
+    "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
+    "Prefer pure JS/TS mocks for local AI endpoint testing to avoid external network calls during CI",
+    "The Edit tool collapsed leading whitespace across 2360 lines of CustomAIClient.js — for this codebase prefer python-based exact-text replacement for surgical edits in large Flow files; verify with `git diff --stat` that the footprint matches the intended change",
+    "LSP diagnostics on Flow files are TS-parser noise (8006/8008/8010) — use eslint as the source of truth there",
+    "Client is non-streaming (axios POST); SSE-recovery hardening does not apply to current architecture"
+  ]
+}

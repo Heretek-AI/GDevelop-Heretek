@@ -1931,23 +1931,12 @@ export const sendChatCompletion = async ({
     payload.max_tokens = currentConfig.maxTokens;
   }
 
-  let cancelToken;
-  if (signal) {
-    const cancelTokenSource = axios.CancelToken.source();
-    cancelToken = cancelTokenSource.token;
-    if (signal.aborted) {
-      cancelTokenSource.cancel('Aborted');
-    } else {
-      signal.addEventListener('abort', () => {
-        cancelTokenSource.cancel('Aborted');
-      });
-    }
-  }
-
   try {
+    // axios >=0.22 accepts the AbortSignal directly (and releases the
+    // listener when the request settles) — no CancelToken bridge needed.
     const response = await axios.post(endpointUrl, payload, {
       headers,
-      cancelToken,
+      signal: signal || undefined,
       timeout: 120000,
     });
 

@@ -132,6 +132,7 @@
     ".sonarcloud.properties",
     "AGENTS.md",
     "AI_GAME_STUDIO_ASSESSMENT.md",
+    "AUTONOMOUS_STATE.json",
     "BUILD.md",
     "Extensions/3D/Model3DInstancePool.ts",
     "Extensions/TileMap/tests/tilemapCulling.spec.js",

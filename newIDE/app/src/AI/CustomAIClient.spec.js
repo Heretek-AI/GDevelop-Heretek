@@ -27,6 +27,7 @@ import {
   customCreateAssetSearch,
   customCreateResourceSearch,
   testConnection,
+  sendChatCompletion,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -335,6 +336,73 @@ describe('CustomAIClient', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Connection failed');
+    });
+  });
+
+  describe('sendChatCompletion cancellation', () => {
+    const minimalConfig = {
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    };
+
+    it('passes the caller AbortSignal directly to axios', async () => {
+      const controller = new AbortController();
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: minimalConfig,
+        signal: controller.signal,
+      });
+
+      const postOptions = axios.post.mock.calls[0][2];
+      expect(postOptions.signal).toBe(controller.signal);
+      // The legacy CancelToken bridge must be gone.
+      expect(postOptions.cancelToken).toBeUndefined();
+    });
+
+    it('rejects with an abort message when the signal is already aborted', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce(new Error('canceled'));
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig,
+          signal: controller.signal,
+        })
+      ).rejects.toThrow('AI request was aborted.');
+    });
+
+    it('rejects with an abort message when aborted mid-request', async () => {
+      const controller = new AbortController();
+      // $FlowFixMe
+      axios.post.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            controller.signal.addEventListener('abort', () =>
+              reject(new Error('canceled'))
+            );
+          })
+      );
+
+      const pending = sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: minimalConfig,
+        signal: controller.signal,
+      });
+      controller.abort();
+
+      await expect(pending).rejects.toThrow('AI request was aborted.');
     });
   });
 
