@@ -454,6 +454,7 @@ const PreferencesDialog = ({
     setAiCustomApiKey,
     setAiCustomModel,
     setAiCustomTemperature,
+    setAiCustomTimeoutMs,
   } = React.useContext(PreferencesContext);
 
   const [
@@ -1408,6 +1409,23 @@ const PreferencesDialog = ({
                 setAiCustomTemperature(0.7);
               } else {
                 setAiCustomTemperature(Math.max(0.0, Math.min(1.0, parsed)));
+              }
+            }}
+          />
+          <TextField
+            type="number"
+            floatingLabelText={<Trans>Request timeout in milliseconds</Trans>}
+            helperMarkdownText={i18n._(
+              t`Time before a request to the AI endpoint is aborted. Increase this for slow local models on large contexts. Default: 120000.`
+            )}
+            fullWidth
+            value={values.aiCustomTimeoutMs}
+            onChange={(e, value) => {
+              const parsed = parseInt(value, 10);
+              if (Number.isNaN(parsed) || parsed <= 0) {
+                setAiCustomTimeoutMs(120000);
+              } else {
+                setAiCustomTimeoutMs(parsed);
               }
             }}
           />

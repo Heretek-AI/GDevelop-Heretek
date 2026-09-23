@@ -440,6 +440,8 @@ export default class PreferencesProvider extends React.Component<Props, State> {
     setAiCustomModel: (this._setAiCustomModel.bind(this): any),
     // $FlowFixMe[method-unbinding]
     setAiCustomTemperature: (this._setAiCustomTemperature.bind(this): any),
+    // $FlowFixMe[method-unbinding]
+    setAiCustomTimeoutMs: (this._setAiCustomTimeoutMs.bind(this): any),
   };
 
   componentDidMount() {
@@ -450,6 +452,7 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       apiKey: this.state.values.aiCustomApiKey,
       model: this.state.values.aiCustomModel,
       temperature: this.state.values.aiCustomTemperature,
+      timeoutMs: this.state.values.aiCustomTimeoutMs,
     });
 
     this._periodicUpdateCheckTimeout = setTimeout(
@@ -1574,6 +1577,21 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       () => {
         this._persistValuesToLocalStorage(this.state);
         setCustomEndpointConfig({ temperature: newValue });
+      }
+    );
+  }
+
+  _setAiCustomTimeoutMs(newValue: number) {
+    this.setState(
+      state => ({
+        values: {
+          ...state.values,
+          aiCustomTimeoutMs: newValue,
+        },
+      }),
+      () => {
+        this._persistValuesToLocalStorage(this.state);
+        setCustomEndpointConfig({ timeoutMs: newValue });
       }
     );
   }
