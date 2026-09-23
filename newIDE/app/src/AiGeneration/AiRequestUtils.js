@@ -49,6 +49,22 @@ export const canRetryAiRequest = (aiRequest: AiRequest): boolean =>
     (aiRequest.retriesInARowCount || 0) >= MAX_AI_REQUEST_RETRIES_IN_A_ROW
   );
 
+/**
+ * Whether a send/continue of an AI request may proceed for this session:
+ * any logged-in profile, or a local/BYOK session with a custom endpoint
+ * enabled (the hosted API is never involved for those). Hosted non-local
+ * requests without a profile are refused.
+ *
+ * Shared by the editor container and the stand-alone form so the two cannot
+ * drift — the stand-alone form used to require a profile for function-call
+ * outputs even when a custom endpoint was enabled, which silently broke the
+ * agent loop for offline BYOK sessions.
+ */
+export const canSendAiRequestForSession = (
+  profile: ?{ id: string },
+  customEndpointEnabled: boolean
+): boolean => !!profile || customEndpointEnabled;
+
 export const getFunctionCallToFunctionCallOutputMap = ({
   aiRequest,
 }: {|

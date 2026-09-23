@@ -54,6 +54,7 @@ import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
   aiRequestHasWorkInProgress,
+  canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
 } from './AiRequestUtils';
@@ -804,7 +805,8 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           createdProject?: ?gdProject,
           editorFunctionCallResults: Array<EditorFunctionCallResult>,
         |}) => {
-          if (!profile && !isCustomEndpointEnabled()) return;
+          if (!canSendAiRequestForSession(profile, isCustomEndpointEnabled()))
+            return;
 
           const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;
 

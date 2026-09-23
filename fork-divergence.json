@@ -66,6 +66,8 @@
     "newIDE/app/src/AiGeneration/AiRequestChat/index.js",
     "newIDE/app/src/AiGeneration/AiRequestContext.js",
     "newIDE/app/src/AiGeneration/AiRequestContext.spec.js",
+    "newIDE/app/src/AiGeneration/AiRequestUtils.js",
+    "newIDE/app/src/AiGeneration/AiRequestUtils.spec.js",
     "newIDE/app/src/AiGeneration/AskAiEditorContainer.js",
     "newIDE/app/src/AiGeneration/AskAiStandAloneForm.js",
     "newIDE/app/src/AiGeneration/PrepareAiUserContent.js",

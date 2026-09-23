@@ -5,6 +5,7 @@ import {
   getPendingSubAgentFunctionCalls,
   aiRequestPollSawActivity,
   canRetryAiRequest,
+  canSendAiRequestForSession,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -255,5 +256,21 @@ describe('canRetryAiRequest', () => {
         })
       )
     ).toBe(true);
+  });
+});
+
+describe('canSendAiRequestForSession', () => {
+  it('allows a logged-in profile', () => {
+    expect(canSendAiRequestForSession({ id: 'user-1' }, false)).toBe(true);
+    expect(canSendAiRequestForSession({ id: 'user-1' }, true)).toBe(true);
+  });
+
+  it('allows local/BYOK (custom endpoint) without a profile', () => {
+    expect(canSendAiRequestForSession(null, true)).toBe(true);
+  });
+
+  it('refuses hosted sends without a profile and without a custom endpoint', () => {
+    expect(canSendAiRequestForSession(null, false)).toBe(false);
+    expect(canSendAiRequestForSession(undefined, false)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 35,
+  "last_cycle": 36,
   "completed_targets": [
     {
       "cycle": 1,
@@ -205,10 +205,16 @@
       "target": "Route local-ai lifecycle (update/delete/retry) through local cache + fix summaries shape + allow lifecycle without profile",
       "metric_delta": "Before: getAiRequestSummaries custom path returned {aiRequests,nextPageUri} but callers spread recentsPage.aiRequestSummaries \u2192 TypeError for custom-endpoint users; update/delete/retry of local-ai-* could hit the hosted API (or no-op without a profile). After: custom summaries map customGetAiRequests() \u2192 {aiRequestSummaries,nextPageUri} (sub-agents excluded, archived/game filters applied); update/delete/retry short-circuit on local-ai-* via customPatchAiRequestAttributes/customDeleteAiRequest/customRetryAiRequest; rename/archive/delete/load/fetch work without a profile when local-ai-* or custom endpoint is enabled (LOCAL_BYOK_USER_ID fallback). canMutateAiRequest is a useCallback dep-clean helper. New Generation.spec.js (5 tests) + CustomAIClient lifecycle tests (5) + context rename/archive/delete tests (2). Gates: ESLint 0 on 7 files, prettier clean, 272/272 AI+AiGeneration+GDevelopServices tests, divergence green (Generation.spec.js recorded forkOnly).",
       "commit": "fix(ai): route local AI request lifecycle through the local cache"
+    },
+    {
+      "cycle": 36,
+      "target": "Standalone Ask AI form: allow function-call result sends for local/BYOK without a profile",
+      "metric_delta": "Before: AskAiStandAloneForm.onSendMessage required a logged-in profile (if (!profile) return) even when isCustomEndpointEnabled() \u2014 the form could START a custom-endpoint request without a profile (line 284) but silently dropped function-call outputs afterward, stalling the agent loop for offline BYOK sessions. The editor container already used the correct guard (profile || custom endpoint). After: shared pure helper canSendAiRequestForSession(profile, customEndpointEnabled) in AiRequestUtils; both containers use it so they cannot drift. 3 new tests (profile always allowed, custom endpoint without profile allowed, hosted without profile refused). Gates: ESLint 0, prettier clean, 275/275 AI+AiGeneration+GDevelopServices tests (was 272), divergence updated for AiRequestUtils.js/.spec.js fork divergence, lockfile guard green. Diff: 4 files, +43/-2.",
+      "commit": "fix(ai): allow standalone form to return function-call outputs without a profile"
     }
   ],
   "backlog": [
-    "Watch loop: getAiRequestStatuses/getAiRequest already route local-ai-*; verify aiRequestShouldBeWatched never forces a hosted status poll when only local ids are watched (cycle-35 summaries/lifecycle fixed)",
+    "onWatch still returns early when !profile (AiRequestContext.js:1194) \u2014 local BYOK never gets watch-driven suggestion-clear/sub-agent status poll while logged out; local turns update the cache directly so impact is narrower than the standalone-form bug",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
     "OnRetryAfterError: consider allowing custom-endpoint ids (non local-ai- prefix) without profile when isCustomEndpointEnabled() \u2014 currently only local-ai- prefix is allowed"
   ],
@@ -231,6 +237,7 @@
     "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes \u2014 the 5003-message benchmark caught a bookkeeping bug the unit tests missed",
     "eslint --fix resolves import/first ordering automatically \u2014 prefer it over manual import relocation when inserting components mid-file",
     "axios.create() is automocked to undefined under jest.mock('axios'); Generation hosted paths need a factory mock that returns {get,post,patch,delete} from create()",
-    "seedLocalRequest in Generation.spec uses axios.post once \u2014 clear the post mock before asserting hosted API was not called"
+    "seedLocalRequest in Generation.spec uses axios.post once \u2014 clear the post mock before asserting hosted API was not called",
+    "Profile guards on send/continue paths must use canSendAiRequestForSession (profile || custom endpoint) \u2014 the stand-alone form and editor container drifted once and silently stalled BYOK agent loops"
   ]
 }

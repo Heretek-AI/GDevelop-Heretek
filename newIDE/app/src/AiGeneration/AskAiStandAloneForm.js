@@ -20,6 +20,7 @@ import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { CreditsPackageStoreContext } from '../AssetStore/CreditsPackages/CreditsPackageStoreContext';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
+  canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
 } from './AiRequestUtils';
@@ -470,7 +471,12 @@ export const AskAiStandAloneForm = ({
       createdProject?: ?gdProject,
       editorFunctionCallResults: Array<EditorFunctionCallResult>,
     |}) => {
-      if (!profile) return;
+      // Local/BYOK (custom endpoint) must be able to return function-call
+      // outputs without a logged-in profile — same rule as the editor
+      // container's onSendMessage. Requiring a profile here silently stalled
+      // the agent loop for offline sessions after the model asked to run tools.
+      if (!canSendAiRequestForSession(profile, isCustomEndpointEnabled()))
+        return;
 
       const aiRequestForSend = aiRequests[aiRequestId];
       if (!aiRequestForSend) return;
