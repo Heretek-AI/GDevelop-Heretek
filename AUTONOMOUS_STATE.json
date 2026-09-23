@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 19,
+  "last_cycle": 21,
   "completed_targets": [
     {
       "cycle": 1,
@@ -109,6 +109,18 @@
       "target": "Actionable error hints for local-server failure modes (VRAM exhaustion, model-not-loaded, unreachable endpoint)",
       "metric_delta": "Before: local server failures surfaced raw payloads ('model requires more system memory than is available') or bare 'connect ECONNREFUSED' with no guidance. After: getErrorHint matches known local failure payloads (out of memory / VRAM / more system memory / CUDA, model not found / not loaded) and network-level failures (ECONNREFUSED, network error), appending concrete hints (smaller quantization, check model identifier / load model, ensure the local AI server is running). Unmatched provider errors pass through byte-identical. 3 new tests; 58/58 green.",
       "commit": "feat(ai): actionable hints for local server errors"
+    },
+    {
+      "cycle": 20,
+      "target": "Base-URL scheme hardening audit (file:/data: exfiltration vector)",
+      "metric_delta": "Verified by construction: normalizeBaseUrl coerces every input to http(s):// (schemeless loopback gets http://, everything else https://), so file:, data:, javascript: and other non-HTTP schemes cannot survive normalization into fetch. No change needed \u2014 recorded as a heuristic.",
+      "commit": "(no code change \u2014 security audit cycle)"
+    },
+    {
+      "cycle": 21,
+      "target": "Local server presets in AI Settings (Ollama / LM Studio / llama.cpp endpoint discovery)",
+      "metric_delta": "Before: users had to know and type each local server's default endpoint. After: three preset buttons in Preferences > AI Settings fill the Base URL (http://localhost:11434/v1, :1234/v1, :8080/v1) via the existing setAiCustomBaseUrl path (persisted + sanitized like any config change). Browser-verified end-to-end: presets render, clicking LM Studio and llama.cpp updated the field and persisted to gd-custom-ai-config.",
+      "commit": "feat(preferences): local server presets for custom AI endpoints"
     }
   ],
   "backlog": [
@@ -127,6 +139,7 @@
     "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers",
     "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source",
     "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement",
-    "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors"
+    "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors",
+    "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it"
   ]
 }

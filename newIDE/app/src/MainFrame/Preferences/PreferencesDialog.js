@@ -1371,6 +1371,22 @@ const PreferencesDialog = ({
             onCheck={setAiCustomEndpointEnabled}
             label={<Trans>Enable Custom / Local AI Endpoint (BYOK)</Trans>}
           />
+          <LineStackLayout alignItems="center" noMargin>
+            <Text size="body-small" color="secondary">
+              <Trans>Local server presets:</Trans>
+            </Text>
+            {[
+              { label: 'Ollama', baseUrl: 'http://localhost:11434/v1' },
+              { label: 'LM Studio', baseUrl: 'http://localhost:1234/v1' },
+              { label: 'llama.cpp', baseUrl: 'http://localhost:8080/v1' },
+            ].map(preset => (
+              <RaisedButton
+                key={preset.label}
+                label={preset.label}
+                onClick={() => setAiCustomBaseUrl(preset.baseUrl)}
+              />
+            ))}
+          </LineStackLayout>
           <TextField
             floatingLabelText={<Trans>Base URL</Trans>}
             helperMarkdownText={i18n._(
