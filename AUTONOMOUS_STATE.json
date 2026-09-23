@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 27,
+  "last_cycle": 28,
   "completed_targets": [
     {
       "cycle": 1,
@@ -157,11 +157,15 @@
       "target": "SSE streaming for local/BYOK endpoints behind a config flag",
       "metric_delta": "Before: every request waited for the full completion (high time-to-first-token in agent loops on local models). After: CustomAIConfig.streaming (off by default) switches sendChatCompletion to a fetch+SSE path: chunks parsed incrementally (malformed chunks skipped), tool_call deltas assembled across chunks (id/name/arguments concatenation), caller AbortSignal honored, configured timeoutMs aborts the stream with a clearer message, HTTP errors carry the status for the cycle-19 hint resolver, and any streaming failure falls back to exactly one non-streaming request so a turn never dies to a streaming incompatibility. Preferences toggle 'Stream responses (experimental)' plumbed through context/provider (sanitized on load: parsed.streaming === true). 3 new tests via a minimal reader mock (assembly incl. split tool-call arguments, malformed-chunk tolerance + empty-stream fallback, network-error fallback). 65/65 green.",
       "commit": "feat(ai): SSE streaming behind a config flag with non-streaming fallback"
+    },
+    {
+      "cycle": 28,
+      "target": "Progressive streamed-token display in the AI chat",
+      "metric_delta": "Before: streaming accumulated server-side only \u2014 the user saw a generic thinking indicator for the whole generation. After: sendChatCompletion accepts onStreamDelta, streamChatCompletion invokes it with the accumulated content after every chunk batch, the chat turn writes it into a fork-only registry (cleared on settle), and ChatMessages renders PartialStreamText \u2014 a 300ms-polled tail (last 160 chars) of the partial output beside the thinking indicator, only while working. Health sweep this cycle: 176/176 suites, 1960 tests green; divergence green.",
+      "commit": "feat(ai): progressive streamed-token display in the chat"
     }
   ],
-  "backlog": [
-    "Surface streamed tokens progressively in the chat UI (streaming currently accumulates server-side only)"
-  ],
+  "backlog": [],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
     "Prefer pure JS/TS mocks for local AI endpoint testing to avoid external network calls during CI",
@@ -178,6 +182,7 @@
     "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors",
     "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it",
     "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD \u2014 compare counts, not grep positions",
-    "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes \u2014 the 5003-message benchmark caught a bookkeeping bug the unit tests missed"
+    "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes \u2014 the 5003-message benchmark caught a bookkeeping bug the unit tests missed",
+    "eslint --fix resolves import/first ordering automatically \u2014 prefer it over manual import relocation when inserting components mid-file"
   ]
 }

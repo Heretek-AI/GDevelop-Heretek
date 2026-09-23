@@ -248,6 +248,15 @@ export const customGetAiRequestTokenTotal = (aiRequestId: string): number =>
  * back to the globally configured model. Survives via the request-scoped
  * registries until the client state is reset.
  */
+/**
+ * Latest streamed partial content per in-flight request, for the progressive
+ * "typing" display in the chat UI. Cleared when the turn settles.
+ */
+const localAiRequestPartialContent: { [id: string]: string } = {};
+
+export const customGetAiRequestPartialContent = (aiRequestId: string): string =>
+  localAiRequestPartialContent[aiRequestId] || '';
+
 const localAiRequestModelOverrides: { [id: string]: string } = {};
 
 export const customSetAiRequestModelOverride = (
@@ -510,6 +519,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestModelOverrides)) {
     delete localAiRequestModelOverrides[key];
+  }
+  for (const key of Object.keys(localAiRequestPartialContent)) {
+    delete localAiRequestPartialContent[key];
   }
   for (const key of Object.keys(localAiTurnTails)) {
     delete localAiTurnTails[key];
@@ -2247,6 +2259,7 @@ const streamChatCompletion = async ({
   payload,
   signal,
   timeoutMs,
+  onStreamDelta,
   apiKeyConfigured,
 }: {|
   endpointUrl: string,
@@ -2254,6 +2267,7 @@ const streamChatCompletion = async ({
   payload: Object,
   signal?: ?AbortSignal,
   timeoutMs: number,
+  onStreamDelta?: (partialContent: string) => void,
   apiKeyConfigured: boolean,
 |}): Promise<Object> => {
   const combinedController = new AbortController();
@@ -2355,6 +2369,7 @@ const streamChatCompletion = async ({
           }
         }
         if (choice.finish_reason) finishReason = choice.finish_reason;
+        if (onStreamDelta) onStreamDelta(content);
       }
     }
 
@@ -2413,11 +2428,13 @@ export const sendChatCompletion = async ({
   tools,
   config,
   signal,
+  onStreamDelta,
 }: {|
   messages: Array<Object>,
   tools?: ?Array<Object>,
   config?: ?CustomAIConfig,
   signal?: ?AbortSignal,
+  onStreamDelta?: (partialContent: string) => void,
 |}): Promise<Object> => {
   const currentConfig = config || getCustomEndpointConfig();
   const baseUrl = normalizeBaseUrl(currentConfig.baseUrl);
@@ -2463,6 +2480,7 @@ export const sendChatCompletion = async ({
         payload,
         signal,
         timeoutMs,
+        onStreamDelta,
         apiKeyConfigured: !!(
           currentConfig.apiKey && currentConfig.apiKey.trim()
         ),
@@ -2967,9 +2985,13 @@ export const customAddMessageToAiRequest = async ({
           : GDEVELOP_OPENAI_TOOLS,
         config: getEffectiveConfigForRequest(aiRequestId),
         signal: abortController.signal,
+        onStreamDelta: partialContent => {
+          localAiRequestPartialContent[aiRequestId] = partialContent;
+        },
       });
     } catch (error) {
       releaseTurnAbortController(aiRequestId);
+      delete localAiRequestPartialContent[aiRequestId];
       if (abortController.signal.aborted) {
         // The turn was stopped by the user (suspended): keep the suspended
         // cache copy — the turn's answer (if any arrived) is not written back
@@ -2979,6 +3001,7 @@ export const customAddMessageToAiRequest = async ({
       throw error;
     }
     releaseTurnAbortController(aiRequestId);
+    delete localAiRequestPartialContent[aiRequestId];
     addTokenUsage(
       aiRequestId,
       estimateMessagesTokens(budgetedMessages),

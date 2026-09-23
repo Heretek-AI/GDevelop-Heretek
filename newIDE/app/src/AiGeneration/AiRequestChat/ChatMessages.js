@@ -38,6 +38,13 @@ import {
   type EditorCallbacks,
 } from '../../EditorFunctions';
 import classes from './ChatMessages.module.css';
+import CheckCircle from '@material-ui/icons/CheckCircle';
+import Link from '../../UI/Link';
+import { type FileMetadata } from '../../ProjectsStorage';
+import UnsavedChangesContext from '../../MainFrame/UnsavedChangesContext';
+import { exceptionallyGuardAgainstDeadObject } from '../../Utils/IsNullPtr';
+import { OrchestratorPlan } from './OrchestratorPlan';
+import { type FunctionCallItem, type RenderItem } from './Utils';
 import { DislikeFeedbackDialog } from './DislikeFeedbackDialog';
 import { AiRequestErrorRow } from './AiRequestErrorRow';
 import { AiCreditsLimitRow } from './AiCreditsLimitRow';
@@ -55,14 +62,33 @@ import {
   isCustomEndpointEnabled,
   customGetAiRequestContextTrimCount,
   customGetAiRequestTokenTotal,
+  customGetAiRequestPartialContent,
 } from '../../AI/CustomAIClient';
-import CheckCircle from '@material-ui/icons/CheckCircle';
-import Link from '../../UI/Link';
-import { type FileMetadata } from '../../ProjectsStorage';
-import UnsavedChangesContext from '../../MainFrame/UnsavedChangesContext';
-import { exceptionallyGuardAgainstDeadObject } from '../../Utils/IsNullPtr';
-import { OrchestratorPlan } from './OrchestratorPlan';
-import { type FunctionCallItem, type RenderItem } from './Utils';
+
+/**
+ * Progressive streaming display: polls the client's latest partial content
+ * for the in-flight request and shows its tail. Polling keeps this fully
+ * decoupled from the request cache's write-through lifecycle.
+ */
+const PartialStreamText = ({ aiRequestId }: {| aiRequestId: string |}) => {
+  const [partialContent, setPartialContent] = React.useState('');
+  React.useEffect(
+    () => {
+      const interval = setInterval(() => {
+        setPartialContent(customGetAiRequestPartialContent(aiRequestId));
+      }, 300);
+      return () => clearInterval(interval);
+    },
+    [aiRequestId]
+  );
+  if (!partialContent) return null;
+  const tail = partialContent.slice(-160);
+  return (
+    <Text noMargin displayInlineAsSpan size="body-small" color="secondary">
+      {tail}
+    </Text>
+  );
+};
 
 // Phrases displayed while the AI is thinking/waiting (no active function calls).
 // Defined outside the component so the array is stable across renders.
@@ -1367,6 +1393,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
                 </span>
               </Text>
             </div>
+            <PartialStreamText aiRequestId={aiRequest.id} />
           </Line>
         ) : null}
 
