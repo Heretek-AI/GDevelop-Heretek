@@ -468,7 +468,7 @@
   ],
   "backlog": [
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "Extend the cold-start hint to sub-agent turns and the stand-alone form (LocalColdStartHint is only wired into ChatMessages' working indicator today)"
+    "Cold-start hint coverage is now live for create, addMessage and sub-agent turns plus the stand-alone form (all reach ChatMessages with shouldBeWorkingIfNotPaused); the remaining gap is customTestConnection, which passes no onStreamDelta and is a one-shot probe, not a chat turn"
   ],
   "heuristics": [
     {
