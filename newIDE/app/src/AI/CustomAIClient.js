@@ -4708,10 +4708,21 @@ export const testConnection = async (
       messages: [{ role: 'user', content: 'Say "OK"' }],
       config,
     });
+    // Success only when the model actually answered. A completion with no
+    // text (a reasoner that wrote only reasoning_content, or a bare body)
+    // validated nothing, and reporting "successfully connected" for it sends
+    // the user off with a broken setup.
+    const answer = typeof res.content === 'string' ? res.content.trim() : '';
+    if (!answer) {
+      return {
+        success: false,
+        message:
+          'The endpoint answered, but the model returned no text. It may be a reasoning-only model, or the endpoint may not support chat completions — check the model name in the AI preferences.',
+      };
+    }
     return {
       success: true,
-      message: `Successfully connected! Model responded: ${res.content ||
-        'OK'}`,
+      message: `Successfully connected! Model responded: ${answer}`,
     };
   } catch (err) {
     return {

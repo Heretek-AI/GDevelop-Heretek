@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 108,
+  "last_cycle": 109,
   "completed_targets": [
     {
       "cycle": 75,
@@ -639,6 +639,12 @@
       "target": "Surface a streamed error chunk instead of a generic drop",
       "metric_delta": "456->457 tests; the SSE parser read only chunk.choices, so a server that explains a mid-stream failure in an error chunk had its reason discarded — the user got 'the stream ended without any content (connection may have been dropped mid-stream)' for a failure the server had already described. The parser now captures that reason and the turn fails with 'AI Provider Error (streamed): <server message>', flagged isServerReportedError so sendChatCompletion does not start the pointless non-streaming retry (same precedent as isStreamTimeout/isOutputBudgetExhausted). 2 files, +29",
       "commit": "fix(ai): surface a streamed error chunk instead of a generic drop"
+    },
+    {
+      "cycle": 109,
+      "target": "Require a real answer before reporting a successful connection test",
+      "metric_delta": "457->459 tests; testConnection's chat-completion fallback reported `Successfully connected! Model responded: ${res.content || 'OK'}` — the 'OK' fallback made an empty completion (a reasoning-only model that wrote nothing, or a bare body) look like a validated endpoint. It now requires non-empty trimmed text and otherwise fails with an explanation (reasoning-only model, or the endpoint may not support chat completions). Pre-fix the check returns success:true for an empty answer. 2 files, +60/-2",
+      "commit": "fix(ai): require a real answer before reporting a successful connection test"
     }
   ],
   "backlog": [
@@ -763,6 +769,7 @@
     "Recognising a protocol terminator is not acting on it: the SSE parser saw `data: [DONE]` and returned from the line handler, leaving the read loop waiting for a socket close the server need not send. When code special-cases a terminator, check whether the surrounding loop actually stops.",
     "When the fork adds local accounting for something the server used to report, check every UI consumer of the server field: the context gauge read only aiRequest.contextStats, so the local path (which tracks tokens itself) left it permanently empty. A field the server sets is not a field that is always set.",
     "Check what a metric's contract means before wiring a source to it: the context gauge asks 'how full is the window now' but cycle 105 fed it a cumulative cost meter, which inflates every turn. Two similarly-named token counters existed (cumulative totals vs. latest prompt size) and the doc comment was the only thing distinguishing them.",
-    "HTTP 200 does not mean success: some OpenAI-compatible servers report model failures (still loading, OOM) in the body with a 200. Any code that returns response.data without checking for an error field turns such a failure into an empty successful turn — check the body shape, not just the status."
+    "HTTP 200 does not mean success: some OpenAI-compatible servers report model failures (still loading, OOM) in the body with a 200. Any code that returns response.data without checking for an error field turns such a failure into an empty successful turn — check the body shape, not just the status.",
+    "A `||` default in a success message hides an empty result: `${res.content || 'OK'}` let an unvalidated endpoint pass the connection test. A probe must assert the thing it claims to have verified, not substitute a placeholder for it."
   ]
 }

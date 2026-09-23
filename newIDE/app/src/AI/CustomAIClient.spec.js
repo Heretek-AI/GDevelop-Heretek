@@ -4026,6 +4026,53 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('the connection test requires a real answer', () => {
+    it('does not report success when the model answered with no text', async () => {
+      // A completion with no text (reasoning-only model, or a bare body)
+      // proves nothing about the endpoint; calling it a successful connection
+      // sends the user off with a broken setup.
+      // $FlowFixMe
+      axios.get.mockRejectedValueOnce(new Error('404'));
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: '' } }] },
+      });
+
+      const result = await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('no text');
+    });
+
+    it('reports success with the model text when it answers', async () => {
+      // $FlowFixMe
+      axios.get.mockRejectedValueOnce(new Error('404'));
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'OK' } }] },
+      });
+
+      const result = await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('OK');
+    });
+  });
+
   describe('a streamed error chunk', () => {
     it("fails the turn with the server's own reason", async () => {
       // A server can explain a mid-stream failure in an error chunk. Ignoring
