@@ -1204,6 +1204,50 @@ describe('CustomAIClient', () => {
       ).rejects.toThrow(/GPU\/VRAM/);
     });
 
+    it('hints at context overflow, not VRAM, when the message says both', async () => {
+      // Local servers phrase context overflow with words the VRAM pattern also
+      // matches ("too large"). The context hint must win, or the user is told
+      // to shrink their quantization/VRAM for what is actually a full window.
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: {
+            error: {
+              message:
+                "this model's maximum context length is 4096 tokens, however you requested 5000 tokens (you requested 5000; the input is too large)",
+            },
+          },
+        },
+      });
+
+      const err = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: minimalConfig,
+      }).catch(e => e);
+      expect(err.message).toMatch(/context window/);
+      expect(err.message).not.toMatch(/GPU\/VRAM/);
+    });
+
+    it('hints at context overflow for a bare length-exceeded message', async () => {
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: {
+            error: { message: 'the input length exceeds the context length' },
+          },
+        },
+      });
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig,
+        })
+      ).rejects.toThrow(/context window/);
+    });
+
     it('hints at server reachability on connection refused', async () => {
       // $FlowFixMe
       axios.post.mockRejectedValueOnce({

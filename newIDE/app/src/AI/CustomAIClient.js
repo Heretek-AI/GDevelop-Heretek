@@ -2733,6 +2733,18 @@ Guidelines:
  */
 const LOCAL_SERVER_ERROR_HINTS = [
   {
+    // Context overflow, listed before the VRAM patterns: a local server
+    // reports it as a 400 whose text often contains "too large", which the
+    // VRAM pattern below would otherwise claim. The budget in this file trims
+    // history to fit, so reaching this means the request still exceeded the
+    // window — an unknown model family defaulting too high, a tool schema
+    // that alone fills a small window, or a single oversized message. Nothing
+    // here can retry the turn smaller, so the hint names what the user can do.
+    pattern: /context length|context window|context size|maximum context|exceeds the (maximum )?context|prompt is too long|input is too long|too many tokens/i,
+    hint:
+      'The request is larger than the model can accept at once. Start a new chat to send less history, or use a model with a larger context window.',
+  },
+  {
     pattern: /out of memory|vram|more (system )?memory|memory required|cuda|insufficient memory|too large/i,
     hint:
       'The model likely does not fit in the available GPU/VRAM. Try a smaller quantization, reduce the context length, or close other GPU applications.',
