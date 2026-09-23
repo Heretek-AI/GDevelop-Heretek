@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 92,
+  "last_cycle": 93,
   "completed_targets": [
     {
       "cycle": 75,
@@ -548,6 +548,12 @@
       "target": "Correct the estimateTokens docblock after the script-aware change",
       "metric_delta": "420 tests (unchanged); the docblock still read '~4 characters per token' while the code below counted CJK at one token per character, and a second comment block repeated the same explanation. Stale documentation left by cycle 83 is worse than none here: the estimator's unit is the premise every budget and trim rests on, and a reader trusting the comment would reintroduce the 4x under-count. One accurate docblock now states both rates and why. Comment-only, no behaviour change; 1 file, +10/-9",
       "commit": "docs(ai): state both token rates in the estimateTokens docblock"
+    },
+    {
+      "cycle": 93,
+      "target": "Show a reasoning model's chain of thought in the chat",
+      "metric_delta": "420->424 tests; parseAssistantMessage extracted `thinking` from reasoning_content (and from  blocks) but emitted it only as a top-level field, while the message's `content` array carried text and function calls. No component read `.thinking`, so a reasoning model's chain of thought was computed on every turn and then discarded; ChatMessages already had a `type === 'reasoning'` render branch that nothing could ever reach. The reasoning entry is now emitted first in `content` (thinking precedes the answer), so the existing branch renders it — including for a turn that stopped after thinking, where it is the only visible content. 2 files, +79/-0",
+      "commit": "fix(ai): show a reasoning model's thinking in the chat"
     }
   ],
   "backlog": [
@@ -659,6 +665,8 @@
     "estimateMessagesTokens must count every field the model receives: tool name, call id and tool_call_id were omitted, under-counting a tool-heavy transcript by 81%. When adding a field to an outgoing message, add it to the estimator in the same change.",
     "Before fixing a suspected race, confirm the operations can overlap: sub-agent turns are awaited sequentially in the spawn loop, so the shared parent partialContent key is safe to clear there, and scoping the cleanup to the child id would have left the parent key stale (permanently suppressing the cold-start hint). I reverted that change.",
     "A cost/usage meter must total every field a completion returns: reasoning_content was omitted after cycle 80 started carrying it. Pin such accounting with a differential test (run the same turn with and without the field) — an absolute threshold is swamped by the system prompt and passes either way.",
-    "JS object key order is insertion order: writing to an existing key does not move it. Any recency cap over Object.keys must sort by the timestamp the rest of the app uses (updatedAt here), or continuing an old entry evicts the newest ones."
+    "JS object key order is insertion order: writing to an existing key does not move it. Any recency cap over Object.keys must sort by the timestamp the rest of the app uses (updatedAt here), or continuing an old entry evicts the newest ones.",
+    "Dead render branches reveal dropped data: ChatMessages had a `type === 'reasoning'` case that no producer ever satisfied, because parseAssistantMessage kept `thinking` in a top-level field no component read. When a UI branch has no matching producer, check whether the data is being discarded upstream rather than assuming it is used elsewhere.",
+    "In this spec file, build  tags with String.fromCharCode(60) + 'think>' as the existing fixtures do — a literal angle bracket in a prompt/attachment round trip can arrive stripped, which silently changes what the test feeds the parser."
   ]
 }

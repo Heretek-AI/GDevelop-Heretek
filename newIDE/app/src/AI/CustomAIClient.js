@@ -3173,6 +3173,19 @@ export const parseAssistantMessage = (
   }
 
   const contentArray: Array<any> = [];
+  // Reasoning first: the chat renders content in order, and the thinking
+  // precedes the answer it produced. Without this the extracted `thinking` was
+  // only a top-level field that no component read, so a reasoning model's
+  // chain of thought was computed and then thrown away — ChatMessages already
+  // had a `type === 'reasoning'` branch, but nothing ever produced such an
+  // entry to reach it.
+  if (thinking) {
+    contentArray.push({
+      type: 'reasoning',
+      status: 'completed',
+      summary: { text: thinking, type: 'summary_text' },
+    });
+  }
   if (cleanContent) {
     contentArray.push({
       type: 'text',

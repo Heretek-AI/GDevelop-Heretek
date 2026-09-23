@@ -3772,6 +3772,72 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('reasoning is emitted as rendered content', () => {
+    it('puts the reasoning entry before the answer text', () => {
+      // The chat renders content in order and the chat UI's `reasoning`
+      // branch was unreachable: parseAssistantMessage extracted `thinking`
+      // into a top-level field no component read, so a reasoning model's chain
+      // of thought was discarded.
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: 'Here is the answer.',
+        reasoning_content: 'Let me plan the scene.',
+      });
+      expect(message.content).toHaveLength(2);
+      expect(message.content[0]).toEqual({
+        type: 'reasoning',
+        status: 'completed',
+        summary: { text: 'Let me plan the scene.', type: 'summary_text' },
+      });
+      expect(message.content[1]).toEqual({
+        type: 'text',
+        status: 'completed',
+        text: 'Here is the answer.',
+      });
+    });
+
+    it('reads a think block as reasoning content too', () => {
+      // Build the tag from char codes: the file's own fixtures do, so the
+      // literal angle bracket cannot be lost in transit.
+      const open = String.fromCharCode(60) + 'think>';
+      const close = String.fromCharCode(60) + '/think>';
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: open + 'Working it out.' + close + 'Result.',
+      });
+      expect(message.content[0].type).toBe('reasoning');
+      expect(message.content[0].summary.text).toBe('Working it out.');
+      expect(message.content[1]).toEqual({
+        type: 'text',
+        status: 'completed',
+        text: 'Result.',
+      });
+    });
+
+    it('emits no reasoning entry for a plain answer', () => {
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: 'Just an answer.',
+      });
+      expect(
+        message.content.filter(item => item.type === 'reasoning')
+      ).toHaveLength(0);
+      expect(message.content).toHaveLength(1);
+    });
+
+    it('still emits a reasoning entry when the answer is empty', () => {
+      // A reasoner that stopped after thinking: the thinking is the turn's
+      // only visible content, so it must not be dropped.
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: '',
+        reasoning_content: 'Only thinking here.',
+      });
+      expect(message.content).toHaveLength(1);
+      expect(message.content[0].type).toBe('reasoning');
+    });
+  });
+
   describe('local cost meter counts reasoning output', () => {
     it('bills a streamed chain of thought, not only the answer', async () => {
       // Differential: run the same create twice, once with a reasoning delta
