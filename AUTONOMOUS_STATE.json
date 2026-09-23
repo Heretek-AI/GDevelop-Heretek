@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 39,
+  "last_cycle": 40,
   "completed_targets": [
     {
       "cycle": 1,
@@ -229,6 +229,12 @@
       "target": "Single selection-load path: remove useAiRequestState duplicate getAiRequest effect",
       "metric_delta": "Before: useAiRequestState re-fetched the selected chat whenever profile was set (Utils.js:1881-1913), racing AiRequestProvider loadAiRequest (double getAiRequest) and clearing selectedAiRequestId on failure instead of keeping Context retry/loading state. After: AiRequestProvider loadAiRequest is the sole selection-load path (manages loading/error, suspends WIP, offline local-ai-*/custom); Utils no longer imports getAiRequest for load. New AiRequestContext.selectionLoad.spec.js dual-mount tests: load exactly once; selection kept on error. AI suite 286\u2192288 tests / 21\u219222 suites green.",
       "commit": "fix(ai): make AiRequestProvider the single selection-load path"
+    },
+    {
+      "cycle": 40,
+      "target": "Harden custom-endpoint config writes and local request-cache load/save",
+      "metric_delta": "Before: setCustomEndpointConfig merged raw $Shape into cachedConfig without type coercion, so mistyped updates (string temperature, non-boolean enabled) poisoned the live session until process reset; saveLocalAiRequests had no try/catch (quota/SecurityError aborted create/update/delete); loadLocalAiRequests Object.assign'd any JSON including arrays/scalars/null values, which could crash customGetAiRequests sort/status mapping. After: shared sanitizeCustomAIConfig used by both get and set (non-object JSON \u2192 full defaults; object fields coerced/clamped); save wrapped in try/catch; load only merges plain-object entries with string id+status. 5 new tests. AI suite 288\u2192293 tests / 22 suites green. Diff: CustomAIClient.js + tests only (fork-only path), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
+      "commit": "fix(ai): harden custom endpoint config and local request cache"
     }
   ],
   "backlog": [
@@ -266,6 +272,10 @@
     "When watching without a profile, filter request ids to local-ai-* \u2014 never pass non-local ids into getAiRequest/getAiRequestStatuses (hosted API would get LOCAL_BYOK_USER_ID)",
     "React effects with deps [profile] that clear selection/state only run when profile *changes* \u2014 offline never-logged-in sessions keep selection created after mount; tests that seed selection must re-set it after the initial null-profile effect",
     "Selection-load must live only in AiRequestProvider loadAiRequest \u2014 a second fetch from useAiRequestState races loading state and on failure clears selection instead of showing Context retry UI",
-    "AiGeneration/Utils.js transitively imports Pixi/Spine/three ESM; any Jest suite that imports it must jest.mock EditorFunctions, EditorFunctionCallRunner, UseSearchAndInstallAsset, UseSearchAndInstallResource, UseGenerateEvents, and UseEnsureExtensionInstalled first"
+    "AiGeneration/Utils.js transitively imports Pixi/Spine/three ESM; any Jest suite that imports it must jest.mock EditorFunctions, EditorFunctionCallRunner, UseSearchAndInstallAsset, UseSearchAndInstallResource, UseGenerateEvents, and UseEnsureExtensionInstalled first",
+    "setCustomEndpointConfig must sanitize the merged object before caching \u2014 getCustomEndpointConfig short-circuits on cachedConfig, so unsanitized set values poison the live session even when a later load would be safe",
+    "Non-object JSON in localStorage (null/scalars/arrays) must fall back to the full DEFAULT config, not to empty-string baseUrl (normalizeBaseUrl only repairs empty string at request time; enabled with empty baseUrl is a confusing half-state)",
+    "loadLocalAiRequests must only merge plain-object entries with string id+status; Object.assign of arrays/null creates cache keys that crash Object.values(...).sort on updatedAt",
+    "saveLocalAiRequests must catch setItem errors \u2014 every create/update/delete path calls it and a quota throw would abort the in-memory operation after the cache write"
   ]
 }

@@ -40,6 +40,8 @@ import {
   customGetAiRequestTokenTotal,
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
+  loadLocalAiRequests,
+  saveLocalAiRequests,
   _resetCustomAiClientForTesting as _resetForStreamTests,
 } from './CustomAIClient';
 
@@ -1127,6 +1129,157 @@ describe('CustomAIClient', () => {
       expect(config.maxTokens).toBe(2048);
       expect(config.customHeaders).toEqual({ 'X-Custom': 'value' });
       fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('sanitizes mistyped updates so the live cache cannot be poisoned', () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'qwen2.5-coder',
+        temperature: 0.5,
+      });
+      // $FlowFixMe deliberately mistyped updates
+      setCustomEndpointConfig({
+        enabled: 'yes',
+        baseUrl: 1234,
+        model: null,
+        temperature: 42,
+        timeoutMs: 'fast',
+        maxTokens: -3,
+        customHeaders: ['nope'],
+        streaming: 'on',
+      });
+      const config = getCustomEndpointConfig();
+      expect(config.enabled).toBe(false);
+      expect(config.baseUrl).toBe('');
+      expect(config.model).toBe('');
+      expect(config.temperature).toBe(1);
+      expect(config.timeoutMs).toBeUndefined();
+      expect(config.maxTokens).toBeUndefined();
+      expect(config.customHeaders).toBeUndefined();
+      expect(config.streaming).toBe(false);
+      // The sanitized shape is what a later get() returns without re-reading
+      // localStorage (short-circuit on cache).
+      expect(getCustomEndpointConfig()).toEqual(config);
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('keeps a valid apiKey through set sanitization', () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'https://api.openrouter.ai/api/v1',
+        apiKey: 'sk-live-key',
+        model: 'deepseek/deepseek-chat',
+        temperature: 0.3,
+      });
+      const config = getCustomEndpointConfig();
+      expect(config.apiKey).toBe('sk-live-key');
+      expect(config.enabled).toBe(true);
+      // Persisted payload must not contain the cleartext key.
+      const persisted = JSON.parse(
+        memoryStorage['gd-custom-ai-config'] || 'null'
+      );
+      expect(persisted).toBeTruthy();
+      expect(persisted.apiKey).toBeUndefined();
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('falls back to defaults when localStorage holds a JSON null / scalar', () => {
+      fakeStorage.setItem('gd-custom-ai-config', 'null');
+      _resetCustomAiClientForTesting();
+      let config = getCustomEndpointConfig();
+      expect(config.baseUrl).toBe(DEFAULT_CUSTOM_AI_CONFIG.baseUrl);
+      expect(config.enabled).toBe(false);
+
+      fakeStorage.setItem('gd-custom-ai-config', '42');
+      _resetCustomAiClientForTesting();
+      config = getCustomEndpointConfig();
+      expect(config.baseUrl).toBe(DEFAULT_CUSTOM_AI_CONFIG.baseUrl);
+
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('ignores non-object request-cache JSON and keeps valid entries', () => {
+      fakeStorage.setItem('gd-custom-ai-requests', 'not-an-object');
+      _resetCustomAiClientForTesting();
+      expect(() => loadLocalAiRequests()).not.toThrow();
+      expect(Object.keys(loadLocalAiRequests())).toHaveLength(0);
+
+      fakeStorage.setItem('gd-custom-ai-requests', JSON.stringify([1, 2, 3]));
+      _resetCustomAiClientForTesting();
+      loadLocalAiRequests();
+      expect(Object.keys(loadLocalAiRequests())).toHaveLength(0);
+
+      fakeStorage.setItem(
+        'gd-custom-ai-requests',
+        JSON.stringify({
+          'local-ai-good': {
+            id: 'local-ai-good',
+            status: 'ready',
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: '2020-01-01T00:00:00.000Z',
+            userId: LOCAL_BYOK_USER_ID,
+            error: null,
+            output: [],
+          },
+          'local-ai-bad': null,
+          'local-ai-also-bad': { notId: true },
+          scalar: 7,
+          arr: [],
+        })
+      );
+      _resetCustomAiClientForTesting();
+      const loaded = loadLocalAiRequests();
+      expect(Object.keys(loaded)).toEqual(['local-ai-good']);
+      // List path must not throw on the filtered cache.
+      expect(() => customGetAiRequests()).not.toThrow();
+      expect(customGetAiRequests().aiRequests.map(r => r.id)).toEqual([
+        'local-ai-good',
+      ]);
+
+      fakeStorage.removeItem('gd-custom-ai-requests');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('does not throw when localStorage.setItem rejects on request save', async () => {
+      const consoleWarn = jest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => {});
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'ok' } }],
+        },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'quota test',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+      expect(created.id).toMatch(/^local-ai-/);
+
+      // Swap in a storage that always throws (quota exceeded / SecurityError).
+      const throwingStorage = {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceededError');
+        },
+        removeItem: () => {},
+      };
+      global.localStorage = throwingStorage;
+      expect(() => saveLocalAiRequests()).not.toThrow();
+      expect(() => customDeleteAiRequest(created.id)).not.toThrow();
+      expect(consoleWarn).toHaveBeenCalled();
+      consoleWarn.mockRestore();
+      delete global.localStorage;
       _resetCustomAiClientForTesting();
     });
   });

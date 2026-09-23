@@ -60,6 +60,57 @@ const MAX_LOCAL_SAVED_REQUESTS = 20;
 let cachedConfig: ?CustomAIConfig = null;
 
 /**
+ * Coerce arbitrary JSON (localStorage) or a `$Shape` update into a
+ * well-typed CustomAIConfig. Fail-closed on bad types so a corrupt entry
+ * can never crash a model call, poison the live cache, or leak through the
+ * header-building path.
+ */
+const sanitizeCustomAIConfig = (input: mixed): CustomAIConfig => {
+  // JSON null / scalars / arrays are not configs — fall back wholesale so
+  // baseUrl/model do not collapse to '' (which would fight the default host).
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return { ...DEFAULT_CUSTOM_AI_CONFIG };
+  }
+  const parsed: { [string]: any } = (input: any);
+  return {
+    ...DEFAULT_CUSTOM_AI_CONFIG,
+    enabled: parsed.enabled === true,
+    baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl : '',
+    apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
+    model: typeof parsed.model === 'string' ? parsed.model : '',
+    temperature:
+      typeof parsed.temperature === 'number' &&
+      Number.isFinite(parsed.temperature)
+        ? Math.max(0, Math.min(1, parsed.temperature))
+        : DEFAULT_CUSTOM_AI_CONFIG.temperature,
+    timeoutMs:
+      typeof parsed.timeoutMs === 'number' &&
+      Number.isFinite(parsed.timeoutMs) &&
+      parsed.timeoutMs > 0
+        ? parsed.timeoutMs
+        : undefined,
+    streaming: parsed.streaming === true,
+    maxTokens:
+      typeof parsed.maxTokens === 'number' &&
+      Number.isFinite(parsed.maxTokens) &&
+      parsed.maxTokens > 0
+        ? parsed.maxTokens
+        : undefined,
+    customHeaders:
+      parsed.customHeaders &&
+      typeof parsed.customHeaders === 'object' &&
+      !Array.isArray(parsed.customHeaders)
+        ? Object.fromEntries(
+            // $FlowExpectedError[incompatible-type] Object.entries widens the value type.
+            (Object.entries(parsed.customHeaders): Array<
+              [string, string]
+            >).filter(([name, value]) => typeof value === 'string')
+          )
+        : undefined,
+  };
+};
+
+/**
  * Load custom AI config from local storage or default.
  */
 export const getCustomEndpointConfig = (): CustomAIConfig => {
@@ -72,42 +123,7 @@ export const getCustomEndpointConfig = (): CustomAIConfig => {
       const persisted = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
       if (persisted) {
         const parsed = JSON.parse(persisted);
-        // Persisted values are user-tinkerable (localStorage): coerce every
-        // field back to its declared type so a corrupt entry can never crash
-        // a model call or leak through the header-building path.
-        const safeConfig: CustomAIConfig = {
-          ...DEFAULT_CUSTOM_AI_CONFIG,
-          enabled: parsed.enabled === true,
-          baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl : '',
-          apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
-          model: typeof parsed.model === 'string' ? parsed.model : '',
-          temperature:
-            typeof parsed.temperature === 'number' &&
-            Number.isFinite(parsed.temperature)
-              ? Math.max(0, Math.min(1, parsed.temperature))
-              : DEFAULT_CUSTOM_AI_CONFIG.temperature,
-          timeoutMs:
-            typeof parsed.timeoutMs === 'number' && parsed.timeoutMs > 0
-              ? parsed.timeoutMs
-              : undefined,
-          streaming: parsed.streaming === true,
-          maxTokens:
-            typeof parsed.maxTokens === 'number' && parsed.maxTokens > 0
-              ? parsed.maxTokens
-              : undefined,
-          customHeaders:
-            parsed.customHeaders &&
-            typeof parsed.customHeaders === 'object' &&
-            !Array.isArray(parsed.customHeaders)
-              ? Object.fromEntries(
-                  // $FlowExpectedError[incompatible-type] Object.entries widens the value type.
-                  (Object.entries(parsed.customHeaders): Array<
-                    [string, string]
-                  >).filter(([name, value]) => typeof value === 'string')
-                )
-              : undefined,
-        };
-        cachedConfig = safeConfig;
+        cachedConfig = sanitizeCustomAIConfig(parsed);
         return cachedConfig;
       }
     }
@@ -121,16 +137,18 @@ export const getCustomEndpointConfig = (): CustomAIConfig => {
 
 /**
  * Save custom AI config to local storage and update in-memory cache.
+ * Sanitizes updates before caching so a mistyped field cannot poison the
+ * live session (getCustomEndpointConfig short-circuits on the cache).
  * Excludes apiKey from cleartext localStorage while retaining it in memory.
  */
 export const setCustomEndpointConfig = (
   updates: $Shape<CustomAIConfig>
 ): CustomAIConfig => {
   const current = getCustomEndpointConfig();
-  const nextConfig: CustomAIConfig = {
+  const nextConfig: CustomAIConfig = sanitizeCustomAIConfig({
     ...current,
     ...updates,
-  };
+  });
   cachedConfig = nextConfig;
 
   try {
@@ -530,6 +548,10 @@ export const _resetCustomAiClientForTesting = () => {
 
 /**
  * Load local AI requests from local storage.
+ * Only merges plain-object entries that look like an AiRequest — a corrupt
+ * array/scalar JSON payload or a non-object value must not poison the cache
+ * (Object.assign of `null`/scalars creates keys that crash list sorting and
+ * status mapping on the next customGetAiRequests call).
  */
 export const loadLocalAiRequests = (): { [id: string]: AiRequest } => {
   try {
@@ -537,7 +559,22 @@ export const loadLocalAiRequests = (): { [id: string]: AiRequest } => {
       const persisted = localStorage.getItem(LOCAL_STORAGE_REQUESTS_KEY);
       if (persisted) {
         const parsed = JSON.parse(persisted);
-        Object.assign(localAiRequestsCache, parsed);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          const entries = Object.entries(parsed);
+          for (let i = 0; i < entries.length; i++) {
+            const key = entries[i][0];
+            const value = entries[i][1];
+            if (
+              value &&
+              typeof value === 'object' &&
+              !Array.isArray(value) &&
+              typeof value.id === 'string' &&
+              typeof value.status === 'string'
+            ) {
+              localAiRequestsCache[key] = (value: any);
+            }
+          }
+        }
       }
     }
   } catch (err) {
@@ -549,26 +586,32 @@ export const loadLocalAiRequests = (): { [id: string]: AiRequest } => {
 /**
  * Save local AI requests to local storage, retaining a bounded number of requests
  * and excluding full gameProjectJson to prevent storage quota exhaustion.
+ * Quota/security errors are swallowed so a write failure never aborts the
+ * in-memory create/update/delete path that called us.
  */
 export const saveLocalAiRequests = () => {
   if (typeof localStorage === 'undefined') return;
 
-  const keys = Object.keys(localAiRequestsCache);
-  const recentKeys = keys.slice(-MAX_LOCAL_SAVED_REQUESTS);
-  const persistableMap: { [id: string]: AiRequest } = {};
+  try {
+    const keys = Object.keys(localAiRequestsCache);
+    const recentKeys = keys.slice(-MAX_LOCAL_SAVED_REQUESTS);
+    const persistableMap: { [id: string]: AiRequest } = {};
 
-  for (const key of recentKeys) {
-    const req = localAiRequestsCache[key];
-    if (req) {
-      const { gameProjectJson, ...persistableReq } = req;
-      persistableMap[key] = (persistableReq: any);
+    for (const key of recentKeys) {
+      const req = localAiRequestsCache[key];
+      if (req) {
+        const { gameProjectJson, ...persistableReq } = req;
+        persistableMap[key] = (persistableReq: any);
+      }
     }
-  }
 
-  localStorage.setItem(
-    LOCAL_STORAGE_REQUESTS_KEY,
-    JSON.stringify(persistableMap)
-  );
+    localStorage.setItem(
+      LOCAL_STORAGE_REQUESTS_KEY,
+      JSON.stringify(persistableMap)
+    );
+  } catch (err) {
+    console.warn('Error saving local AI requests to localStorage:', err);
+  }
 };
 
 // Initialize requests from localStorage
