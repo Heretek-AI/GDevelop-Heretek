@@ -21,6 +21,7 @@ import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { CreditsPackageStoreContext } from '../AssetStore/CreditsPackages/CreditsPackageStoreContext';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
+  isFailedAiRequestStart,
   canRetryAiRequestForSession,
   canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
@@ -370,48 +371,64 @@ export const AskAiStandAloneForm = ({
             },
           });
 
-          console.info('Successfully created a new AI request:', aiRequest);
           setSendingAiRequest(null, false);
           setIsSendingUserMessage(false);
           updateAiRequest(aiRequest.id, () => aiRequest);
 
-          // Select the new AI request just created - unless the user switched to another one
-          // in the meantime.
-          if (!upToDateSelectedAiRequestId.current) {
-            // Set the global selected AI request state so the editor tab
-            // can find the right request when it opens.
-            setSelectedAiRequestId(aiRequest.id);
-          }
+          // Offline/local first-turn failures come back as status:'error' (not a
+          // throw): keep the form open on that request so the error row (and
+          // Retry → continue) is reachable. Handing off to the Ask AI tab and
+          // closing the dialog would hide the failure and fire a false "started".
+          if (isFailedAiRequestStart(aiRequest)) {
+            console.warn(
+              'AI request created in error state:',
+              aiRequest.error && aiRequest.error.message
+            );
+            setAiRequestIdForForm(aiRequest.id);
+            if (!upToDateSelectedAiRequestId.current) {
+              setSelectedAiRequestId(aiRequest.id);
+            }
+          } else {
+            console.info('Successfully created a new AI request:', aiRequest);
 
-          // Open the Ask AI tab right away. Always use 'center' pane since
-          // the project has been closed (or was never open) at this point.
-          if (onOpenAskAi) {
-            onOpenAskAi({
-              continueProcessingFunctionCallsOnMount: true,
-              paneIdentifier: 'center',
+            // Select the new AI request just created - unless the user switched to another one
+            // in the meantime.
+            if (!upToDateSelectedAiRequestId.current) {
+              // Set the global selected AI request state so the editor tab
+              // can find the right request when it opens.
+              setSelectedAiRequestId(aiRequest.id);
+            }
+
+            // Open the Ask AI tab right away. Always use 'center' pane since
+            // the project has been closed (or was never open) at this point.
+            if (onOpenAskAi) {
+              onOpenAskAi({
+                continueProcessingFunctionCallsOnMount: true,
+                paneIdentifier: 'center',
+              });
+            }
+
+            // Reset the form so it's ready for a new request (the tab now owns the request).
+            setAiRequestIdForForm(null);
+            if (aiRequestChatRef.current) {
+              aiRequestChatRef.current.resetUserInput('');
+            }
+
+            sendAiRequestStarted({
+              simplifiedProjectJsonLength: 0,
+              projectSpecificExtensionsSummaryJsonLength: 0,
+              payWithCredits,
+              storageProviderName,
+              mode: aiRequestModeForForm,
+              aiRequestId: aiRequest.id,
             });
-          }
 
-          // Reset the form so it's ready for a new request (the tab now owns the request).
-          setAiRequestIdForForm(null);
-          if (aiRequestChatRef.current) {
-            aiRequestChatRef.current.resetUserInput('');
-          }
-
-          sendAiRequestStarted({
-            simplifiedProjectJsonLength: 0,
-            projectSpecificExtensionsSummaryJsonLength: 0,
-            payWithCredits,
-            storageProviderName,
-            mode: aiRequestModeForForm,
-            aiRequestId: aiRequest.id,
-          });
-
-          // The conversation now continues in the Ask AI tab behind, so close
-          // the dialog hosting this standalone form. Done last, as it unmounts
-          // this component.
-          if (onCloseDialog) {
-            onCloseDialog();
+            // The conversation now continues in the Ask AI tab behind, so close
+            // the dialog hosting this standalone form. Done last, as it unmounts
+            // this component.
+            if (onCloseDialog) {
+              onCloseDialog();
+            }
           }
         } catch (error) {
           console.error('Error starting a new AI request:', error);

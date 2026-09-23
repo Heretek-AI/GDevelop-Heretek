@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 52,
+  "last_cycle": 53,
   "completed_targets": [
     {
       "cycle": 1,
@@ -307,6 +307,12 @@
       "target": "customForkAiRequest spread kept a stale source error and dropped the per-request model override",
       "metric_delta": "fork now sets error:null and copies localAiRequestModelOverrides; 1 new test; AI suite 317/317",
       "commit": "fix(ai): clear error and copy model override when forking a local request"
+    },
+    {
+      "cycle": 53,
+      "target": "containers treated a status:error create return as a successful start (false sendAiRequestStarted, standalone closed dialog / handed off without Retry reachable)",
+      "metric_delta": "isFailedAiRequestStart gates success-only handoff; failed create keeps form open on error row; 2 new tests; AI suite 319/319",
+      "commit": "fix(ai): keep failed first-turn creates on the error row instead of treating them as starts"
     }
   ],
   "backlog": [
@@ -362,6 +368,7 @@
     "AskAiStandAloneForm onStop must call context suspendAiRequest (returns Promise<void>, already optimistic-updates status and aborts local turns) \u2014 a no-op onStop left the Stop button spinning without cancelling BYOK generation",
     "Local customAddMessageToAiRequest must RETURN a status:'error' AiRequest on non-abort model failure (persisting local output for continue) \u2014 throwing left React status ready so canRetryAiRequest/ErrorRow never appeared for ordinary Ollama/LM Studio failures",
     "customCreateAiRequest must cache+return the request on non-abort first-turn failure (status:'error' + user message in output) \u2014 throwing left no chat transcript and no canRetryAiRequest surface for Ollama cold-start / offline first sends",
-    "customForkAiRequest must set error:null and copy localAiRequestModelOverrides[from]\u2192[to] \u2014 spreading a status:ready copy of an errored source left a non-null error field and silently reset the model override"
+    "customForkAiRequest must set error:null and copy localAiRequestModelOverrides[from]\u2192[to] \u2014 spreading a status:ready copy of an errored source left a non-null error field and silently reset the model override",
+    "createAiRequest returning status:'error' must not run success-only handoff (sendAiRequestStarted, onCloseDialog, resetUserInput, onOpenAskAi) \u2014 use isFailedAiRequestStart so the form/chat stays on the failed request with Retry \u2192 continue; prefer if/else over early return so post-try refreshLimits still runs"
   ]
 }

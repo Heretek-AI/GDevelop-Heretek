@@ -10,6 +10,7 @@ import {
   shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
   canRetryAiRequestForSession,
+  isFailedAiRequestStart,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
 
@@ -422,6 +423,29 @@ describe('shouldFetchAiRequestOnTabOpen', () => {
         customEndpointEnabled: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('isFailedAiRequestStart', () => {
+  it('flags status error (local create returned a failure, not thrown)', () => {
+    expect(
+      isFailedAiRequestStart({
+        status: 'error',
+        error: { code: 'server_error', message: 'boom' },
+      })
+    ).toBe(true);
+  });
+
+  it('does not flag working / suspended / completed starts', () => {
+    expect(isFailedAiRequestStart({ status: 'working', error: null })).toBe(
+      false
+    );
+    expect(isFailedAiRequestStart({ status: 'suspended', error: null })).toBe(
+      false
+    );
+    expect(isFailedAiRequestStart({ status: 'completed', error: null })).toBe(
+      false
+    );
   });
 });
 

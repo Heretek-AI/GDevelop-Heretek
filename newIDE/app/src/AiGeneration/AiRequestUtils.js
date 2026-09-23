@@ -61,6 +61,16 @@ export const canRetryAiRequestForSession = (
 ): boolean => !!profile || aiRequestId.startsWith('local-ai-');
 
 /**
+ * Whether a createAiRequest return value is a first-turn failure that must not
+ * be treated as a successful start (local BYOK returns status:'error' instead
+ * of throwing so the chat can offer Retry → continue).
+ */
+export const isFailedAiRequestStart = (aiRequest: {
+  status: string,
+  ...
+}): boolean => aiRequest.status === 'error';
+
+/**
  * Whether a send/continue of an AI request may proceed for this session:
  * any logged-in profile, or a local/BYOK session with a custom endpoint
  * enabled (the hosted API is never involved for those). Hosted non-local

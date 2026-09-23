@@ -53,6 +53,7 @@ import {
 import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
+  isFailedAiRequestStart,
   canRetryAiRequestForSession,
   aiRequestHasWorkInProgress,
   canSendAiRequestForSession,
@@ -724,7 +725,6 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
                 },
               });
 
-              console.info('Successfully created a new AI request:', aiRequest);
               setSendingAiRequest(null, false);
               setIsSendingUserMessage(false);
               updateAiRequest(aiRequest.id, () => aiRequest);
@@ -735,24 +735,39 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
                 setSelectedAiRequestId(aiRequest.id);
               }
 
-              const aiRequestChatRefCurrent = aiRequestChatRef.current;
-              if (aiRequestChatRefCurrent) {
-                aiRequestChatRefCurrent.resetUserInput('');
-                aiRequestChatRefCurrent.resetUserInput(selectedAiRequestId);
-              }
+              // Local first-turn failures return status:'error' rather than
+              // throwing: show the error row (Retry → continue) but do not
+              // report a successful start or clear the user's draft.
+              if (isFailedAiRequestStart(aiRequest)) {
+                console.warn(
+                  'AI request created in error state:',
+                  aiRequest.error && aiRequest.error.message
+                );
+              } else {
+                console.info(
+                  'Successfully created a new AI request:',
+                  aiRequest
+                );
 
-              sendAiRequestStarted({
-                simplifiedProjectJsonLength: simplifiedProjectJson
-                  ? simplifiedProjectJson.length
-                  : 0,
-                projectSpecificExtensionsSummaryJsonLength: projectSpecificExtensionsSummaryJson
-                  ? projectSpecificExtensionsSummaryJson.length
-                  : 0,
-                payWithCredits,
-                storageProviderName,
-                mode,
-                aiRequestId: aiRequest.id,
-              });
+                const aiRequestChatRefCurrent = aiRequestChatRef.current;
+                if (aiRequestChatRefCurrent) {
+                  aiRequestChatRefCurrent.resetUserInput('');
+                  aiRequestChatRefCurrent.resetUserInput(selectedAiRequestId);
+                }
+
+                sendAiRequestStarted({
+                  simplifiedProjectJsonLength: simplifiedProjectJson
+                    ? simplifiedProjectJson.length
+                    : 0,
+                  projectSpecificExtensionsSummaryJsonLength: projectSpecificExtensionsSummaryJson
+                    ? projectSpecificExtensionsSummaryJson.length
+                    : 0,
+                  payWithCredits,
+                  storageProviderName,
+                  mode,
+                  aiRequestId: aiRequest.id,
+                });
+              }
             } catch (error) {
               console.error('Error starting a new AI request:', error);
               setLastSendError(null, error);
