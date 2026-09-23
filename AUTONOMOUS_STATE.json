@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 127,
+  "last_cycle": 128,
   "completed_targets": [
     {
       "cycle": 75,
@@ -729,6 +729,12 @@
       "target": "Stop normalizeBaseUrl throwing on a non-string base URL",
       "metric_delta": "normalizeBaseUrl guarded null/undefined/empty (`baseUrl || ''`) but called .trim() unconditionally, so a non-string threw `TypeError: (baseUrl || \"\").trim is not a function`. Reachable: PreferencesProvider hydrates gd-preferences from localStorage and only backfills keys that are `undefined` — it never type-checks the value — so a corrupted aiCustomBaseUrl (number/object/null) flows through the dialog into testConnection, whose config spread-merge puts it on the raw-config path into sendChatCompletion, where normalizeBaseUrl runs before any request. Fixed at the single shared entry point with a typeof guard (non-strings treated as absent, matching the existing empty-string handling). Also assessed the last sibling, maxTokens, and deliberately left it: it has no production setter (localStorage-only) and the truthy wire guard already suppresses 0/undefined, so a negative requires hand-editing storage. +2 tests, mutation-checked (pre-fix throws the TypeError). 186/186 file, eslint --max-warnings=0, prettier clean.",
       "commit": "fix(ai): stop normalizeBaseUrl throwing on a non-string base URL"
+    },
+    {
+      "cycle": 128,
+      "target": "Close out the config-boundary audit (getEndpointUrl, maxTokens)",
+      "metric_delta": "No code change — verification cycle. Probed the two remaining boundaries in the same family and both are correctly safe: (1) getEndpointUrl throws on an undefined endpointPath, but both call sites (sendChatCompletion '/chat/completions', testConnection '/models') pass literal strings — the parameter is never caller- or storage-supplied, so it is not reachable; adding a guard would be dead code. (2) maxTokens has no production setter (localStorage-only) and its truthy wire guard already suppresses 0/undefined, so only a hand-edited negative could slip through. This completes the family begun in cycle 125: timeoutMs (fixed at three sites), temperature (fixed on the wire), baseUrl (fixed at the shared entry point), maxTokens and endpointPath (verified non-reachable).",
+      "commit": "(no code change — verification cycle)"
     }
   ],
   "backlog": [
@@ -872,6 +878,7 @@
     "In LOCAL_SERVER_ERROR_HINTS the order of entries is load-bearing: the VRAM pattern ends with a broad /too large/i, so any new pattern must be listed before it or genuine mismatches occur. Context overflow is a 400 whose remedy is 'start a new chat / larger window', not 'smaller quantization'.",
     "setTimeout (and axios's `timeout`) clamps any delay above 2^31-1 ms to 1 ms rather than to the maximum — so an unbounded user-supplied timeout does not merely fail to wait, it aborts instantly. Any config value that becomes a timer delay needs an upper bound, not just a `> 0` check. Clamp at BOTH sanitizeCustomAIConfig and the sendChatCompletion resolution, because `config || getCustomEndpointConfig()` lets a caller pass a raw unsanitized config.",
     "The wire payload is the last line of defence and needs its own bounds: sendChatCompletion's `config || getCustomEndpointConfig()` and testConnection's spread-merge both let unsanitized values through, so validate numeric fields (temperature, timeoutMs) at payload construction rather than trusting only sanitizeCustomAIConfig. Also: JSON.stringify(NaN) is `null`, so a non-finite number is not ignored by the server — it becomes an explicit null argument.",
-    "normalizeBaseUrl is the single entry point for every request path (sendChatCompletion, getEndpointUrl, testConnection), so it must tolerate every value a corrupted localStorage can hold. PreferencesProvider.loadPreferencesFromLocalStorage only backfills missing keys — it does NOT validate the type of a present one — so any preference value is effectively untyped at runtime despite the Flow annotation."
+    "normalizeBaseUrl is the single entry point for every request path (sendChatCompletion, getEndpointUrl, testConnection), so it must tolerate every value a corrupted localStorage can hold. PreferencesProvider.loadPreferencesFromLocalStorage only backfills missing keys — it does NOT validate the type of a present one — so any preference value is effectively untyped at runtime despite the Flow annotation.",
+    "When auditing an input boundary, check reachability before guarding: getEndpointUrl's endpointPath and maxTokens' negative path both throw/send badly in principle, but no caller or UI can produce those values, so a guard would be dead code. The reachable ones were the storage-hydrated preference values (baseUrl, temperature, timeoutMs) because PreferencesProvider never type-checks a present key."
   ]
 }
