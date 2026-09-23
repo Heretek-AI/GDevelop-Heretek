@@ -191,4 +191,38 @@ describe('getDefaultAiConfigurationPresetId', () => {
       'default'
     );
   });
+
+  it('does not throw when the limits response is missing capabilities.ai', () => {
+    // getUserLimits only validates that the top-level `capabilities` key
+    // exists (ensureObjectHasProperty), so a partial response passes through.
+    // `limits.capabilities.ai.availablePresets` was walked three levels deep
+    // behind only an `if (!limits)` guard, and this runs on every chat render.
+    const settings = {
+      aiRequest: {
+        presets: [
+          {
+            mode: 'chat',
+            id: 'default',
+            name: 'Default',
+            isDefault: true,
+            disabled: false,
+            nameByLocale: {},
+          },
+        ],
+      },
+    };
+    for (const limits of [
+      { capabilities: {} },
+      { capabilities: { ai: {} } },
+      { capabilities: null },
+    ]) {
+      // $FlowFixMe deliberately a partial Limits shape.
+      const presets = getAiConfigurationPresetsWithAvailability({
+        getAiSettings: () => settings,
+        limits,
+      });
+      expect(presets.length).toBe(1);
+      expect(presets[0].id).toBe('default');
+    }
+  });
 });

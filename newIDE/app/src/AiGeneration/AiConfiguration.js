@@ -48,7 +48,17 @@ export const getAiConfigurationPresetsWithAvailability = ({
   }
 
   return aiSettings.aiRequest.presets.map(preset => {
-    const presetAvailability = limits.capabilities.ai.availablePresets.find(
+    // getUserLimits only validates that the top-level `capabilities` key exists
+    // (`ensureObjectHasProperty`), so a partial response — `capabilities`
+    // without `ai`, or `ai` without `availablePresets` — passes through and is
+    // a valid `Limits` at runtime. Reading three levels down behind only an
+    // `if (!limits)` guard threw on every chat render.
+    const availablePresets =
+      (limits.capabilities &&
+        limits.capabilities.ai &&
+        limits.capabilities.ai.availablePresets) ||
+      [];
+    const presetAvailability = availablePresets.find(
       presetAvailability =>
         presetAvailability.id === preset.id &&
         presetAvailability.mode === preset.mode
