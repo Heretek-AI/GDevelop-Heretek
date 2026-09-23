@@ -152,3 +152,25 @@ export const canAffordAiRequest = ({
     automaticallyUseCreditsForAiRequests,
   });
 };
+
+/**
+ * Whether the new-chat Stop control may cancel a create that has not produced
+ * an AiRequest yet.
+ *
+ * Allowed while the custom endpoint is on (Stop can arm `createAbortRequested`
+ * before the create registers), OR while a create is already in the pending
+ * registry — so flipping the endpoint off mid-hung-create does not remove the
+ * only way to abort an Ollama/VRAM first turn.
+ */
+export const canCancelPendingCreateAiRequest = ({
+  isCustomEndpointEnabled,
+  hasPendingCreate,
+  isSending,
+  hasAiRequest,
+}: {|
+  isCustomEndpointEnabled: boolean,
+  hasPendingCreate: boolean,
+  isSending: boolean,
+  hasAiRequest: boolean,
+|}): boolean =>
+  (isCustomEndpointEnabled || hasPendingCreate) && isSending && !hasAiRequest;

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 71,
+  "last_cycle": 72,
   "completed_targets": [
     {
       "cycle": 1,
@@ -421,6 +421,12 @@
       "target": "Allow local-ai/local-user sends when hosted quota is exhausted",
       "metric_delta": "370->373 tests; canAffordAiRequest accepts optional aiRequestId/userId and short-circuits on local-ai-*/local-* before canPay; wired into chat continue + both create paths + editor add; 5 files, +62/-5",
       "commit": "fix(ai): allow local chats past an exhausted hosted quota"
+    },
+    {
+      "cycle": 72,
+      "target": "Keep pending-create Stop available after endpoint toggle-off",
+      "metric_delta": "373->377 tests; canCancelPendingCreateAiRequest allows Stop when endpoint is on OR a create is pending (registry), still requires isSending && !aiRequest; wired into AiRequestChat new-chat Stop; 3 files, +91/-5",
+      "commit": "fix(ai): keep pending-create Stop after endpoint toggle-off"
     }
   ],
   "backlog": [
@@ -495,6 +501,7 @@
     "Create-form account dialogs must share canStartAiRequestCreate with Generation local-* dual-gates — a stale !profile && !endpoint abort opens the account dialog and blocks new local chats while send/watch already work offline",
     "fetchAiSettings and getAiConfigurationPresetsWithAvailability must share DEFAULT_LOCAL_AI_SETTINGS as the offline catalog — CDN short-circuit on custom endpoint plus null-settings fallback, never an empty preset list",
     "Hosted mutation gates must be profile-or-local-ai only — isCustomEndpointEnabled never authorizes hosted rename/suspend/delete for a logged-out session (empty or LOCAL_BYOK userId would still hit Generation)",
-    "Affordability gates must accept local session identity (local-ai-* id or local-* userId) alongside the endpoint toggle — canAfford with only isCustomEndpointEnabled still blocks offline BYOK sends when hosted quota is exhausted and the endpoint is off"
+    "Affordability gates must accept local session identity (local-ai-* id or local-* userId) alongside the endpoint toggle — canAfford with only isCustomEndpointEnabled still blocks offline BYOK sends when hosted quota is exhausted and the endpoint is off",
+    "Pending-create Stop must accept the customHasPendingCreateAiRequest registry as an alternative to the endpoint toggle — requiring endpoint-on alone hides Stop if the user flips the toggle while an Ollama/VRAM create is still hung"
   ]
 }

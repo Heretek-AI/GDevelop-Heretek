@@ -64,13 +64,14 @@ import Stop from '../../UI/CustomSvgIcons/Stop';
 import AutoEditButton from './AutoEditButton';
 import { EditApprovalRow } from './EditApprovalRow';
 import { type EditApprovalRequest } from '../Utils';
-import { canAffordAiRequest } from './Utils';
+import { canAffordAiRequest, canCancelPendingCreateAiRequest } from './Utils';
 import { AiUsageIndicator } from './AiUsageIndicator';
 import {
   isCustomEndpointEnabled,
   getCustomEndpointConfig,
   customGetAiRequestModelOverride,
   customSetAiRequestModelOverride,
+  customHasPendingCreateAiRequest,
 } from '../../AI/CustomAIClient';
 import TextField from '../../UI/TextField';
 
@@ -588,9 +589,14 @@ export const AiRequestChat: React.ComponentType<{
       (!!aiRequest && aiRequest.status === 'working' && !isFetchingSuggestions);
     const isWorking = isSending || hasWorkToProcess;
     // Create is not yet an AiRequest: Stop must still cancel a hung local
-    // first turn (pending-create registry in CustomAIClient).
-    const canCancelPendingCreate =
-      isCustomEndpointEnabled() && isSending && !aiRequest;
+    // first turn (pending-create registry in CustomAIClient), including when
+    // the endpoint toggle was flipped off while the create was still running.
+    const canCancelPendingCreate = canCancelPendingCreateAiRequest({
+      isCustomEndpointEnabled: isCustomEndpointEnabled(),
+      hasPendingCreate: customHasPendingCreateAiRequest(),
+      isSending,
+      hasAiRequest: !!aiRequest,
+    });
     const canRequestBeStopped =
       (isWorking && !!aiRequest) || canCancelPendingCreate;
 

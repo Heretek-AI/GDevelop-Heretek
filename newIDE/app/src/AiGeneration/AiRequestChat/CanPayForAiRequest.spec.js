@@ -1,5 +1,9 @@
 // @flow
-import { canPayForAiRequest, canAffordAiRequest } from './Utils';
+import {
+  canPayForAiRequest,
+  canAffordAiRequest,
+  canCancelPendingCreateAiRequest,
+} from './Utils';
 import {
   type Quota,
   type UsagePrice,
@@ -197,6 +201,60 @@ describe('canAffordAiRequest', () => {
         price,
         availableCredits: 0,
         automaticallyUseCreditsForAiRequests: false,
+      })
+    ).toBe(false);
+  });
+});
+
+describe('canCancelPendingCreateAiRequest', () => {
+  it('allows Stop while the endpoint is on before the create registers', () => {
+    expect(
+      canCancelPendingCreateAiRequest({
+        isCustomEndpointEnabled: true,
+        hasPendingCreate: false,
+        isSending: true,
+        hasAiRequest: false,
+      })
+    ).toBe(true);
+  });
+
+  it('allows Stop when a create is pending and the endpoint was turned off', () => {
+    expect(
+      canCancelPendingCreateAiRequest({
+        isCustomEndpointEnabled: false,
+        hasPendingCreate: true,
+        isSending: true,
+        hasAiRequest: false,
+      })
+    ).toBe(true);
+  });
+
+  it('does not offer Stop when nothing is being created', () => {
+    expect(
+      canCancelPendingCreateAiRequest({
+        isCustomEndpointEnabled: false,
+        hasPendingCreate: false,
+        isSending: false,
+        hasAiRequest: false,
+      })
+    ).toBe(false);
+    expect(
+      canCancelPendingCreateAiRequest({
+        isCustomEndpointEnabled: true,
+        hasPendingCreate: false,
+        isSending: false,
+        hasAiRequest: false,
+      })
+    ).toBe(false);
+  });
+
+  it('does not use the pending-create Stop once an AiRequest exists', () => {
+    expect(
+      canCancelPendingCreateAiRequest({
+        isCustomEndpointEnabled: false,
+        hasPendingCreate: true,
+        isSending: true,
+        hasAiRequest: true,
       })
     ).toBe(false);
   });
