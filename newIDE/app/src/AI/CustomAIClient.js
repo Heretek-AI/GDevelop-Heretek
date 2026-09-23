@@ -3160,7 +3160,33 @@ export const customAddMessageToAiRequest = async ({
         // and no error surfaces for a stop the user asked for.
         return localAiRequestsCache[aiRequestId] || existing;
       }
-      throw error;
+      // Terminal model failure: flip status to error so the chat's error row
+      // (and Retry → continue turn) is offered, matching hosted /action/retry
+      // UX. Returning (not throwing) lets the container's updateAiRequest
+      // sync the React state. Persist local `output` (user message /
+      // function-call outputs) so the continue turn has the full transcript.
+      const current = localAiRequestsCache[aiRequestId] || existing;
+      const existingIds = new Set(
+        (existing.output || []).map(message => message.messageId)
+      );
+      const cacheOnly = (current.output || []).filter(
+        message =>
+          !existingIds.has(message.messageId) &&
+          !output.some(own => own.messageId === message.messageId)
+      );
+      const failed: AiRequest = {
+        ...current,
+        output: [...output, ...cacheOnly],
+        status: 'error',
+        updatedAt: new Date().toISOString(),
+        error: {
+          code: 'server_error',
+          message: (error && error.message) || String(error),
+        },
+      };
+      localAiRequestsCache[aiRequestId] = failed;
+      saveLocalAiRequests();
+      return failed;
     }
     releaseTurnAbortController(aiRequestId);
     delete localAiRequestPartialContent[aiRequestId];

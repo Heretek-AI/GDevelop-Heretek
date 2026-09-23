@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 49,
+  "last_cycle": 50,
   "completed_targets": [
     {
       "cycle": 1,
@@ -289,6 +289,12 @@
       "target": "Stand-alone Ask AI form can Stop a working request (onStop was a hard no-op while provider suspend existed)",
       "metric_delta": "AskAiStandAloneForm destructures suspendAiRequest and wires onStop (provider optimistically sets suspended + local abortTurnsForRequest); 312/312 tests; 22 suites",
       "commit": "fix(ai): wire stop/suspend on the stand-alone Ask AI form"
+    },
+    {
+      "cycle": 50,
+      "target": "Ordinary local model-turn failures never set status:'error', so the error-row Retry (continue turn) was only reachable after loop-guard stops",
+      "metric_delta": "customAddMessageToAiRequest non-abort catch now persists output + status:'error' + error to cache and RETURNS the failed request (no throw) so containers updateAiRequest; 2 new tests; CustomAIClient 97/97; full AI suite 314/314",
+      "commit": "fix(ai): surface ordinary local turn failures as status error with retry-continue"
     }
   ],
   "backlog": [
@@ -341,6 +347,7 @@
     "Streamed tool_call.index must not default to 0 when omitted \u2014 resolve by id, next free slot, or open-call continuation or multi-tool streams merge into one",
     "Local retry must re-run the model (customAddMessageToAiRequest with empty userMessage/functionCallOutputs), not only clear status/error \u2014 hosted /action/retry resumes generation server-side; returning the failed request (not throwing) lets onRetryAfterError's updateAiRequest sync retriesInARowCount",
     "Retry session gate is canRetryAiRequestForSession(profile, id): profile OR local-ai-* only \u2014 non-local ids without profile must stay refused because Generation.retryAiRequest only short-circuits local-ai-* and otherwise hits hosted /action/retry which requires a userId",
-    "AskAiStandAloneForm onStop must call context suspendAiRequest (returns Promise<void>, already optimistic-updates status and aborts local turns) \u2014 a no-op onStop left the Stop button spinning without cancelling BYOK generation"
+    "AskAiStandAloneForm onStop must call context suspendAiRequest (returns Promise<void>, already optimistic-updates status and aborts local turns) \u2014 a no-op onStop left the Stop button spinning without cancelling BYOK generation",
+    "Local customAddMessageToAiRequest must RETURN a status:'error' AiRequest on non-abort model failure (persisting local output for continue) \u2014 throwing left React status ready so canRetryAiRequest/ErrorRow never appeared for ordinary Ollama/LM Studio failures"
   ]
 }

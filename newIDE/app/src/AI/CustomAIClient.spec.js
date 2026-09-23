@@ -2148,6 +2148,88 @@ describe('CustomAIClient', () => {
       expect(customGetAiRequest(aiRequest.id).status).toBe('error');
     });
 
+    it('flips status to error (does not throw) when a model turn fails', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Turn failure target',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+      const outputBefore = (aiRequest.output || []).length;
+
+      axios.post.mockClear();
+      axios.post.mockRejectedValueOnce(new Error('endpoint down'));
+
+      const failed = await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: 'please continue',
+      });
+
+      expect(failed.status).toBe('error');
+      expect(failed.error && failed.error.message).toMatch(/endpoint down/);
+      // User message is persisted so Retry → continue has the transcript.
+      const last = (failed.output || [])[(failed.output || []).length - 1];
+      expect(last.role).toBe('user');
+      expect(JSON.stringify(last.content)).toContain('please continue');
+      expect((failed.output || []).length).toBe(outputBefore + 1);
+      expect(customGetAiRequest(aiRequest.id).status).toBe('error');
+      // Does not throw: container can updateAiRequest from the return value.
+      await expect(
+        customAddMessageToAiRequest({
+          aiRequestId: aiRequest.id,
+          userMessage: 'second try',
+        }).then(async result => result)
+      ).resolves.toBeTruthy();
+    });
+
+    it('offers continue-turn retry after a failed ordinary turn', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Retry after ordinary failure',
+      });
+
+      axios.post.mockClear();
+      axios.post.mockRejectedValueOnce(new Error('connection reset'));
+      const failed = await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: 'hit the model',
+      });
+      expect(failed.status).toBe('error');
+
+      // Retry continues the turn (no new user message) and succeeds.
+      axios.post.mockClear();
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'recovered' } }],
+        },
+      });
+      const retried = await customRetryAiRequest(aiRequest.id);
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(retried.status).toBe('ready');
+      expect(retried.error).toBeNull();
+      expect(retried.retriesInARowCount).toBe(1);
+      const last = (retried.output || [])[(retried.output || []).length - 1];
+      expect(last.role).toBe('assistant');
+      // $FlowFixMe
+      expect(JSON.stringify(last.content)).toContain('recovered');
+    });
+
     it('returns a fallback when retrying an unknown local request', async () => {
       const fallback = await customRetryAiRequest('local-ai-missing');
       expect(fallback.id).toBe('local-ai-missing');
