@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 122,
+  "last_cycle": 123,
   "completed_targets": [
     {
       "cycle": 75,
@@ -699,6 +699,12 @@
       "target": "Move codeql-action/upload-sarif off Node 20",
       "metric_delta": "After the checkout/setup-node/artifact bumps, the Fallow job still logged one Node-20 deprecation annotation: github/codeql-action/upload-sarif@v3. v4 runs on node24 and keeps the `sarif_file` input the step passes, so the SARIF upload is unchanged. Identified by reading the per-job check-run annotations rather than the (empty) job logs. Kept on a major tag, matching its prior pinning.",
       "commit": "ci: move codeql-action/upload-sarif off Node 20"
+    },
+    {
+      "cycle": 123,
+      "target": "Audit the CircleCI pipeline and non-streaming response guards",
+      "metric_delta": "No code change — verification cycle. (1) CircleCI already runs cimg/node:24.13.0 and modern orbs (circleci/node@7.1.0, windows@5.1.0, macos@2.5.1); `.circleci/config.yml` is absent from fork-divergence.json, i.e. byte-identical to upstream, so per MAINTENANCE.md it must be left alone — and needs nothing anyway. (2) Re-probed the non-streaming sendChatCompletion returns: `response.data.choices[0].message` is guarded by an explicit truthiness chain, and the bare `return response.data` is the deliberate 200-with-error-body path added in cycle 107 (a caller then surfaces it as a failure rather than a silent empty success). Both correct; parseAssistantMessage's immediate dereference of its argument is therefore safe at every call site.",
+      "commit": "(no code change — verification cycle)"
     }
   ],
   "backlog": [
@@ -837,6 +843,7 @@
     "transformGDevelopMessagesToOpenAi dereferences msg.role on the FIRST line of its input loop, and its final filter reads msg.role too — both unguarded, unlike the sibling helpers fixed in cycles 100/101. Assessed as LATENT, not live: all four callers pass an app-constructed array, loadLocalAiRequests shape-validates persisted entries (id/status are strings), and no test can produce a null element. Left unchanged deliberately (a guard for an unreproduced failure is not worth the diff, per cycle 103); re-open only if a caller ever passes caller-supplied arrays.",
     "normalizeBaseUrl is the only scheme-repair point in the BYOK path; test any change to it against BOTH malformed schemes (must pass through) and host:port forms like localhost:11434 (must be repaired). A negative lookahead (?!\\d+(?:/|$)) is what separates `word:digits` (a port) from `scheme:path` (a typo).",
     "Actions deprecation notices are visible via `gh api repos/OWNER/REPO/check-runs/<job-id>/annotations` (the job-logs endpoint can return empty for older runs). Use the annotation count before/after to prove an action bump removed the warning. `actions/*` are pinned by major tag in this repo; third-party actions stay SHA-pinned with a version comment per MAINTENANCE.md. `node-version: 20` in setup-node is the npm Node runtime and is unrelated to the action's own node24 runtime — keep it.",
-    "The workflows are only one deprecation source: after bumping the actions/* majors, re-scan the per-job check-run annotations, because third-party actions (e.g. github/codeql-action/upload-sarif) carry their own runtime. The remaining v4 references in extract-translations/update-translations/update-extension-translations are intentional — those workflows are upstream-guarded and report `skipped` in this fork."
+    "The workflows are only one deprecation source: after bumping the actions/* majors, re-scan the per-job check-run annotations, because third-party actions (e.g. github/codeql-action/upload-sarif) carry their own runtime. The remaining v4 references in extract-translations/update-translations/update-extension-translations are intentional — those workflows are upstream-guarded and report `skipped` in this fork.",
+    ".circleci/config.yml is upstream-identical (absent from fork-divergence.json) — do not edit it, per MAINTENANCE.md's 'leave it' rule; it already tracks cimg/node:24.x. Only .github/workflows/** is fork-owned and sync-protected."
   ]
 }
