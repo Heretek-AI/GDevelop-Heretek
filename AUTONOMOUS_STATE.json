@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 104,
+  "last_cycle": 105,
   "completed_targets": [
     {
       "cycle": 75,
@@ -615,6 +615,12 @@
       "target": "End the SSE read loop at [DONE] instead of waiting for close",
       "metric_delta": "447->448 tests; the parser recognised `data: [DONE]` but only returned from that one line handler, so the read loop kept awaiting reader.read() until the server closed the socket. OpenAI-compatible servers and proxies commonly hold the connection open after the terminator (chunked keep-alive), so a COMPLETE answer sat idle until the idle watchdog aborted it. The loop now tracks [DONE] and breaks on it. Proven red pre-fix by a test whose second read never resolves: it times out after 10s before the change and returns in 5ms after. 2 files, +14/-1",
       "commit": "fix(ai): end the SSE read loop at [DONE] instead of waiting for close"
+    },
+    {
+      "cycle": 105,
+      "target": "Show the context gauge for local BYOK chats",
+      "metric_delta": "448->451 tests; the usage indicator's contextUsedRatio read only aiRequest.contextStats, a server-supplied field the local path never sets (0 occurrences in CustomAIClient), so the context gauge was permanently hidden in BYOK — the mode with the smallest context windows, where the number matters most. It now falls back to the fork's own accounting: getLocalAiRequestContextUsedRatio(customGetAiRequestTokenTotal(id), getMessageBudget(config, GDEVELOP_OPENAI_TOOLS)), which is exactly the budget each turn trims against. Hosted behaviour is untouched (contextStats wins when present). 3 files, +66",
+      "commit": "fix(ai): show the context gauge for local BYOK chats"
     }
   ],
   "backlog": [
@@ -736,6 +742,7 @@
     "A *WithAvailability helper must honour the availability it computes: getDefaultAiConfigurationPresetId ignored `disabled` while every other consumer of those presets respects it. When a module derives availability, check that the selectors it feeds also read it.",
     "TypeScript/Flow-required fields on network payloads are assertions, not guarantees: getUserRequestText trusted Array-typed content that the server could omit, and the crash surfaced in the sidebar. When a helper reads a field straight from an API response, guard the shape even when the type declares it required.",
     "Before hardening an unguarded read, check the file's divergence bucket: a defensive guard in an upstream-identical, untracked file creates permanent merge surface (the fork-divergence guard flags it as new divergence) for no reproduced failure. Fix upstream-owned files only for real defects; prefer files already in the modified/forkOnly buckets, or the fix belongs upstream.",
-    "Recognising a protocol terminator is not acting on it: the SSE parser saw `data: [DONE]` and returned from the line handler, leaving the read loop waiting for a socket close the server need not send. When code special-cases a terminator, check whether the surrounding loop actually stops."
+    "Recognising a protocol terminator is not acting on it: the SSE parser saw `data: [DONE]` and returned from the line handler, leaving the read loop waiting for a socket close the server need not send. When code special-cases a terminator, check whether the surrounding loop actually stops.",
+    "When the fork adds local accounting for something the server used to report, check every UI consumer of the server field: the context gauge read only aiRequest.contextStats, so the local path (which tracks tokens itself) left it permanently empty. A field the server sets is not a field that is always set."
   ]
 }

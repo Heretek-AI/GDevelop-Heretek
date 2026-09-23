@@ -244,6 +244,27 @@ export const shouldFetchAiRequestSuggestions = (options: {|
   return true;
 };
 
+/**
+ * The share of the model's context window the opened chat has used, 0 to 1
+ * (it can exceed 1), or null when it is not known.
+ *
+ * The hosted path reports this on `aiRequest.contextStats`. The local BYOK
+ * path never sets that field — it accounts token counts itself — so without
+ * this the usage indicator stayed empty in exactly the mode where small local
+ * context windows make the number most useful.
+ *
+ * `totalTokens` is the chat's cumulative token count and `budgetTokens` the
+ * per-request input budget; both come from the caller so this stays pure.
+ */
+export const getLocalAiRequestContextUsedRatio = (
+  totalTokens: number,
+  budgetTokens: number
+): ?number => {
+  const usable = (value: number): boolean =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0;
+  if (!usable(totalTokens) || !usable(budgetTokens)) return null;
+  return totalTokens / budgetTokens;
+};
 export const getFunctionCallToFunctionCallOutputMap = ({
   aiRequest,
 }: {|

@@ -76,7 +76,12 @@ import {
   customGetAiRequestModelOverride,
   customSetAiRequestModelOverride,
   customHasPendingCreateAiRequest,
+  customGetAiRequestTokenTotal,
+  getMessageBudget,
+  getEffectiveConfigForRequest,
+  GDEVELOP_OPENAI_TOOLS,
 } from '../../AI/CustomAIClient';
+import { getLocalAiRequestContextUsedRatio } from '../AiRequestUtils';
 import TextField from '../../UI/TextField';
 
 const TOO_MANY_USER_MESSAGES_WARNING_COUNT = 15;
@@ -540,8 +545,21 @@ export const AiRequestChat: React.ComponentType<{
         isRefreshingLimits={isRefreshingLimitsStable}
         hideLabel={isMobile}
         contextUsedRatio={
+          // The server reports this for a hosted chat; the local BYOK path
+          // never sets contextStats, so its own token accounting is used
+          // instead — otherwise the context gauge was always empty in the mode
+          // with the smallest windows. GDEVELOP_OPENAI_TOOLS is what the turn
+          // actually budgets against.
           aiRequest && aiRequest.contextStats
             ? aiRequest.contextStats.usedPercentage
+            : aiRequest
+            ? getLocalAiRequestContextUsedRatio(
+                customGetAiRequestTokenTotal(aiRequest.id),
+                getMessageBudget(
+                  getEffectiveConfigForRequest(aiRequest.id),
+                  GDEVELOP_OPENAI_TOOLS
+                )
+              )
             : null
         }
         onOpenSubscriptionDialog={() =>

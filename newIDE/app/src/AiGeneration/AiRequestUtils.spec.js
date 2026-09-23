@@ -7,6 +7,7 @@ import {
   getFunctionCallToFunctionCallOutputMap,
   getFunctionCallNameByCallId,
   getLastMessagesFromAiRequestOutput,
+  getLocalAiRequestContextUsedRatio,
   getPendingSubAgentFunctionCalls,
   aiRequestPollSawActivity,
   canRetryAiRequest,
@@ -760,5 +761,32 @@ describe('malformed message content never crashes the chat helpers', () => {
         ([malformedUser, malformedAssistant]: any)
       )
     ).toEqual({ lastUserMessage: null, lastAssistantMessages: [] });
+  });
+});
+
+describe('getLocalAiRequestContextUsedRatio', () => {
+  it('reports the share of the budget used', () => {
+    expect(getLocalAiRequestContextUsedRatio(500, 1000)).toBe(0.5);
+    expect(getLocalAiRequestContextUsedRatio(1000, 1000)).toBe(1);
+  });
+
+  it('may exceed 1 when the chat is over budget', () => {
+    // The caller renders this as an over-budget state, so it must not clamp.
+    expect(getLocalAiRequestContextUsedRatio(1500, 1000)).toBe(1.5);
+  });
+
+  it('is null when either side is unknown, so the gauge is hidden', () => {
+    expect(getLocalAiRequestContextUsedRatio(0, 1000)).toBeNull();
+    expect(getLocalAiRequestContextUsedRatio(100, 0)).toBeNull();
+    // A chat with no tokens accounted yet has nothing to show.
+    expect(getLocalAiRequestContextUsedRatio(0, 0)).toBeNull();
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getLocalAiRequestContextUsedRatio(NaN, 1000)).toBeNull();
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getLocalAiRequestContextUsedRatio(Infinity, 1000)).toBeNull();
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getLocalAiRequestContextUsedRatio('lots', 1000)).toBeNull();
+    // $FlowFixMe deliberately malformed for the guard.
+    expect(getLocalAiRequestContextUsedRatio(null, null)).toBeNull();
   });
 });
