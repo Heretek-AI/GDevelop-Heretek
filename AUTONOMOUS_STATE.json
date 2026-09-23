@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 119,
+  "last_cycle": 121,
   "completed_targets": [
     {
       "cycle": 75,
@@ -681,6 +681,18 @@
       "target": "Stop normalizeBaseUrl from masking a malformed scheme",
       "metric_delta": "A mistyped scheme (htpp://localhost:11434) was silently rewritten to https://htpp://localhost:11434, which parses with host `htpp` and fails later as a confusing DNS error. Now any non-http(s) scheme is returned unmasked, so the request fails with the existing 'endpoint is not reachable: check the base URL' guidance naming the real problem. Schemeless input (localhost:11434/v1, example.com/v1, localhost, empty) still repaired; host:port correctly distinguished from scheme:path via a negative lookahead. +2 tests, both mutation-checked (the masking assertion fails on the old code). 178/178 CustomAIClient, 427/427 AI suites, eslint --max-warnings=0, prettier, tsc clean.",
       "commit": "fix(ai): report a malformed base-URL scheme instead of masking it"
+    },
+    {
+      "cycle": 120,
+      "target": "Move CI actions off the deprecated Node 20 runtime",
+      "metric_delta": "Every CI job logged 'Node.js 20 is deprecated... actions/checkout@v4, actions/download-artifact@v4, actions/setup-node@v4'. Bumped checkout v4->v7, setup-node v4->v7, upload-artifact v4->v7, download-artifact v4->v8 (all node24). Verified every input the workflow passes still exists in the target majors against each action.yml. Proof via the annotations API: the pre-bump run emitted 7 Node-20 deprecation annotations; the bumped run emits 0.",
+      "commit": "ci: move actions off the deprecated Node 20 runtime"
+    },
+    {
+      "cycle": 121,
+      "target": "Extend the action bump to the remaining live workflows",
+      "metric_delta": "build-release.yml, build-storybook.yml, fallow.yml and upstream-sync.yml still pinned the same deprecated majors; bumped identically so the warning cannot return on their runs. The three translation workflows (extract-translations, update-translations, update-extension-translations) are upstream-guarded with `if: github.repository == '4ian/GDevelop'` and never run in this fork, so they were left alone to avoid needless divergence. All four YAMLs parse, every `permissions:` block preserved, fork-divergence guard clean.",
+      "commit": "ci: extend the action runtime bump to the remaining live workflows"
     }
   ],
   "backlog": [
@@ -817,6 +829,7 @@
     "A new fork-only spec is legitimate divergence for fork-critical behavior (precedent: AiConfiguration.spec.js): run check-fork-divergence.js --update and commit the manifest in the same commit, as MAINTENANCE.md requires.",
     "AiRequestContext's initialAiRequestContextState no-op stubs (renameAiRequest: async () => {}) are the createContext default, correct for components rendering before the provider mounts — do not mistake them for dead code.",
     "transformGDevelopMessagesToOpenAi dereferences msg.role on the FIRST line of its input loop, and its final filter reads msg.role too — both unguarded, unlike the sibling helpers fixed in cycles 100/101. Assessed as LATENT, not live: all four callers pass an app-constructed array, loadLocalAiRequests shape-validates persisted entries (id/status are strings), and no test can produce a null element. Left unchanged deliberately (a guard for an unreproduced failure is not worth the diff, per cycle 103); re-open only if a caller ever passes caller-supplied arrays.",
-    "normalizeBaseUrl is the only scheme-repair point in the BYOK path; test any change to it against BOTH malformed schemes (must pass through) and host:port forms like localhost:11434 (must be repaired). A negative lookahead (?!\\d+(?:/|$)) is what separates `word:digits` (a port) from `scheme:path` (a typo)."
+    "normalizeBaseUrl is the only scheme-repair point in the BYOK path; test any change to it against BOTH malformed schemes (must pass through) and host:port forms like localhost:11434 (must be repaired). A negative lookahead (?!\\d+(?:/|$)) is what separates `word:digits` (a port) from `scheme:path` (a typo).",
+    "Actions deprecation notices are visible via `gh api repos/OWNER/REPO/check-runs/<job-id>/annotations` (the job-logs endpoint can return empty for older runs). Use the annotation count before/after to prove an action bump removed the warning. `actions/*` are pinned by major tag in this repo; third-party actions stay SHA-pinned with a version comment per MAINTENANCE.md. `node-version: 20` in setup-node is the npm Node runtime and is unrelated to the action's own node24 runtime — keep it."
   ]
 }
