@@ -129,6 +129,7 @@
     ".github/workflows/fallow.yml",
     ".github/workflows/upstream-sync.yml",
     ".npmrc",
+    ".nvmrc",
     ".sonarcloud.properties",
     "AGENTS.md",
     "AI_GAME_STUDIO_ASSESSMENT.md",
