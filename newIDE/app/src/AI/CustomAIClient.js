@@ -2375,60 +2375,67 @@ const streamChatCompletion = async ({
     const toolCalls: { [index: number]: Object } = {};
     let finishReason = null;
 
+    const processSseLine = (rawLine: string) => {
+      const trimmed = rawLine.trim();
+      if (!trimmed.startsWith('data:')) return;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === '[DONE]') return;
+      let chunk;
+      try {
+        chunk = JSON.parse(data);
+      } catch (ignored) {
+        return; // malformed chunk: skip, the stream may recover.
+      }
+      const choice = chunk && chunk.choices && chunk.choices[0];
+      if (!choice) return;
+      const delta = choice.delta || {};
+      if (typeof delta.content === 'string') content += delta.content;
+      if (Array.isArray(delta.tool_calls)) {
+        for (const toolCall of delta.tool_calls) {
+          const index = toolCall.index || 0;
+          const existing = toolCalls[index];
+          if (!existing) {
+            toolCalls[index] = {
+              id: toolCall.id,
+              type: toolCall.type || 'function',
+              function: {
+                name: (toolCall.function && toolCall.function.name) || '',
+                arguments:
+                  (toolCall.function && toolCall.function.arguments) || '',
+              },
+            };
+          } else {
+            if (toolCall.id) existing.id = toolCall.id;
+            if (toolCall.function && toolCall.function.name) {
+              existing.function.name =
+                (existing.function.name || '') + toolCall.function.name;
+            }
+            if (
+              toolCall.function &&
+              typeof toolCall.function.arguments === 'string'
+            ) {
+              existing.function.arguments += toolCall.function.arguments;
+            }
+          }
+        }
+      }
+      if (choice.finish_reason) finishReason = choice.finish_reason;
+      if (onStreamDelta) onStreamDelta(content);
+    };
+
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || ''; // keep the trailing partial line.
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const data = trimmed.slice(5).trim();
-        if (!data || data === '[DONE]') continue;
-        let chunk;
-        try {
-          chunk = JSON.parse(data);
-        } catch (ignored) {
-          continue; // malformed chunk: skip, the stream may recover.
-        }
-        const choice = chunk && chunk.choices && chunk.choices[0];
-        if (!choice) continue;
-        const delta = choice.delta || {};
-        if (typeof delta.content === 'string') content += delta.content;
-        if (Array.isArray(delta.tool_calls)) {
-          for (const toolCall of delta.tool_calls) {
-            const index = toolCall.index || 0;
-            const existing = toolCalls[index];
-            if (!existing) {
-              toolCalls[index] = {
-                id: toolCall.id,
-                type: toolCall.type || 'function',
-                function: {
-                  name: (toolCall.function && toolCall.function.name) || '',
-                  arguments:
-                    (toolCall.function && toolCall.function.arguments) || '',
-                },
-              };
-            } else {
-              if (toolCall.id) existing.id = toolCall.id;
-              if (toolCall.function && toolCall.function.name) {
-                existing.function.name =
-                  (existing.function.name || '') + toolCall.function.name;
-              }
-              if (
-                toolCall.function &&
-                typeof toolCall.function.arguments === 'string'
-              ) {
-                existing.function.arguments += toolCall.function.arguments;
-              }
-            }
-          }
-        }
-        if (choice.finish_reason) finishReason = choice.finish_reason;
-        if (onStreamDelta) onStreamDelta(content);
-      }
+      for (const line of lines) processSseLine(line);
     }
+    // Connection close leaves a partial line in `buffer` and undecoded
+    // multi-byte state in `decoder` — process both so a final data: event
+    // without a trailing newline is not discarded.
+    buffer += decoder.decode();
+    if (buffer) processSseLine(buffer);
 
     const toolCallsArray = Object.keys(toolCalls)
       .map(index => toolCalls[index])

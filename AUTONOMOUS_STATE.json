@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 42,
+  "last_cycle": 43,
   "completed_targets": [
     {
       "cycle": 1,
@@ -29,49 +29,49 @@
     {
       "cycle": 5,
       "target": "Pin Node 20 via .nvmrc to match CI (toolchain hygiene)",
-      "metric_delta": "Before: local machine runs Node 26 while all 5 CI jobs use Node 20 \u2014 no in-repo pin, drift risk for dev vs CI. After: .nvmrc with '20' (upstream has none \u2014 new fork-only path, recorded in fork-divergence.json). GitHub Actions inventory audited: all actions current (checkout@v4, setup-node@v4, codeql@v3), no deprecation drift.",
+      "metric_delta": "Before: local machine runs Node 26 while all 5 CI jobs use Node 20 — no in-repo pin, drift risk for dev vs CI. After: .nvmrc with '20' (upstream has none — new fork-only path, recorded in fork-divergence.json). GitHub Actions inventory audited: all actions current (checkout@v4, setup-node@v4, codeql@v3), no deprecation drift.",
       "commit": "chore(toolchain): pin Node 20 via .nvmrc to match CI"
     },
     {
       "cycle": 7,
       "target": "Fail loudly on malformed model JSON in customCreateAiGeneratedEvent",
-      "metric_delta": "Before: a non-JSON model response silently produced a successful EMPTY event insert (isEventsJsonValid: true, creationSucceeded: true) \u2014 the user saw 'success' with zero events; a non-array generatedEvents payload went to the sheet unchecked. After: non-JSON responses fail with an actionable message, and generatedEvents (string or array) must parse to a JSON list or generation fails. 3 new tests (invalid JSON, non-list generatedEvents, valid string-array payload). Diff +40/-12 client, 37/37 tests green.",
+      "metric_delta": "Before: a non-JSON model response silently produced a successful EMPTY event insert (isEventsJsonValid: true, creationSucceeded: true) — the user saw 'success' with zero events; a non-array generatedEvents payload went to the sheet unchecked. After: non-JSON responses fail with an actionable message, and generatedEvents (string or array) must parse to a JSON list or generation fails. 3 new tests (invalid JSON, non-list generatedEvents, valid string-array payload). Diff +40/-12 client, 37/37 tests green.",
       "commit": "fix(ai): reject malformed model JSON in event generation"
     },
     {
       "cycle": 8,
       "target": "Verify offline mock test coverage for the local AI client (backlog audit)",
-      "metric_delta": "CustomAIClient.spec.js (37 tests) runs fully offline: axios is jest-mocked, only URL strings appear, zero network calls \u2014 satisfying the 'offline mock test runner' backlog item. testConnection audited: /models fallback benefits from the cycle-4 401 hint via sendChatCompletion; no change needed.",
-      "commit": "(no code change \u2014 verification cycle)"
+      "metric_delta": "CustomAIClient.spec.js (37 tests) runs fully offline: axios is jest-mocked, only URL strings appear, zero network calls — satisfying the 'offline mock test runner' backlog item. testConnection audited: /models fallback benefits from the cycle-4 401 hint via sendChatCompletion; no change needed.",
+      "commit": "(no code change — verification cycle)"
     },
     {
       "cycle": 9,
       "target": "Local-model token-budget calculator + history trimmer for scene context",
-      "metric_delta": "Before: gameProjectJson + unbounded conversation history were embedded verbatim with no size management \u2014 big projects silently exceeded local models' context windows (8k-128k) and got truncated or errored. After: dependency-free chars/4 estimator (estimateTokens), model-family budget (getTokenBudget: llama 4k, mistral/qwen 16k, gpt/claude/deepseek 64k input \u2014 half the window reserved for output), and trimMessagesToBudget which drops oldest history (never system prompt or newest exchange; tool outputs dropped with their tool_calls assistant so servers never see orphans) in both chat-turn and sub-agent paths. 4 new test blocks; 41/41 green.",
+      "metric_delta": "Before: gameProjectJson + unbounded conversation history were embedded verbatim with no size management — big projects silently exceeded local models' context windows (8k-128k) and got truncated or errored. After: dependency-free chars/4 estimator (estimateTokens), model-family budget (getTokenBudget: llama 4k, mistral/qwen 16k, gpt/claude/deepseek 64k input — half the window reserved for output), and trimMessagesToBudget which drops oldest history (never system prompt or newest exchange; tool outputs dropped with their tool_calls assistant so servers never see orphans) in both chat-turn and sub-agent paths. 4 new test blocks; 41/41 green.",
       "commit": "feat(ai): token-budget estimation and history trimming for local models"
     },
     {
       "cycle": 10,
       "target": "Structured tool-call argument validation in parseAssistantMessage",
-      "metric_delta": "Before: tool-call arguments accepted any parse result (arrays/scalars included) and executed with whatever the model emitted; malformed JSON silently degraded to {}. After: arguments must parse to a non-null, non-array object \u2014 anything else is sanitized to {} with a console.warn naming the tool, and the function_call content round-trips the sanitized arguments. 3 new tests (valid object, malformed JSON, array/scalar rejection); 44/44 green.",
+      "metric_delta": "Before: tool-call arguments accepted any parse result (arrays/scalars included) and executed with whatever the model emitted; malformed JSON silently degraded to {}. After: arguments must parse to a non-null, non-array object — anything else is sanitized to {} with a console.warn naming the tool, and the function_call content round-trips the sanitized arguments. 3 new tests (valid object, malformed JSON, array/scalar rejection); 44/44 green.",
       "commit": "fix(ai): validate tool-call arguments are JSON objects"
     },
     {
       "cycle": 11,
       "target": "Per-tool JSON Schema validation of tool-call arguments against GDEVELOP_OPENAI_TOOLS",
-      "metric_delta": "Before: parsed tool arguments only needed to be JSON objects; wrong property names/types (e.g. sceneName vs scene_name) reached tool implementations unvalidated and failed downstream with confusing errors. After: validateToolCallArguments checks required properties, primitive types, enum values, and unknown arguments against each tool's declared parameters; schema-invalid calls are sanitized to {} with a warning listing every violation. One pre-existing spec fixture updated (used a non-schema property name \u2014 pinned the old unvalidated behavior). 5 new tests; 49/49 green.",
+      "metric_delta": "Before: parsed tool arguments only needed to be JSON objects; wrong property names/types (e.g. sceneName vs scene_name) reached tool implementations unvalidated and failed downstream with confusing errors. After: validateToolCallArguments checks required properties, primitive types, enum values, and unknown arguments against each tool's declared parameters; schema-invalid calls are sanitized to {} with a warning listing every violation. One pre-existing spec fixture updated (used a non-schema property name — pinned the old unvalidated behavior). 5 new tests; 49/49 green.",
       "commit": "feat(ai): validate tool arguments against tool JSON schemas"
     },
     {
       "cycle": 12,
       "target": "Sanitize persisted custom-AI config on load (localStorage trust boundary)",
-      "metric_delta": "Before: getCustomEndpointConfig spread raw localStorage JSON over defaults \u2014 a mistyped/corrupt entry (temperature: 42, customHeaders: [..], timeoutMs: 'fast') flowed straight into request building and header construction. After: every field coerced to its declared type on load (booleans strict, strings type-checked, temperature clamped to [0,1], positive-number guards on timeoutMs/maxTokens, customHeaders filtered to string->string entries); corrupt JSON still falls back to defaults. Full suite baseline also established this cycle: 176 suites / 1944 tests, all passing. 3 new tests; 52/52 module green.",
+      "metric_delta": "Before: getCustomEndpointConfig spread raw localStorage JSON over defaults — a mistyped/corrupt entry (temperature: 42, customHeaders: [..], timeoutMs: 'fast') flowed straight into request building and header construction. After: every field coerced to its declared type on load (booleans strict, strings type-checked, temperature clamped to [0,1], positive-number guards on timeoutMs/maxTokens, customHeaders filtered to string->string entries); corrupt JSON still falls back to defaults. Full suite baseline also established this cycle: 176 suites / 1944 tests, all passing. 3 new tests; 52/52 module green.",
       "commit": "fix(ai): sanitize persisted custom-AI config on load"
     },
     {
       "cycle": 13,
       "target": "Surface history trimming in the AI chat UI",
-      "metric_delta": "Before: context trims were console.warn-only \u2014 users had no explanation when the agent 'forgot' old exchanges. After: trims are counted per request in a fork-only in-memory registry (customGetAiRequestContextTrimCount; sub-agent trims attributed to the parent chat), and ChatMessages renders a secondary note 'Older messages were trimmed to fit the AI model's context window.' when the count is non-zero and the chat is not working. New test proves trims are recorded against the parent chat id and reset with client state; 53/53 green, flow clean, dev+prod compiles green.",
+      "metric_delta": "Before: context trims were console.warn-only — users had no explanation when the agent 'forgot' old exchanges. After: trims are counted per request in a fork-only in-memory registry (customGetAiRequestContextTrimCount; sub-agent trims attributed to the parent chat), and ChatMessages renders a secondary note 'Older messages were trimmed to fit the AI model's context window.' when the count is non-zero and the chat is not working. New test proves trims are recorded against the parent chat id and reset with client state; 53/53 green, flow clean, dev+prod compiles green.",
       "commit": "feat(ai): surface context trimming in the AI chat"
     },
     {
@@ -83,19 +83,19 @@
     {
       "cycle": 15,
       "target": "Delete key deletes selected instances from the Instances list (upstream #8291)",
-      "metric_delta": "Before: the Instances list panel ignored Delete/Backspace \u2014 users had to select instances on the canvas to delete them. After: InstancesList wires its existing (inactive) KeyboardShortcuts instance with an onDelete callback fired for Delete and Backspace (text-editor exclusion already built into the shared handler), through an optional onDelete prop fed by SceneEditor.deleteSelection for both Mosaic and SwipeableDrawer displays. Diff: 5 files, +16 lines net. 13/13 InstancesEditor+SceneEditor tests, flow clean in touched dirs, lint clean.",
+      "metric_delta": "Before: the Instances list panel ignored Delete/Backspace — users had to select instances on the canvas to delete them. After: InstancesList wires its existing (inactive) KeyboardShortcuts instance with an onDelete callback fired for Delete and Backspace (text-editor exclusion already built into the shared handler), through an optional onDelete prop fed by SceneEditor.deleteSelection for both Mosaic and SwipeableDrawer displays. Diff: 5 files, +16 lines net. 13/13 InstancesEditor+SceneEditor tests, flow clean in touched dirs, lint clean.",
       "commit": "feat(editor): delete selected instances with Delete key in Instances list"
     },
     {
       "cycle": 16,
       "target": "Drag & drop image files from the OS onto the scene canvas (upstream #8297)",
-      "metric_delta": "Before: the scene canvas handled only react-dnd object drops; no OS file-drop handling existed anywhere in the IDE. After: native HTML5 onDragOver/onDrop on the InstancesEditor canvas filters image files (png/jpg/jpeg/gif/svg/webp), converts the drop position to scene coordinates via the existing viewPosition pattern, and SceneEditor._onDropImageFiles creates a gd.ImageResource (copied into the project folder if outside, relative path set like LocalResourceSources), a uniquely-named Sprite object with one animation using the resource, and an instance at the drop position via the existing _addInstance path. Browser build no-ops with a warning (no local paths). Also fixed 2 pre-existing Flow errors from cycle 12 (Object.entries widening) \u2014 src Flow errors now 0 vs baseline ~2; total 50 (48 node_modules parse noise).",
+      "metric_delta": "Before: the scene canvas handled only react-dnd object drops; no OS file-drop handling existed anywhere in the IDE. After: native HTML5 onDragOver/onDrop on the InstancesEditor canvas filters image files (png/jpg/jpeg/gif/svg/webp), converts the drop position to scene coordinates via the existing viewPosition pattern, and SceneEditor._onDropImageFiles creates a gd.ImageResource (copied into the project folder if outside, relative path set like LocalResourceSources), a uniquely-named Sprite object with one animation using the resource, and an instance at the drop position via the existing _addInstance path. Browser build no-ops with a warning (no local paths). Also fixed 2 pre-existing Flow errors from cycle 12 (Object.entries widening) — src Flow errors now 0 vs baseline ~2; total 50 (48 node_modules parse noise).",
       "commit": "feat(editor): create Sprite objects by dropping image files on the scene"
     },
     {
       "cycle": 17,
       "target": "Compaction before dropping: large tool outputs truncated in place by the context trimmer",
-      "metric_delta": "Before: trimMessagesToBudget dropped oversized tool outputs entirely \u2014 the model lost the fact the tool ran and its summary. After: a first pass compacts the biggest tool output (>4000 chars) in place to its first 500 chars plus a '[... output trimmed: N characters removed ...]' marker, preserving the tool_calls/tool-output pairing; the existing drop path remains as fallback for non-tool-heavy overflows. Original message objects are never mutated. 1 new test (compaction keeps pairing, meets budget, no mutation); 54/54 green.",
+      "metric_delta": "Before: trimMessagesToBudget dropped oversized tool outputs entirely — the model lost the fact the tool ran and its summary. After: a first pass compacts the biggest tool output (>4000 chars) in place to its first 500 chars plus a '[... output trimmed: N characters removed ...]' marker, preserving the tool_calls/tool-output pairing; the existing drop path remains as fallback for non-tool-heavy overflows. Original message objects are never mutated. 1 new test (compaction keeps pairing, meets budget, no mutation); 54/54 green.",
       "commit": "perf(ai): compact large tool outputs before dropping history"
     },
     {
@@ -113,8 +113,8 @@
     {
       "cycle": 20,
       "target": "Base-URL scheme hardening audit (file:/data: exfiltration vector)",
-      "metric_delta": "Verified by construction: normalizeBaseUrl coerces every input to http(s):// (schemeless loopback gets http://, everything else https://), so file:, data:, javascript: and other non-HTTP schemes cannot survive normalization into fetch. No change needed \u2014 recorded as a heuristic.",
-      "commit": "(no code change \u2014 security audit cycle)"
+      "metric_delta": "Verified by construction: normalizeBaseUrl coerces every input to http(s):// (schemeless loopback gets http://, everything else https://), so file:, data:, javascript: and other non-HTTP schemes cannot survive normalization into fetch. No change needed — recorded as a heuristic.",
+      "commit": "(no code change — security audit cycle)"
     },
     {
       "cycle": 21,
@@ -125,31 +125,31 @@
     {
       "cycle": 22,
       "target": "Documentation audit: scripts/README.md accuracy and AGENTS.md stale claim",
-      "metric_delta": "Verified scripts/README.md is fully accurate (every listed script exists; the 'Upstream scripts removed' section documents absent files rather than referencing them as instructions \u2014 fixed by commit 48ed4e38d). Updated AGENTS.md, which still carried the outdated 'partially stale' warning, so future sessions don't re-litigate a solved item.",
+      "metric_delta": "Verified scripts/README.md is fully accurate (every listed script exists; the 'Upstream scripts removed' section documents absent files rather than referencing them as instructions — fixed by commit 48ed4e38d). Updated AGENTS.md, which still carried the outdated 'partially stale' warning, so future sessions don't re-litigate a solved item.",
       "commit": "docs: correct stale scripts/README.md note in AGENTS.md"
     },
     {
       "cycle": 23,
       "target": "Token/cost meter: cumulative estimated tokens per request, surfaced in chat",
-      "metric_delta": "Before: no visibility into how much context a local/BYOK session consumed. After: each turn records estimateMessagesTokens(prompt) + estimateTokens(response) against the parent chat id (sub-agent usage attributed to the parent); customGetAiRequestTokenTotal exposes the running total and ChatMessages renders '\u2248N tokens used locally' alongside the trim note. Reset with client state. Audit note: src Flow errors (48, all pre-existing in CustomAIClient.js/spec) are identical with and without this diff \u2014 earlier per-cycle greps used a '^src/' anchor that never matches 'Error --- src/...' lines, so those '0 errors' readings were a measurement bug; correct baseline confirmed via clean-HEAD stash run.",
+      "metric_delta": "Before: no visibility into how much context a local/BYOK session consumed. After: each turn records estimateMessagesTokens(prompt) + estimateTokens(response) against the parent chat id (sub-agent usage attributed to the parent); customGetAiRequestTokenTotal exposes the running total and ChatMessages renders '≈N tokens used locally' alongside the trim note. Reset with client state. Audit note: src Flow errors (48, all pre-existing in CustomAIClient.js/spec) are identical with and without this diff — earlier per-cycle greps used a '^src/' anchor that never matches 'Error --- src/...' lines, so those '0 errors' readings were a measurement bug; correct baseline confirmed via clean-HEAD stash run.",
       "commit": "feat(ai): per-request token meter for local AI chats"
     },
     {
       "cycle": 24,
       "target": "Benchmark-driven fix: exact token accounting in the history trimmer",
-      "metric_delta": "Benchmarked trimMessagesToBudget on a synthetic 5003-message / 5.4M-token history: the benchmark exposed that tool outputs dropped via the pairing flag never had their tokens subtracted from the internal estimate, and the arbitrary +4-per-message fudge made bookkeeping drift from the real estimate \u2014 the trimmer over-dropped history and could exit over budget. Fixed: paired tool outputs now decrement the estimate, and the fudge is removed so bookkeeping is exact (verified: internal estimate == estimateMessagesTokens after trim within the budget). Regression test added (30 tool pairs, budget fits exactly 3 pairs \u2014 asserts kept >= 2 pairs, last-2 preserved, real estimate <= budget); 59/59 green. Roadmap A.3 also verified already satisfied: the fork README carries the full BYOK comparison section.",
+      "metric_delta": "Benchmarked trimMessagesToBudget on a synthetic 5003-message / 5.4M-token history: the benchmark exposed that tool outputs dropped via the pairing flag never had their tokens subtracted from the internal estimate, and the arbitrary +4-per-message fudge made bookkeeping drift from the real estimate — the trimmer over-dropped history and could exit over budget. Fixed: paired tool outputs now decrement the estimate, and the fudge is removed so bookkeeping is exact (verified: internal estimate == estimateMessagesTokens after trim within the budget). Regression test added (30 tool pairs, budget fits exactly 3 pairs — asserts kept >= 2 pairs, last-2 preserved, real estimate <= budget); 59/59 green. Roadmap A.3 also verified already satisfied: the fork README carries the full BYOK comparison section.",
       "commit": "fix(ai): exact token accounting in history trimmer"
     },
     {
       "cycle": 25,
       "target": "Per-request model override plumbing (roadmap A.2 groundwork)",
-      "metric_delta": "Before: every turn of every chat used the single globally-configured model \u2014 no way to run one chat on a different model. After: localAiRequestModelOverrides registry + customSetAiRequestModelOverride/customGetAiRequestModelOverride + getEffectiveConfigForRequest; turn functions (chat turn, sub-agent turn) pass the effective config to sendChatCompletion and use it for the token budget, so a chat and all its sub-agents stay on the overridden model. Empty string clears the override. 3 new tests (override applied to payload, sub-agent inheritance, global fallback); 62/62 green. UI picker still to come.",
+      "metric_delta": "Before: every turn of every chat used the single globally-configured model — no way to run one chat on a different model. After: localAiRequestModelOverrides registry + customSetAiRequestModelOverride/customGetAiRequestModelOverride + getEffectiveConfigForRequest; turn functions (chat turn, sub-agent turn) pass the effective config to sendChatCompletion and use it for the token budget, so a chat and all its sub-agents stay on the overridden model. Empty string clears the override. 3 new tests (override applied to payload, sub-agent inheritance, global fallback); 62/62 green. UI picker still to come.",
       "commit": "feat(ai): per-request model override plumbing"
     },
     {
       "cycle": 26,
       "target": "Model picker UI in the AI chat (BYOK mode only)",
-      "metric_delta": "Before: model overrides were only settable programmatically (cycle 25 plumbing). After: a 'Model for this chat' compact TextField renders above the existing-chat input when the custom endpoint is enabled and the request belongs to this project; empty value falls back to the global model (placeholder shows it). Change is in AiRequestChat/index.js only (+14 lines), reusing the cycle-25 plumbing. Verification: eslint --max-warnings=0, flow (no new errors vs the 48-error baseline), 62/62 client tests, production build. Honest caveat: the picker's live rendering could not be exercised in headless Chromium \u2014 the AI chat requires completing the interactive project-creation flow, which did not respond to synthetic/trusted click attempts; compile+flow+lint coverage only.",
+      "metric_delta": "Before: model overrides were only settable programmatically (cycle 25 plumbing). After: a 'Model for this chat' compact TextField renders above the existing-chat input when the custom endpoint is enabled and the request belongs to this project; empty value falls back to the global model (placeholder shows it). Change is in AiRequestChat/index.js only (+14 lines), reusing the cycle-25 plumbing. Verification: eslint --max-warnings=0, flow (no new errors vs the 48-error baseline), 62/62 client tests, production build. Honest caveat: the picker's live rendering could not be exercised in headless Chromium — the AI chat requires completing the interactive project-creation flow, which did not respond to synthetic/trusted click attempts; compile+flow+lint coverage only.",
       "commit": "feat(ai): per-chat model picker in BYOK mode"
     },
     {
@@ -161,7 +161,7 @@
     {
       "cycle": 28,
       "target": "Progressive streamed-token display in the AI chat",
-      "metric_delta": "Before: streaming accumulated server-side only \u2014 the user saw a generic thinking indicator for the whole generation. After: sendChatCompletion accepts onStreamDelta, streamChatCompletion invokes it with the accumulated content after every chunk batch, the chat turn writes it into a fork-only registry (cleared on settle), and ChatMessages renders PartialStreamText \u2014 a 300ms-polled tail (last 160 chars) of the partial output beside the thinking indicator, only while working. Health sweep this cycle: 176/176 suites, 1960 tests green; divergence green.",
+      "metric_delta": "Before: streaming accumulated server-side only — the user saw a generic thinking indicator for the whole generation. After: sendChatCompletion accepts onStreamDelta, streamChatCompletion invokes it with the accumulated content after every chunk batch, the chat turn writes it into a fork-only registry (cleared on settle), and ChatMessages renders PartialStreamText — a 300ms-polled tail (last 160 chars) of the partial output beside the thinking indicator, only while working. Health sweep this cycle: 176/176 suites, 1960 tests green; divergence green.",
       "commit": "feat(ai): progressive streamed-token display in the chat"
     },
     {
@@ -173,121 +173,132 @@
     {
       "cycle": 30,
       "target": "Handle unclosed think tags from truncated reasoning models",
-      "metric_delta": "Before: a truncated reasoning generation (e.g. deepseek-r1 on Ollama cut mid-thought) emitted an unclosed think-open tag; extractThinkingAndContent fell through to the no-tag path and the raw reasoning leaked into cleanContent \u2014 polluting the chat UI and potentially corrupting tool-call JSON parsing. After: when an open tag exists and no close tag does, everything after the open tag is treated as thinking and stripped from content. Closed-tag behavior unchanged (pinned by a new test). 2 new tests; 68/68 green. Note: the think-tag literal is built via String.fromCharCode in tests and kept literal in source \u2014 an earlier edit actually lost the tag bytes (searched for 'region'); the new tests would have caught that.",
+      "metric_delta": "Before: a truncated reasoning generation (e.g. deepseek-r1 on Ollama cut mid-thought) emitted an unclosed think-open tag; extractThinkingAndContent fell through to the no-tag path and the raw reasoning leaked into cleanContent — polluting the chat UI and potentially corrupting tool-call JSON parsing. After: when an open tag exists and no close tag does, everything after the open tag is treated as thinking and stripped from content. Closed-tag behavior unchanged (pinned by a new test). 2 new tests; 68/68 green. Note: the think-tag literal is built via String.fromCharCode in tests and kept literal in source — an earlier edit actually lost the tag bytes (searched for 'region'); the new tests would have caught that.",
       "commit": "fix(ai): treat unclosed think tags as reasoning, not content"
     },
     {
       "cycle": 31,
       "target": "Harden the markdown tool-call fallback path (argument validation parity)",
-      "metric_delta": "Before: tool calls parsed from markdown JSON blocks (the fallback for models that do not emit tool_calls) bypassed the cycle-10/11 hardening \u2014 arrays/scalars executed as callArguments and schema-invalid arguments ran unvalidated. After: identical contract to the tool_calls path \u2014 arguments must parse to a non-array object and pass validateToolCallArguments against the tool schema; invalid calls are skipped with a warning instead of executing. 2 new tests (non-object args skipped, schema-invalid args skipped); 70/70 green.",
+      "metric_delta": "Before: tool calls parsed from markdown JSON blocks (the fallback for models that do not emit tool_calls) bypassed the cycle-10/11 hardening — arrays/scalars executed as callArguments and schema-invalid arguments ran unvalidated. After: identical contract to the tool_calls path — arguments must parse to a non-array object and pass validateToolCallArguments against the tool schema; invalid calls are skipped with a warning instead of executing. 2 new tests (non-object args skipped, schema-invalid args skipped); 70/70 green.",
       "commit": "fix(ai): validate markdown tool-call arguments like tool_calls"
     },
     {
       "cycle": 32,
       "target": "Warn on configured-model mismatch in Test Connection",
-      "metric_delta": "Before: Test Connection reported success even when the configured model identifier was not served by the endpoint \u2014 a typo only surfaced as a failed generation later. After: when /models returns a list that does not contain the configured model, the success message appends a typo-check warning (per-model-family tags like ollama:tag still match by prefix). 2 new tests (mismatch warned, match not warned); 72/72 green.",
+      "metric_delta": "Before: Test Connection reported success even when the configured model identifier was not served by the endpoint — a typo only surfaced as a failed generation later. After: when /models returns a list that does not contain the configured model, the success message appends a typo-check warning (per-model-family tags like ollama:tag still match by prefix). 2 new tests (mismatch warned, match not warned); 72/72 green.",
       "commit": "feat(ai): warn on model mismatch in test connection"
     },
     {
       "cycle": 33,
       "target": "Stop button works for local BYOK requests (was a silent no-op)",
-      "metric_delta": "Before: suspendAiRequest early-returned when no profile existed \u2014 the common Heretek local session \u2014 so clicking Stop (or refusing an inline edit) did nothing: no suspended status, no cache write, and the agent loop kept running; with a profile it additionally sent 'local-ai-*' ids to the hosted API (unhandled rejection could abort editor close). After: local-ai-* requests are suspended via customSuspendAiRequest (which also aborts their in-flight model turn) before any hosted call; the hosted apiSuspendAiRequest is wrapped so its failure never escapes into requestClose. Provider test added: local request suspended in cache, hosted API untouched; 17/17 context suite green.",
+      "metric_delta": "Before: suspendAiRequest early-returned when no profile existed — the common Heretek local session — so clicking Stop (or refusing an inline edit) did nothing: no suspended status, no cache write, and the agent loop kept running; with a profile it additionally sent 'local-ai-*' ids to the hosted API (unhandled rejection could abort editor close). After: local-ai-* requests are suspended via customSuspendAiRequest (which also aborts their in-flight model turn) before any hosted call; the hosted apiSuspendAiRequest is wrapped so its failure never escapes into requestClose. Provider test added: local request suspended in cache, hosted API untouched; 17/17 context suite green.",
       "commit": "fix(ai): suspend local BYOK requests on Stop"
     },
     {
       "cycle": 34,
       "target": "Stop trusting terminal 'error' event-generation statuses (backlog #2 from the cycle-33 scout)",
-      "metric_delta": "generateEvents poll loop previously only special-cased 'suspended'; a terminal 'error' status fell through to generationCompleted: true, handing the consumer an errored (possibly partially-filled) event to apply \u2014 it surfaced at best as a misleading 'no generated events' tool result. Now 'error' returns generationCompleted: false with the event's own error message, which the consumer already maps to an infrastructure failure. Also bounded the previously-unlimited silent poll-retry: 5 consecutive getAiGeneratedEvent failures now fail fast with a clear message instead of burning the full 180s budget and reporting a bogus timeout (counter resets on a successful poll).",
+      "metric_delta": "generateEvents poll loop previously only special-cased 'suspended'; a terminal 'error' status fell through to generationCompleted: true, handing the consumer an errored (possibly partially-filled) event to apply — it surfaced at best as a misleading 'no generated events' tool result. Now 'error' returns generationCompleted: false with the event's own error message, which the consumer already maps to an infrastructure failure. Also bounded the previously-unlimited silent poll-retry: 5 consecutive getAiGeneratedEvent failures now fail fast with a clear message instead of burning the full 180s budget and reporting a bogus timeout (counter resets on a successful poll).",
       "commit": "fix(ai): treat terminal event-generation errors as failures"
     },
     {
       "cycle": 35,
       "target": "Route local-ai lifecycle (update/delete/retry) through local cache + fix summaries shape + allow lifecycle without profile",
-      "metric_delta": "Before: getAiRequestSummaries custom path returned {aiRequests,nextPageUri} but callers spread recentsPage.aiRequestSummaries \u2192 TypeError for custom-endpoint users; update/delete/retry of local-ai-* could hit the hosted API (or no-op without a profile). After: custom summaries map customGetAiRequests() \u2192 {aiRequestSummaries,nextPageUri} (sub-agents excluded, archived/game filters applied); update/delete/retry short-circuit on local-ai-* via customPatchAiRequestAttributes/customDeleteAiRequest/customRetryAiRequest; rename/archive/delete/load/fetch work without a profile when local-ai-* or custom endpoint is enabled (LOCAL_BYOK_USER_ID fallback). canMutateAiRequest is a useCallback dep-clean helper. New Generation.spec.js (5 tests) + CustomAIClient lifecycle tests (5) + context rename/archive/delete tests (2). Gates: ESLint 0 on 7 files, prettier clean, 272/272 AI+AiGeneration+GDevelopServices tests, divergence green (Generation.spec.js recorded forkOnly).",
+      "metric_delta": "Before: getAiRequestSummaries custom path returned {aiRequests,nextPageUri} but callers spread recentsPage.aiRequestSummaries → TypeError for custom-endpoint users; update/delete/retry of local-ai-* could hit the hosted API (or no-op without a profile). After: custom summaries map customGetAiRequests() → {aiRequestSummaries,nextPageUri} (sub-agents excluded, archived/game filters applied); update/delete/retry short-circuit on local-ai-* via customPatchAiRequestAttributes/customDeleteAiRequest/customRetryAiRequest; rename/archive/delete/load/fetch work without a profile when local-ai-* or custom endpoint is enabled (LOCAL_BYOK_USER_ID fallback). canMutateAiRequest is a useCallback dep-clean helper. New Generation.spec.js (5 tests) + CustomAIClient lifecycle tests (5) + context rename/archive/delete tests (2). Gates: ESLint 0 on 7 files, prettier clean, 272/272 AI+AiGeneration+GDevelopServices tests, divergence green (Generation.spec.js recorded forkOnly).",
       "commit": "fix(ai): route local AI request lifecycle through the local cache"
     },
     {
       "cycle": 36,
       "target": "Standalone Ask AI form: allow function-call result sends for local/BYOK without a profile",
-      "metric_delta": "Before: AskAiStandAloneForm.onSendMessage required a logged-in profile (if (!profile) return) even when isCustomEndpointEnabled() \u2014 the form could START a custom-endpoint request without a profile (line 284) but silently dropped function-call outputs afterward, stalling the agent loop for offline BYOK sessions. The editor container already used the correct guard (profile || custom endpoint). After: shared pure helper canSendAiRequestForSession(profile, customEndpointEnabled) in AiRequestUtils; both containers use it so they cannot drift. 3 new tests (profile always allowed, custom endpoint without profile allowed, hosted without profile refused). Gates: ESLint 0, prettier clean, 275/275 AI+AiGeneration+GDevelopServices tests (was 272), divergence updated for AiRequestUtils.js/.spec.js fork divergence, lockfile guard green. Diff: 4 files, +43/-2.",
+      "metric_delta": "Before: AskAiStandAloneForm.onSendMessage required a logged-in profile (if (!profile) return) even when isCustomEndpointEnabled() — the form could START a custom-endpoint request without a profile (line 284) but silently dropped function-call outputs afterward, stalling the agent loop for offline BYOK sessions. The editor container already used the correct guard (profile || custom endpoint). After: shared pure helper canSendAiRequestForSession(profile, customEndpointEnabled) in AiRequestUtils; both containers use it so they cannot drift. 3 new tests (profile always allowed, custom endpoint without profile allowed, hosted without profile refused). Gates: ESLint 0, prettier clean, 275/275 AI+AiGeneration+GDevelopServices tests (was 272), divergence updated for AiRequestUtils.js/.spec.js fork divergence, lockfile guard green. Diff: 4 files, +43/-2.",
       "commit": "fix(ai): allow standalone form to return function-call outputs without a profile"
     },
     {
       "cycle": 37,
       "target": "Fetch and surface next-step suggestions for offline BYOK without a profile",
-      "metric_delta": "Before: fetchSuggestionsIfNeeded required a profile (Utils.js !profile) so local BYOK chats never requested suggestions; even when the local path ran, customGetAiRequestSuggestions wrote message.suggestions into the cache but returned the pre-attach snapshot, and the caller's merge + customUpdateAiRequest clobbered that write \u2014 the UI (message.suggestions) stayed empty; the catch path only set top-level defaults. After: shouldFetchAiRequestSuggestions uses canSendAiRequestForSession (profile || custom endpoint) with a LOCAL_BYOK_USER_ID userId fallback; attachSuggestions writes message.suggestions (assistant or function_call_output) into the cache and returns THAT snapshot; malformed JSON still attaches defaults on the last message. 9 new tests (7 shouldFetch cases + attach/fallback/unknown-request in CustomAIClient); gates: ESLint 0, prettier clean, 284/284 AI+AiGeneration+GDevelopServices (was 275), divergence 124/55/7 green, lockfile guard green. Diff: 5 files, +308/-47.",
+      "metric_delta": "Before: fetchSuggestionsIfNeeded required a profile (Utils.js !profile) so local BYOK chats never requested suggestions; even when the local path ran, customGetAiRequestSuggestions wrote message.suggestions into the cache but returned the pre-attach snapshot, and the caller's merge + customUpdateAiRequest clobbered that write — the UI (message.suggestions) stayed empty; the catch path only set top-level defaults. After: shouldFetchAiRequestSuggestions uses canSendAiRequestForSession (profile || custom endpoint) with a LOCAL_BYOK_USER_ID userId fallback; attachSuggestions writes message.suggestions (assistant or function_call_output) into the cache and returns THAT snapshot; malformed JSON still attaches defaults on the last message. 9 new tests (7 shouldFetch cases + attach/fallback/unknown-request in CustomAIClient); gates: ESLint 0, prettier clean, 284/284 AI+AiGeneration+GDevelopServices (was 275), divergence 124/55/7 green, lockfile guard green. Diff: 5 files, +308/-47.",
       "commit": "fix(ai): fetch suggestions for offline BYOK without a profile"
     },
     {
       "cycle": 38,
       "target": "Watch loop runs for offline BYOK without a profile (retire finished studio sub-agents)",
-      "metric_delta": "Before: onWatch early-returned on !profile (AiRequestContext.js:1194), so offline BYOK studio never ran removeSubAgentIfDone \u2014 finished sub-agents stayed in activeSubAgents forever and hasActiveSubAgents kept hasWorkToProcess true, permanently disabling the chat input (workaround: Stop/parent suspend). After: guard uses canSendAiRequestForSession(profile, isCustomEndpointEnabled); userId is LOCAL_BYOK_USER_ID when logged out; non-local-ai-* ids are never polled without a profile. 2 new tests (retire finished local sub-agent logged out + custom endpoint enabled; no watch API when logged out and custom endpoint disabled). Gates: ESLint 0, prettier clean, 286/286 AI+AiGeneration+GDevelopServices (was 284), divergence 124/55/7 green, lockfile guard green. Diff: 2 files, +170/-7.",
+      "metric_delta": "Before: onWatch early-returned on !profile (AiRequestContext.js:1194), so offline BYOK studio never ran removeSubAgentIfDone — finished sub-agents stayed in activeSubAgents forever and hasActiveSubAgents kept hasWorkToProcess true, permanently disabling the chat input (workaround: Stop/parent suspend). After: guard uses canSendAiRequestForSession(profile, isCustomEndpointEnabled); userId is LOCAL_BYOK_USER_ID when logged out; non-local-ai-* ids are never polled without a profile. 2 new tests (retire finished local sub-agent logged out + custom endpoint enabled; no watch API when logged out and custom endpoint disabled). Gates: ESLint 0, prettier clean, 286/286 AI+AiGeneration+GDevelopServices (was 284), divergence 124/55/7 green, lockfile guard green. Diff: 2 files, +170/-7.",
       "commit": "fix(ai): watch local BYOK requests without a profile"
     },
     {
       "cycle": 39,
       "target": "Single selection-load path: remove useAiRequestState duplicate getAiRequest effect",
-      "metric_delta": "Before: useAiRequestState re-fetched the selected chat whenever profile was set (Utils.js:1881-1913), racing AiRequestProvider loadAiRequest (double getAiRequest) and clearing selectedAiRequestId on failure instead of keeping Context retry/loading state. After: AiRequestProvider loadAiRequest is the sole selection-load path (manages loading/error, suspends WIP, offline local-ai-*/custom); Utils no longer imports getAiRequest for load. New AiRequestContext.selectionLoad.spec.js dual-mount tests: load exactly once; selection kept on error. AI suite 286\u2192288 tests / 21\u219222 suites green.",
+      "metric_delta": "Before: useAiRequestState re-fetched the selected chat whenever profile was set (Utils.js:1881-1913), racing AiRequestProvider loadAiRequest (double getAiRequest) and clearing selectedAiRequestId on failure instead of keeping Context retry/loading state. After: AiRequestProvider loadAiRequest is the sole selection-load path (manages loading/error, suspends WIP, offline local-ai-*/custom); Utils no longer imports getAiRequest for load. New AiRequestContext.selectionLoad.spec.js dual-mount tests: load exactly once; selection kept on error. AI suite 286→288 tests / 21→22 suites green.",
       "commit": "fix(ai): make AiRequestProvider the single selection-load path"
     },
     {
       "cycle": 40,
       "target": "Harden custom-endpoint config writes and local request-cache load/save",
-      "metric_delta": "Before: setCustomEndpointConfig merged raw $Shape into cachedConfig without type coercion, so mistyped updates (string temperature, non-boolean enabled) poisoned the live session until process reset; saveLocalAiRequests had no try/catch (quota/SecurityError aborted create/update/delete); loadLocalAiRequests Object.assign'd any JSON including arrays/scalars/null values, which could crash customGetAiRequests sort/status mapping. After: shared sanitizeCustomAIConfig used by both get and set (non-object JSON \u2192 full defaults; object fields coerced/clamped); save wrapped in try/catch; load only merges plain-object entries with string id+status. 5 new tests. AI suite 288\u2192293 tests / 22 suites green. Diff: CustomAIClient.js + tests only (fork-only path), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
+      "metric_delta": "Before: setCustomEndpointConfig merged raw $Shape into cachedConfig without type coercion, so mistyped updates (string temperature, non-boolean enabled) poisoned the live session until process reset; saveLocalAiRequests had no try/catch (quota/SecurityError aborted create/update/delete); loadLocalAiRequests Object.assign'd any JSON including arrays/scalars/null values, which could crash customGetAiRequests sort/status mapping. After: shared sanitizeCustomAIConfig used by both get and set (non-object JSON → full defaults; object fields coerced/clamped); save wrapped in try/catch; load only merges plain-object entries with string id+status. 5 new tests. AI suite 288→293 tests / 22 suites green. Diff: CustomAIClient.js + tests only (fork-only path), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
       "commit": "fix(ai): harden custom endpoint config and local request cache"
     },
     {
       "cycle": 41,
       "target": "Tab-open full fetch works for offline BYOK / local-ai-* without a profile",
-      "metric_delta": "Before: AskAiEditorContainer mount effect used a bare `if (!selectedAiRequest || !profile) return` (AskAiEditorContainer.js:1449), so offline BYOK never refreshed the selected chat on tab open \u2014 UI relied solely on cache freshness; logged-out local-ai-* history could show stale status after a closed tab. After: shared shouldFetchAiRequestOnTabOpen mirrors loadAiRequest (profile OR local-ai-* OR isCustomEndpointEnabled) and userId falls back to LOCAL_BYOK_USER_ID. 5 new pure helper tests. AI suite 293\u2192298 tests / 22 suites green. Diff: AiRequestUtils.js + .spec + AskAiEditorContainer.js only (fork-only path), divergence 124/56/7 green, lockfile green.",
+      "metric_delta": "Before: AskAiEditorContainer mount effect used a bare `if (!selectedAiRequest || !profile) return` (AskAiEditorContainer.js:1449), so offline BYOK never refreshed the selected chat on tab open — UI relied solely on cache freshness; logged-out local-ai-* history could show stale status after a closed tab. After: shared shouldFetchAiRequestOnTabOpen mirrors loadAiRequest (profile OR local-ai-* OR isCustomEndpointEnabled) and userId falls back to LOCAL_BYOK_USER_ID. 5 new pure helper tests. AI suite 293→298 tests / 22 suites green. Diff: AiRequestUtils.js + .spec + AskAiEditorContainer.js only (fork-only path), divergence 124/56/7 green, lockfile green.",
       "commit": "fix(ai): refresh selected chat on tab open for offline BYOK"
     },
     {
       "cycle": 42,
       "target": "No silent non-streaming retry after a stream timeout (double-wait) + mid-stream drop recovery coverage",
-      "metric_delta": "Before: streamChatCompletion AbortError from the combined timeout controller was rethrown as a plain Error; sendChatCompletion's catch then fell through to the non-streaming axios.post with the same timeoutMs, so a slow local model could stall 2x timeoutMs (stream timeout + full non-streaming wait) before surfacing the timeout guidance. Mid-stream connection drops after partial content were also untested. After: timeout errors carry isStreamTimeout; the fallback rethrows them immediately (user abort + stream timeout are the two no-retry cases); network drops still fall back once. 2 new tests: partial-content drop recovers via axios, stream timeout never calls axios.post. AI suite 298\u2192300 tests / 22 suites green. Diff: CustomAIClient.js +10/-1, CustomAIClient.spec.js +71 (fork-only), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
+      "metric_delta": "Before: streamChatCompletion AbortError from the combined timeout controller was rethrown as a plain Error; sendChatCompletion's catch then fell through to the non-streaming axios.post with the same timeoutMs, so a slow local model could stall 2x timeoutMs (stream timeout + full non-streaming wait) before surfacing the timeout guidance. Mid-stream connection drops after partial content were also untested. After: timeout errors carry isStreamTimeout; the fallback rethrows them immediately (user abort + stream timeout are the two no-retry cases); network drops still fall back once. 2 new tests: partial-content drop recovers via axios, stream timeout never calls axios.post. AI suite 298→300 tests / 22 suites green. Diff: CustomAIClient.js +10/-1, CustomAIClient.spec.js +71 (fork-only), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
       "commit": "fix(ai): do not retry non-streaming after a stream timeout"
+    },
+    {
+      "cycle": 43,
+      "target": "Flush SSE buffer and TextDecoder on stream end (final line without newline was discarded)",
+      "metric_delta": "Before: streamChatCompletion's for-loop always discarded the leftover buffer on done and never flushed the TextDecoder — a final `data: {\"choices\":[{\"delta\":{\"content\":...}}]}` without a trailing newline (common on connection close / some OpenAI-compatible servers) lost its tokens/finish_reason, then the empty-or-partial result fell through to the non-streaming fallback or the 'ended without any content' error. After: line handling is extracted to processSseLine; after the loop, decoder.decode() flushes multi-byte state and any non-empty buffer is processed as a final line. 2 new tests (sole final line without \\n completes without axios.post; split final line across reads preserves 'abcd'). AI suite 300→302 tests / 22 suites green. Diff: CustomAIClient.js +54/-47 refactor+flush, CustomAIClient.spec.js +tests (fork-only), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
+      "commit": "fix(ai): process leftover SSE buffer when a stream ends without a newline"
     }
   ],
   "backlog": [
-    "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) \u2014 empty-string fallback; local-ai-* returns before this line so offline path is safe",
+    "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) — empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "OnRetryAfterError: consider allowing custom-endpoint ids (non local-ai- prefix) without profile when isCustomEndpointEnabled() \u2014 currently only local-ai- prefix is allowed",
-    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions, EditorFunctionCallRunner, and UseSearchAndInstall{Asset,Resource}/UseGenerateEvents/UseEnsureExtensionInstalled (Spine/three ESM parse failures) \u2014 see AiRequestContext.selectionLoad.spec.js; consider extracting useAiRequestState deps."
+    "OnRetryAfterError: consider allowing custom-endpoint ids (non local-ai- prefix) without profile when isCustomEndpointEnabled() — currently only local-ai- prefix is allowed",
+    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions, EditorFunctionCallRunner, and UseSearchAndInstall{Asset,Resource}/UseGenerateEvents/UseEnsureExtensionInstalled (Spine/three ESM parse failures) — see AiRequestContext.selectionLoad.spec.js; consider extracting useAiRequestState deps."
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
     "Prefer pure JS/TS mocks for local AI endpoint testing to avoid external network calls during CI",
-    "The Edit tool collapsed leading whitespace across 2360 lines of CustomAIClient.js \u2014 for this codebase prefer python-based exact-text replacement for surgical edits in large Flow files; verify with `git diff --stat` that the footprint matches the intended change",
-    "LSP diagnostics on Flow files are TS-parser noise (8006/8008/8010) \u2014 use eslint as the source of truth there",
+    "The Edit tool collapsed leading whitespace across 2360 lines of CustomAIClient.js — for this codebase prefer python-based exact-text replacement for surgical edits in large Flow files; verify with `git diff --stat` that the footprint matches the intended change",
+    "LSP diagnostics on Flow files are TS-parser noise (8006/8008/8010) — use eslint as the source of truth there",
     "SSE is available behind CustomAIConfig.streaming (cycle 27) with non-streaming fallback; recovery hardening should target streamChatCompletion, not assume axios-only",
     "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted",
-    "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs",
+    "GitHub Actions versions audited cycle 5 — all current; re-check after upstream syncs",
     "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)",
-    "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields",
-    "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers",
-    "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source",
-    "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement",
+    "getCustomEndpointConfig treats localStorage as untrusted input — field-level coercion on load; keep that property when adding new CustomAIConfig fields",
+    "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors — reuse it for list panels instead of ad-hoc keydown handlers",
+    "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() — same as LocalResourceSources file picker; Electron File.path is the only local-path source",
+    "scaleMode (nearest) and pixelsRounding already exist as project properties — upstream #7495's core ask is satisfied; do not re-implement",
     "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors",
-    "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it",
-    "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD \u2014 compare counts, not grep positions",
-    "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes \u2014 the 5003-message benchmark caught a bookkeeping bug the unit tests missed",
-    "eslint --fix resolves import/first ordering automatically \u2014 prefer it over manual import relocation when inserting components mid-file",
+    "normalizeBaseUrl coerces all inputs to http(s) — non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it",
+    "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD — compare counts, not grep positions",
+    "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes — the 5003-message benchmark caught a bookkeeping bug the unit tests missed",
+    "eslint --fix resolves import/first ordering automatically — prefer it over manual import relocation when inserting components mid-file",
     "axios.create() is automocked to undefined under jest.mock('axios'); Generation hosted paths need a factory mock that returns {get,post,patch,delete} from create()",
-    "seedLocalRequest in Generation.spec uses axios.post once \u2014 clear the post mock before asserting hosted API was not called",
-    "Profile guards on send/continue paths must use canSendAiRequestForSession (profile || custom endpoint) \u2014 the stand-alone form and editor container drifted once and silently stalled BYOK agent loops",
-    "Local suggestions must attach to message.suggestions (UI contract) and the return value must be the post-attach snapshot \u2014 updateAiRequest merges the return over state and customUpdateAiRequest writes it back to the cache, so a stale return clobbers the attach",
-    "shouldFetchAiRequestSuggestions / canSendAiRequestForSession are the session gates for AI side-effects \u2014 any new side-fetch (limits, summaries, suggestions) must allow customEndpointEnabled without profile",
-    "Profile guards on session-scoped side-effects must use canSendAiRequestForSession (profile || custom endpoint) \u2014 onWatch was the third drift site after the two send paths",
+    "seedLocalRequest in Generation.spec uses axios.post once — clear the post mock before asserting hosted API was not called",
+    "Profile guards on send/continue paths must use canSendAiRequestForSession (profile || custom endpoint) — the stand-alone form and editor container drifted once and silently stalled BYOK agent loops",
+    "Local suggestions must attach to message.suggestions (UI contract) and the return value must be the post-attach snapshot — updateAiRequest merges the return over state and customUpdateAiRequest writes it back to the cache, so a stale return clobbers the attach",
+    "shouldFetchAiRequestSuggestions / canSendAiRequestForSession are the session gates for AI side-effects — any new side-fetch (limits, summaries, suggestions) must allow customEndpointEnabled without profile",
+    "Profile guards on session-scoped side-effects must use canSendAiRequestForSession (profile || custom endpoint) — onWatch was the third drift site after the two send paths",
     "Finished local sub-agents are only retired by onWatch removeSubAgentIfDone (parent must already carry the function_call_output); without a profile watch, hasActiveSubAgents keeps the chat input disabled forever",
-    "When watching without a profile, filter request ids to local-ai-* \u2014 never pass non-local ids into getAiRequest/getAiRequestStatuses (hosted API would get LOCAL_BYOK_USER_ID)",
-    "React effects with deps [profile] that clear selection/state only run when profile *changes* \u2014 offline never-logged-in sessions keep selection created after mount; tests that seed selection must re-set it after the initial null-profile effect",
-    "Selection-load must live only in AiRequestProvider loadAiRequest \u2014 a second fetch from useAiRequestState races loading state and on failure clears selection instead of showing Context retry UI",
+    "When watching without a profile, filter request ids to local-ai-* — never pass non-local ids into getAiRequest/getAiRequestStatuses (hosted API would get LOCAL_BYOK_USER_ID)",
+    "React effects with deps [profile] that clear selection/state only run when profile *changes* — offline never-logged-in sessions keep selection created after mount; tests that seed selection must re-set it after the initial null-profile effect",
+    "Selection-load must live only in AiRequestProvider loadAiRequest — a second fetch from useAiRequestState races loading state and on failure clears selection instead of showing Context retry UI",
     "AiGeneration/Utils.js transitively imports Pixi/Spine/three ESM; any Jest suite that imports it must jest.mock EditorFunctions, EditorFunctionCallRunner, UseSearchAndInstallAsset, UseSearchAndInstallResource, UseGenerateEvents, and UseEnsureExtensionInstalled first",
-    "setCustomEndpointConfig must sanitize the merged object before caching \u2014 getCustomEndpointConfig short-circuits on cachedConfig, so unsanitized set values poison the live session even when a later load would be safe",
+    "setCustomEndpointConfig must sanitize the merged object before caching — getCustomEndpointConfig short-circuits on cachedConfig, so unsanitized set values poison the live session even when a later load would be safe",
     "Non-object JSON in localStorage (null/scalars/arrays) must fall back to the full DEFAULT config, not to empty-string baseUrl (normalizeBaseUrl only repairs empty string at request time; enabled with empty baseUrl is a confusing half-state)",
     "loadLocalAiRequests must only merge plain-object entries with string id+status; Object.assign of arrays/null creates cache keys that crash Object.values(...).sort on updatedAt",
-    "saveLocalAiRequests must catch setItem errors \u2014 every create/update/delete path calls it and a quota throw would abort the in-memory operation after the cache write",
-    "Mount-time side effects in AskAiEditorContainer must use shouldFetchAiRequestOnTabOpen (profile | local-ai-* | customEndpoint) \u2014 a bare !profile gate skips offline BYOK even when getAiRequest already routes local ids to the cache"
+    "saveLocalAiRequests must catch setItem errors — every create/update/delete path calls it and a quota throw would abort the in-memory operation after the cache write",
+    "Mount-time side effects in AskAiEditorContainer must use shouldFetchAiRequestOnTabOpen (profile | local-ai-* | customEndpoint) — a bare !profile gate skips offline BYOK even when getAiRequest already routes local ids to the cache",
+    "sendChatCompletion's stream fallback must rethrow on user abort AND on isStreamTimeout — every other stream failure (HTTP reject, network split, empty stream) should still fall back to exactly one non-streaming request",
+    "Mid-stream drops after partial content recover via the non-streaming fallback; pin that path with a reader mock that yields one delta then throws TypeError on the second read",
+    "After the SSE read loop, always flush decoder.decode() and processSseLine(buffer) — leftover buffer holds the final data line when the server omits a trailing newline",
+    "sendChatCompletion stream fallback rethrows on user abort AND isStreamTimeout; every other stream failure falls back to exactly one non-streaming request",
+    "Mid-stream drops after partial content recover via non-streaming fallback; pin with a reader mock that yields one delta then throws TypeError"
   ]
 }

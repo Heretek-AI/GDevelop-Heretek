@@ -1045,6 +1045,96 @@ describe('CustomAIClient', () => {
       // Critical: no silent second wait of timeoutMs on the non-streaming path.
       expect(axios.post).not.toHaveBeenCalled();
     });
+
+    it('processes a final data line that has no trailing newline', async () => {
+      const encoder = new TextEncoder();
+      // One complete SSE line WITHOUT a trailing newline (connection close).
+      const payload =
+        'data: ' +
+        JSON.stringify({
+          choices: [{ delta: { content: 'tail' }, finish_reason: 'stop' }],
+        });
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(payload) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      const deltas = [];
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+        onStreamDelta: partial => deltas.push(partial),
+      });
+
+      expect(message.content).toBe('tail');
+      expect(deltas).toContain('tail');
+      // No fallback: the leftover line was enough to complete the stream.
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('does not lose a partial line that arrives only on the final read before done', async () => {
+      const encoder = new TextEncoder();
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                // First read delivers complete lines with newlines.
+                return {
+                  done: false,
+                  value: encoder.encode(
+                    'data: ' +
+                      JSON.stringify({
+                        choices: [{ delta: { content: 'ab' } }],
+                      }) +
+                      '\n\n'
+                  ),
+                };
+              }
+              // Second read: final chunk without trailing newline, then done on next call.
+              if (readCount === 2) {
+                return {
+                  done: false,
+                  value: encoder.encode(
+                    'data: ' +
+                      JSON.stringify({
+                        choices: [
+                          { delta: { content: 'cd' }, finish_reason: 'stop' },
+                        ],
+                      })
+                  ),
+                };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('abcd');
+      expect(axios.post).not.toHaveBeenCalled();
+    });
   });
 
   describe('per-request model override', () => {
