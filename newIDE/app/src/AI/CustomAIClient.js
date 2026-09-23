@@ -3238,6 +3238,13 @@ export const customCreateAiRequest = async ({
       tools: GDEVELOP_OPENAI_TOOLS,
       config: createConfig,
       signal: abortController.signal,
+      // The first turn is the one most likely to hit a model still loading, so
+      // it must publish partial content like addMessage does: the chat's
+      // cold-start hint reads this registry to tell "waiting for the first
+      // token" apart from "already streaming".
+      onStreamDelta: partialContent => {
+        localAiRequestPartialContent[reqId] = partialContent;
+      },
     });
   } catch (error) {
     // Persist the request even when the first turn fails so the chat has a
@@ -3273,6 +3280,7 @@ export const customCreateAiRequest = async ({
   } finally {
     releaseTurnAbortController(reqId);
     delete pendingCreateAiRequestIds[reqId];
+    delete localAiRequestPartialContent[reqId];
   }
 
   const assistantMessage = parseAssistantMessage(
@@ -3624,9 +3632,17 @@ export const customCreateSubAgentAiRequest = async ({
         tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
         config: getEffectiveConfigForRequest(parentAiRequestId || reqId),
         signal: abortController.signal,
+        // Attribute the partial content to the parent chat, which is what the
+        // UI polls while a sub-agent runs (the sub-agent request is internal).
+        onStreamDelta: partialContent => {
+          localAiRequestPartialContent[
+            parentAiRequestId || reqId
+          ] = partialContent;
+        },
       });
     } finally {
       releaseTurnAbortController(reqId);
+      delete localAiRequestPartialContent[parentAiRequestId || reqId];
     }
     addTokenUsage(
       parentAiRequestId || reqId,

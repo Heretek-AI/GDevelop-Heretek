@@ -18,6 +18,7 @@ import {
   customAddMessageToAiRequest,
   customUpdateAiRequest,
   customGetAiRequest,
+  customGetAiRequestPartialContent,
   customGetAiRequests,
   customGetAiRequestStatuses,
   customSuspendAiRequest,
@@ -3365,6 +3366,90 @@ describe('CustomAIClient', () => {
         output: [...(child.output || []), marker],
       });
       expect(customGetAiRequest(child.id).output.length).toBe(before + 1);
+    });
+  });
+
+  describe('partial content while the first turn streams', () => {
+    // The chat's cold-start hint reads customGetAiRequestPartialContent to tell
+    // "no bytes yet" apart from "already streaming". Only addMessage used to
+    // publish it, so a first turn showed "waiting for the first token" while
+    // its text was visibly arriving.
+    const streamBody = [
+      'data: ' +
+        JSON.stringify({ choices: [{ delta: { content: 'Hel' } }] }) +
+        '\n',
+      'data: [DONE]\n',
+    ].join('');
+
+    // Sampling hook invoked synchronously from the reader after the SDK has
+    // processed the first chunk, so it observes the registry mid-turn.
+    let samplePartialContent = () => null;
+
+    const mockStreamResponse = () => {
+      const encoder = new TextEncoder();
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: (() => {
+              let done = false;
+              return async () => {
+                if (done) {
+                  samplePartialContent();
+                  return { done: true, value: undefined };
+                }
+                done = true;
+                return { done: false, value: encoder.encode(streamBody) };
+              };
+            })(),
+          }),
+        },
+      };
+    };
+
+    it('publishes partial content during a create turn and clears it after', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+        streaming: true,
+      });
+
+      // Freeze the id inputs so the in-flight request id is predictable.
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
+      const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
+      const expectedId = `local-ai-1700000000000-${(0.5)
+        .toString(36)
+        .substr(2, 7)}`;
+
+      let seenDuringRequest = null;
+      // The reader returns the delta first and is called again for the `done`
+      // poll; sampling on that second read captures the registry as it stood
+      // after onStreamDelta ran for the delta chunk.
+      global.fetch = jest
+        .fn()
+        .mockImplementation(() => Promise.resolve(mockStreamResponse()));
+
+      samplePartialContent = () => {
+        seenDuringRequest = customGetAiRequestPartialContent(expectedId);
+      };
+
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+
+      expect(created.id).toBe(expectedId);
+      // The registry must have carried the streamed bytes mid-turn...
+      expect(seenDuringRequest).toBe('Hel');
+      // ...and must not leak into the next turn.
+      expect(customGetAiRequestPartialContent(expectedId)).toBe('');
+
+      nowSpy.mockRestore();
+      randomSpy.mockRestore();
     });
   });
 });
