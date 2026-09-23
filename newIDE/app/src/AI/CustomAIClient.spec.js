@@ -1769,6 +1769,10 @@ describe('CustomAIClient', () => {
       expect(thrownMessage).toMatch(/output tokens/);
       // The misleading network diagnosis must be gone.
       expect(thrownMessage).not.toMatch(/dropped mid-stream/);
+      // And no non-streaming retry: the same budget applies there, so the
+      // user must not wait a second full timeout for an identical failure.
+      // $FlowFixMe[method-unbinding] jest matcher on a typed axios instance.
+      expect(axios.post).not.toHaveBeenCalled();
     });
 
     it('carries streamed reasoning_content into the assembled message', async () => {
