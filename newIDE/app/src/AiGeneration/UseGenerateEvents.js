@@ -217,9 +217,15 @@ export const useGenerateEvents = ({
         return { generationCompleted: true, aiGeneratedEvent };
       } catch (error) {
         console.error('Error while launching events generation:', error);
+        // `error` may be undefined (a rejected promise with no reason) or a
+        // non-Error, so reading `.message` directly threw inside this very
+        // catch block and the caller got no result at all. Fall back like the
+        // other error paths in this function.
         return {
           generationCompleted: false,
-          errorMessage: error.message,
+          errorMessage:
+            (error && typeof error.message === 'string' && error.message) ||
+            'The AI event generation failed.',
         };
       }
     },
