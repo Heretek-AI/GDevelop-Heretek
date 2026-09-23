@@ -2055,6 +2055,58 @@ describe('CustomAIClient', () => {
       expect(() => customDeleteAiRequest('local-ai-missing')).not.toThrow();
     });
 
+    it('persists a failed first turn as status error (does not throw)', async () => {
+      axios.post.mockRejectedValueOnce(new Error('ollama down'));
+
+      const failed = await customCreateAiRequest({
+        userRequest: 'First message while offline',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      expect(failed.id).toMatch(/^local-ai-/);
+      expect(failed.status).toBe('error');
+      expect(failed.error && failed.error.message).toMatch(/ollama down/);
+      const last = (failed.output || [])[(failed.output || []).length - 1];
+      expect(last.role).toBe('user');
+      expect(JSON.stringify(last.content)).toContain(
+        'First message while offline'
+      );
+      expect(customGetAiRequest(failed.id).status).toBe('error');
+      // Cached so Retry can continue the turn.
+      expect(
+        customGetAiRequests().aiRequests.some(r => r.id === failed.id)
+      ).toBe(true);
+    });
+
+    it('continues the first turn after a failed create', async () => {
+      axios.post.mockRejectedValueOnce(new Error('cold start'));
+      const failed = await customCreateAiRequest({
+        userRequest: 'Seed then recover',
+      });
+      expect(failed.status).toBe('error');
+
+      axios.post.mockClear();
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'ready now' } }],
+        },
+      });
+      const retried = await customRetryAiRequest(failed.id);
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(retried.status).toBe('ready');
+      expect(retried.error).toBeNull();
+      expect(retried.retriesInARowCount).toBe(1);
+      const last = (retried.output || [])[(retried.output || []).length - 1];
+      expect(last.role).toBe('assistant');
+      // $FlowFixMe
+      expect(JSON.stringify(last.content)).toContain('ready now');
+    });
+
     it('retries a failed local request by re-invoking the model turn', async () => {
       // $FlowFixMe
       axios.post.mockResolvedValueOnce({

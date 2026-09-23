@@ -3011,6 +3011,37 @@ export const customCreateAiRequest = async ({
       config: getEffectiveConfigForRequest(reqId),
       signal: abortController.signal,
     });
+  } catch (error) {
+    // Persist the request even when the first turn fails so the chat has a
+    // transcript (user message) and the error row can offer Retry → continue,
+    // matching ordinary addMessage failures (cycle 50) and hosted UX.
+    const now = new Date().toISOString();
+    const aborted = abortController.signal.aborted;
+    const failed: AiRequest = {
+      id: reqId,
+      createdAt: now,
+      updatedAt: now,
+      userId: LOCAL_BYOK_USER_ID,
+      gameId: gameId || null,
+      gameProjectJson: gameProjectJson || null,
+      status: aborted ? 'suspended' : 'error',
+      mode: mode || 'orchestrator',
+      aiConfiguration: aiConfiguration || { presetId: 'default' },
+      toolsVersion: 'v14',
+      toolOptions: null,
+      error: aborted
+        ? null
+        : {
+            code: 'server_error',
+            message: (error && error.message) || String(error),
+          },
+      output,
+      lastUserMessagePriceInCredits: 0,
+      totalPriceInCredits: 0,
+    };
+    localAiRequestsCache[reqId] = failed;
+    saveLocalAiRequests();
+    return failed;
   } finally {
     releaseTurnAbortController(reqId);
   }

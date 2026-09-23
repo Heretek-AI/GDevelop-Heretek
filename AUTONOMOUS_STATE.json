@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 50,
+  "last_cycle": 51,
   "completed_targets": [
     {
       "cycle": 1,
@@ -295,6 +295,12 @@
       "target": "Ordinary local model-turn failures never set status:'error', so the error-row Retry (continue turn) was only reachable after loop-guard stops",
       "metric_delta": "customAddMessageToAiRequest non-abort catch now persists output + status:'error' + error to cache and RETURNS the failed request (no throw) so containers updateAiRequest; 2 new tests; CustomAIClient 97/97; full AI suite 314/314",
       "commit": "fix(ai): surface ordinary local turn failures as status error with retry-continue"
+    },
+    {
+      "cycle": 51,
+      "target": "First-turn customCreateAiRequest threw without caching \u2014 no transcript, no error-row Retry for offline cold-start failures",
+      "metric_delta": "create catch persists status:'error' (or suspended on abort) + user message to cache and RETURNS failed; 2 new tests; AI suite 316/316",
+      "commit": "fix(ai): persist failed first-turn local creates so Retry can continue"
     }
   ],
   "backlog": [
@@ -348,6 +354,7 @@
     "Local retry must re-run the model (customAddMessageToAiRequest with empty userMessage/functionCallOutputs), not only clear status/error \u2014 hosted /action/retry resumes generation server-side; returning the failed request (not throwing) lets onRetryAfterError's updateAiRequest sync retriesInARowCount",
     "Retry session gate is canRetryAiRequestForSession(profile, id): profile OR local-ai-* only \u2014 non-local ids without profile must stay refused because Generation.retryAiRequest only short-circuits local-ai-* and otherwise hits hosted /action/retry which requires a userId",
     "AskAiStandAloneForm onStop must call context suspendAiRequest (returns Promise<void>, already optimistic-updates status and aborts local turns) \u2014 a no-op onStop left the Stop button spinning without cancelling BYOK generation",
-    "Local customAddMessageToAiRequest must RETURN a status:'error' AiRequest on non-abort model failure (persisting local output for continue) \u2014 throwing left React status ready so canRetryAiRequest/ErrorRow never appeared for ordinary Ollama/LM Studio failures"
+    "Local customAddMessageToAiRequest must RETURN a status:'error' AiRequest on non-abort model failure (persisting local output for continue) \u2014 throwing left React status ready so canRetryAiRequest/ErrorRow never appeared for ordinary Ollama/LM Studio failures",
+    "customCreateAiRequest must cache+return the request on non-abort first-turn failure (status:'error' + user message in output) \u2014 throwing left no chat transcript and no canRetryAiRequest surface for Ollama cold-start / offline first sends"
   ]
 }
