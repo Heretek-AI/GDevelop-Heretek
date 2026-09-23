@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 132,
+  "last_cycle": 133,
   "completed_targets": [
     {
       "cycle": 75,
@@ -759,6 +759,12 @@
       "target": "Apply the same Array.isArray guard to the sibling plan search",
       "metric_delta": "UseStudioRuntime.buildPlanStatusUpdateOutput duplicates getLatestActivePlan's backward search and had the identical truthiness-only check on `.plan.tasks`. Its consequence is worse than a throw: the later malformed message is matched and REWRITTEN with a freshly built plan, so the plan the rest of the pipeline reads comes from the wrong message and the intended task flip is lost. Test written to discriminate (a valid plan message followed by a malformed one — my first attempt used a malformed-only output and could not distinguish the two guards, caught by the mutation check). Mutation-verified: with the guard reverted the related task stays 'pending' instead of flipping to 'done'. 254/254 AiGeneration across 14 suites, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
       "commit": "fix(ai): align the sibling plan search with the tasks-array guard"
+    },
+    {
+      "cycle": 133,
+      "target": "Verify the BYOK routing layer, quota gates, and allowlist/reachability (no change)",
+      "metric_delta": "No code change — verification cycle, with two systematic cross-checks rather than re-reading. (1) Tool-name reachability both ways: every fork-referenced tool name (Studio/Roles.js, LoopGuard.js) exists in the 39-tool GDEVELOP_OPENAI_TOOLS registry, and every registry tool has a matching editor function-map key — so no allowlist can silently disable a path, the cycle-112 bug class. (2) Quota-gate parity: four send/continue sites use the BYOK-aware canAffordAiRequest, while ChatMessages' credit prompt correctly uses the hosted-only canPayForAiRequest but is gated behind `!isCustomEndpointEnabled() && quota.limitReached`, so a local endpoint never sees it — matching the documented contract. Also confirmed all four BYOK dispatches in Generation.js (create AI request, generated event, asset search, resource search) route to the local implementation when the endpoint toggle is on OR the user/request id is `local-*`, so a mixed local/hosted history cannot leak a local request to the hosted API. Verified all unguarded `[0]` indexing on network arrays is guarded (asset/resource search check length first and re-check the element); SuggestionLines.js indexes suggestions unguarded but is byte-identical to upstream (absent from fork-divergence.json) so it is left alone — and the fork's own sanitizeAiRequestSuggestions guarantees the array.",
+      "commit": "(no code change — verification cycle)"
     }
   ],
   "backlog": [
@@ -907,6 +913,7 @@
     "sliceToTokenBudget and estimateTokens are an inverse pair and must stay one; sliceToTokenBudget also indexes UTF-16 code units, so any cut must not fall between a high and low surrogate (test with a body of repeated 'A<emoji>' — the emoji at an odd offset catches it, whereas emoji placed at the START of a body never hit it because truncation drops the suffix). Slicing a string is not safe on a non-BMP boundary in general.",
     "The AI client's defensive layer is now broad: tool arg validation on both routes, header CRLF blocking, SSE chunk recovery, context budgeting with a CJK-aware estimator, bounded persistence, and surrogate-safe slicing. When re-auditing, prefer probing a documented invariant numerically (e.g. sliceToTokenBudget/estimateTokens as an inverse pair across 1600 slices) over re-reading the code — it catches regressions the eye misses.",
     "A truthiness check on a value that is then treated as an array is a latent TypeError (`x.tasks && x.tasks.some(...)`). Prefer Array.isArray for anything parsed from model output or restored from localStorage. Also: getLatestActivePlan feeds the studio plan lifecycle from three call sites but had zero spec coverage — when auditing, cross-check that fork-critical readers are actually tested rather than assuming the surrounding suites cover them.",
-    "When fixing a duplicated code path, fix every copy: buildPlanStatusUpdateOutput mirrors getLatestActivePlan's search and carried the same latent bug. Also verify a new test actually discriminates — a malformed-only input passes under both the truthiness and Array.isArray guards; the failing-before case needed a VALID message placed before the malformed one so the unguarded loop would match the later one."
+    "When fixing a duplicated code path, fix every copy: buildPlanStatusUpdateOutput mirrors getLatestActivePlan's search and carried the same latent bug. Also verify a new test actually discriminates — a malformed-only input passes under both the truthiness and Array.isArray guards; the failing-before case needed a VALID message placed before the malformed one so the unguarded loop would match the later one.",
+    "Two cheap systematic checks find real bugs faster than reading components: (a) cross-check every fork allowlist name against the tool registry AND every registry name against the editor function map (dangling either way silently disables a path); (b) cross-check quota/affordability gates — any site using the hosted-only canPayForAiRequest must be guarded by !isCustomEndpointEnabled(), or BYOK users get blocked by a hosted limit. Also: SuggestionLines.js is upstream-identical and must NOT be edited even when it looks fragile; the fork maintains the invariant on its side (sanitizeAiRequestSuggestions always emits an array)."
   ]
 }
