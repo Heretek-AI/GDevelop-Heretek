@@ -903,6 +903,119 @@ describe('CustomAIClient', () => {
       expect(JSON.parse(fetchArgs[1].body).stream).toBe(true);
     });
 
+    it('does not merge a second tool call that omits index', async () => {
+      const sse = [
+        'data: ' +
+          JSON.stringify({
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      id: 'a',
+                      function: { name: 'one', arguments: '{"x":1}' },
+                    },
+                  ],
+                },
+              },
+            ],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      id: 'b',
+                      function: { name: 'two', arguments: '{"y":2}' },
+                    },
+                  ],
+                },
+              },
+            ],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+          }) +
+          '\n',
+        'data: [DONE]\n',
+      ].join('');
+      global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(sse));
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.tool_calls).toHaveLength(2);
+      expect(message.tool_calls[0].function.name).toBe('one');
+      expect(message.tool_calls[1].function.name).toBe('two');
+      expect(message.tool_calls[0].id).toBe('a');
+      expect(message.tool_calls[1].id).toBe('b');
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('continues argument-only fragments without index on the open call', async () => {
+      const sse = [
+        'data: ' +
+          JSON.stringify({
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    { id: 'c1', function: { name: 'cre', arguments: '' } },
+                  ],
+                },
+              },
+            ],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [
+              {
+                delta: {
+                  tool_calls: [{ function: { name: 'ate_x' } }],
+                },
+              },
+            ],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [
+              {
+                delta: {
+                  tool_calls: [{ function: { arguments: '({"a":1})' } }],
+                },
+              },
+            ],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+          }) +
+          '\n',
+        'data: [DONE]\n',
+      ].join('');
+      global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(sse));
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.tool_calls).toHaveLength(1);
+      expect(message.tool_calls[0].function.name).toBe('create_x');
+      expect(message.tool_calls[0].function.arguments).toBe('({"a":1})');
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
     it('skips malformed chunks and empty streams fail loudly', async () => {
       global.fetch = jest
         .fn()

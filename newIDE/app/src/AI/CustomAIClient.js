@@ -2410,6 +2410,28 @@ const streamChatCompletion = async ({
     const toolCalls: { [index: number]: Object } = {};
     let finishReason = null;
 
+    // Local proxies (and some Ollama builds) omit `index` on streamed tool_call
+    // deltas. Naively defaulting to 0 merges every call into the first one.
+    const resolveStreamToolCallIndex = (toolCall: Object): number => {
+      if (typeof toolCall.index === 'number' && toolCall.index >= 0) {
+        return toolCall.index;
+      }
+      const keys = Object.keys(toolCalls);
+      const lastIndex = keys.length
+        ? Math.max(...keys.map(key => Number(key)))
+        : -1;
+      if (toolCall.id) {
+        for (const key of keys) {
+          if (toolCalls[key].id === toolCall.id) return Number(key);
+        }
+        // New id without index: start the next slot, do not merge into 0.
+        return lastIndex + 1;
+      }
+      // No index and no id: continue the open call (split name/args fragments).
+      // A second distinct call must carry an id to get its own slot.
+      return lastIndex >= 0 ? lastIndex : 0;
+    };
+
     const processSseLine = (rawLine: string) => {
       const trimmed = rawLine.trim();
       if (!trimmed.startsWith('data:')) return;
@@ -2427,7 +2449,7 @@ const streamChatCompletion = async ({
       if (typeof delta.content === 'string') content += delta.content;
       if (Array.isArray(delta.tool_calls)) {
         for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index || 0;
+          const index = resolveStreamToolCallIndex(toolCall);
           const existing = toolCalls[index];
           if (!existing) {
             toolCalls[index] = {

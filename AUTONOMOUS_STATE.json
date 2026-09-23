@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 45,
+  "last_cycle": 46,
   "completed_targets": [
     {
       "cycle": 1,
@@ -265,12 +265,17 @@
       "target": "Apply per-request model override to every local sendChatCompletion path (create, suggestions, event generation)",
       "metric_delta": "tests 304->306; sendChatCompletion config omitted on suggestions + customCreateAiGeneratedEvent (create also now passes getEffectiveConfigForRequest); Generation.js passes relatedAiRequestId into custom event path",
       "commit": "fix(ai): apply per-request model override to suggestions and event generation"
+    },
+    {
+      "cycle": 46,
+      "target": "Resolve streamed tool_call index when local proxies omit it (multi-tool merge collision)",
+      "metric_delta": "tests 306->308; toolCall.index || 0 replaced by resolveStreamToolCallIndex (id match / next slot / open-call continuation); 2 new SSE multi-tool tests",
+      "commit": "fix(ai): resolve streamed tool-call index when local proxies omit it"
     }
   ],
   "backlog": [
     "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) \u2014 empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "stream tool-call merge uses toolCall.index || 0 (CustomAIClient.js ~:2395) \u2014 a second tool call omitting index merges into 0",
     "OnRetryAfterError: allow non-local custom-endpoint ids without profile when isCustomEndpointEnabled() (AskAiEditorContainer.js:1044)",
     "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
   ],
@@ -315,6 +320,7 @@
     "Mid-stream drops after partial content recover via non-streaming fallback; pin with a reader mock that yields one delta then throws TypeError",
     "customHeaders must pass isSafeRequestHeader on sanitize AND when building request headers \u2014 $Shape config objects can skip sanitizeCustomAIConfig",
     "Never spread customHeaders over Content-Type defaults; apply safe headers after the fixed Content-Type/Referer/X-Title set",
-    "SendChatCompletion call sites must pass config: getEffectiveConfigForRequest(aiRequestId) when an id is in scope \u2014 omitting config falls back to the global model and ignores the per-chat override"
+    "SendChatCompletion call sites must pass config: getEffectiveConfigForRequest(aiRequestId) when an id is in scope \u2014 omitting config falls back to the global model and ignores the per-chat override",
+    "Streamed tool_call.index must not default to 0 when omitted \u2014 resolve by id, next free slot, or open-call continuation or multi-tool streams merge into one"
   ]
 }
