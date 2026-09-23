@@ -2055,14 +2055,12 @@ describe('CustomAIClient', () => {
       expect(() => customDeleteAiRequest('local-ai-missing')).not.toThrow();
     });
 
-    it('retries a failed local request by clearing the error', async () => {
+    it('retries a failed local request by re-invoking the model turn', async () => {
       // $FlowFixMe
       axios.post.mockResolvedValueOnce({
         status: 200,
         data: {
-          choices: [
-            { message: { role: 'assistant', content: 'Fail then retry' } },
-          ],
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
         },
       });
       const aiRequest = await customCreateAiRequest({
@@ -2080,25 +2078,81 @@ describe('CustomAIClient', () => {
         status: 'error',
         error: { code: 'server_error', message: 'boom' },
       });
+      const outputBeforeRetry = (customGetAiRequest(aiRequest.id).output || [])
+        .length;
 
-      const retried = customRetryAiRequest(aiRequest.id);
+      // Continue turn (no new user message) must hit the model once.
+      axios.post.mockClear();
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            { message: { role: 'assistant', content: 'Fail then retry' } },
+          ],
+        },
+      });
+
+      const retried = await customRetryAiRequest(aiRequest.id);
+      expect(axios.post).toHaveBeenCalledTimes(1);
       expect(retried.status).toBe('ready');
       expect(retried.error).toBeNull();
       expect(retried.retriesInARowCount).toBe(1);
-      expect(retried.retriedAfterMessagesCount).toBe(
-        (retried.output || []).length
-      );
+      expect(retried.retriedAfterMessagesCount).toBe(outputBeforeRetry);
+      expect((retried.output || []).length).toBe(outputBeforeRetry + 1);
+      const lastMessage = (retried.output || [])[
+        (retried.output || []).length - 1
+      ];
+      // $FlowFixMe
+      expect(lastMessage.role).toBe('assistant');
       expect(customGetAiRequest(aiRequest.id).status).toBe('ready');
 
-      // Retrying a non-errored request is a no-op.
-      const again = customRetryAiRequest(aiRequest.id);
+      // Retrying a non-errored request is a no-op (no second model call).
+      axios.post.mockClear();
+      const again = await customRetryAiRequest(aiRequest.id);
+      expect(axios.post).not.toHaveBeenCalled();
       expect(again.retriesInARowCount).toBe(1);
     });
 
-    it('returns a fallback when retrying an unknown local request', () => {
-      const fallback = customRetryAiRequest('local-ai-missing');
+    it('keeps the request in error when the continue turn fails again', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Retry fail target',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+      customUpdateAiRequest({
+        ...customGetAiRequest(aiRequest.id),
+        status: 'error',
+        error: { code: 'server_error', message: 'boom' },
+      });
+
+      axios.post.mockClear();
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce(new Error('endpoint down'));
+
+      const retried = await customRetryAiRequest(aiRequest.id);
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(retried.status).toBe('error');
+      expect(retried.error && retried.error.message).toMatch(/endpoint down/);
+      expect(retried.retriesInARowCount).toBe(1);
+      expect(customGetAiRequest(aiRequest.id).status).toBe('error');
+    });
+
+    it('returns a fallback when retrying an unknown local request', async () => {
+      const fallback = await customRetryAiRequest('local-ai-missing');
       expect(fallback.id).toBe('local-ai-missing');
       expect(fallback.status).toBe('ready');
+      expect(axios.post).not.toHaveBeenCalled();
     });
 
     it('returns top-level suggestions for an unknown local request', async () => {

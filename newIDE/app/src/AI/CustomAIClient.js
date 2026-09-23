@@ -3480,11 +3480,14 @@ export const customPatchAiRequestAttributes = (
 };
 
 /**
- * Client-side Retry after a failed turn: clear the terminal error so the
- * conversation can continue (the local loop has no server-side resume — the
- * next send picks up from the last message already in the cache).
+ * Client-side Retry after a failed turn: clear the terminal error, then
+ * re-run one model turn with no new user message so the local path picks up
+ * from the last message already in the cache (mirrors hosted
+ * `/action/retry`, which resumes generation server-side).
  */
-export const customRetryAiRequest = (aiRequestId: string): AiRequest => {
+export const customRetryAiRequest = async (
+  aiRequestId: string
+): Promise<AiRequest> => {
   const existing = localAiRequestsCache[aiRequestId];
   if (!existing) return customGetAiRequest(aiRequestId);
   if (existing.status !== 'error') return existing;
@@ -3502,7 +3505,29 @@ export const customRetryAiRequest = (aiRequestId: string): AiRequest => {
   };
   localAiRequestsCache[aiRequestId] = retried;
   saveLocalAiRequests();
-  return retried;
+
+  // No userMessage / functionCallOutputs: the turn continues from existing output.
+  try {
+    return await customAddMessageToAiRequest({ aiRequestId });
+  } catch (error) {
+    // User stopped the continued turn — leave the suspended cache copy alone.
+    const current = localAiRequestsCache[aiRequestId] || retried;
+    if (current.status === 'suspended') return current;
+    const failed: AiRequest = {
+      ...current,
+      status: 'error',
+      updatedAt: new Date().toISOString(),
+      error: {
+        code: 'server_error',
+        message: (error && error.message) || String(error),
+      },
+    };
+    localAiRequestsCache[aiRequestId] = failed;
+    saveLocalAiRequests();
+    // Return (do not throw) so the container's updateAiRequest syncs the
+    // new error + retriesInARowCount; the error row still offers Retry.
+    return failed;
+  }
 };
 
 /**

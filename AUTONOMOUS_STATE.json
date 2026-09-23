@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 46,
+  "last_cycle": 47,
   "completed_targets": [
     {
       "cycle": 1,
@@ -271,6 +271,12 @@
       "target": "Resolve streamed tool_call index when local proxies omit it (multi-tool merge collision)",
       "metric_delta": "tests 306->308; toolCall.index || 0 replaced by resolveStreamToolCallIndex (id match / next slot / open-call continuation); 2 new SSE multi-tool tests",
       "commit": "fix(ai): resolve streamed tool-call index when local proxies omit it"
+    },
+    {
+      "cycle": 47,
+      "target": "Local Retry after error re-invokes the model turn (hosted /action/retry parity: continue from last message, not clear-error-only)",
+      "metric_delta": "customRetryAiRequest now async \u2192 customAddMessageToAiRequest({aiRequestId}) with no user message; failed continue rewrites status:error + server_error (returns so updateAiRequest syncs retriesInARowCount); tests 308\u2192309 (continue success, continue failure, Generation local path posts /chat/completions only); 22/22 suites",
+      "commit": "fix(ai): continue the model turn when retrying a failed local request"
     }
   ],
   "backlog": [
@@ -321,6 +327,7 @@
     "customHeaders must pass isSafeRequestHeader on sanitize AND when building request headers \u2014 $Shape config objects can skip sanitizeCustomAIConfig",
     "Never spread customHeaders over Content-Type defaults; apply safe headers after the fixed Content-Type/Referer/X-Title set",
     "SendChatCompletion call sites must pass config: getEffectiveConfigForRequest(aiRequestId) when an id is in scope \u2014 omitting config falls back to the global model and ignores the per-chat override",
-    "Streamed tool_call.index must not default to 0 when omitted \u2014 resolve by id, next free slot, or open-call continuation or multi-tool streams merge into one"
+    "Streamed tool_call.index must not default to 0 when omitted \u2014 resolve by id, next free slot, or open-call continuation or multi-tool streams merge into one",
+    "Local retry must re-run the model (customAddMessageToAiRequest with empty userMessage/functionCallOutputs), not only clear status/error \u2014 hosted /action/retry resumes generation server-side; returning the failed request (not throwing) lets onRetryAfterError's updateAiRequest sync retriesInARowCount"
   ]
 }

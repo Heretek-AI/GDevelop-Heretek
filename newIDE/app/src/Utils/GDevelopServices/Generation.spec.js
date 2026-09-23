@@ -189,7 +189,7 @@ describe('Generation local-ai lifecycle routing', () => {
     ).toBe(false);
   });
 
-  it('retries a failed local request without calling the hosted API', async () => {
+  it('retries a failed local request by continuing the local model turn only', async () => {
     const aiRequest = await seedLocalRequest({
       status: 'error',
       error: { code: 'server_error', message: 'boom' },
@@ -197,6 +197,13 @@ describe('Generation local-ai lifecycle routing', () => {
     // seedLocalRequest itself POSTs once (local create); clear before asserting.
     // $FlowFixMe
     axios.post.mockClear();
+    // $FlowFixMe
+    axios.post.mockResolvedValueOnce({
+      status: 200,
+      data: {
+        choices: [{ message: { role: 'assistant', content: 'continued' } }],
+      },
+    });
 
     const retried = await retryAiRequest(authHeader, {
       userId: 'user-1',
@@ -204,7 +211,9 @@ describe('Generation local-ai lifecycle routing', () => {
     });
     expect(retried.status).toBe('ready');
     expect(retried.error).toBeNull();
-    expect(axios.post).not.toHaveBeenCalled();
+    // Local continuation hits the OpenAI-compatible endpoint, not hosted /action/retry.
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(String(axios.post.mock.calls[0][0])).toContain('/chat/completions');
     expect(customGetAiRequest(aiRequest.id).status).toBe('ready');
   });
 
