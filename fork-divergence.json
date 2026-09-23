@@ -154,6 +154,7 @@
     "newIDE/app/src/AI/CustomAIClient.spec.js",
     "newIDE/app/src/AiGeneration/AiConfiguration.spec.js",
     "newIDE/app/src/AiGeneration/AiRequestContext.selectionLoad.spec.js",
+    "newIDE/app/src/AiGeneration/PrepareAiUserContent.spec.js",
     "newIDE/app/src/AiGeneration/Studio/FinalizeSubAgents.js",
     "newIDE/app/src/AiGeneration/Studio/FinalizeSubAgents.spec.js",
     "newIDE/app/src/AiGeneration/Studio/LoopGuard.js",

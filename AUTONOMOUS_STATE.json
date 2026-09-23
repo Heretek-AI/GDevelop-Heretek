@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 114,
+  "last_cycle": 116,
   "completed_targets": [
     {
       "cycle": 75,
@@ -663,6 +663,12 @@
       "target": "Prove the corrected fallback names actually execute",
       "metric_delta": "461->462 tests; cycle 112 fixed the name list, but its tests only asserted the NAMES were declared. The pre-existing behavioural tests all used describe_instances — the one entry that was already correct — which is exactly why the typo survived review. A behavioural test now drives read_events_source, inspect_variables and inspect_scene_properties_layers_effects through the embedded-JSON fallback and asserts each yields a call. Verified against the true pre-fix tree (HEAD~3): Received length 0 — those tools produced no call at all. 1 file, +31",
       "commit": "test(ai): prove the corrected fallback names actually execute"
+    },
+    {
+      "cycle": 116,
+      "target": "Cover the BYOK upload short-circuit with tests",
+      "metric_delta": "461->469 tests (15 suites, +1); prepareAiUserContent had no spec at all, and its first branch is a privacy guarantee — for a custom endpoint or a local-* user id the project JSON is returned inline and NO presigned URL is requested, so nothing is uploaded. That branch now has tests pinning 'no upload call + content returned inline' for both signals, plus the hosted path (no-content skip; the extensions summary uploads while the 10KB/9KB-gated project and events hashes are sent as null; a large project uploads; identical content is not re-uploaded; changed content is). New spec file recorded as intentional fork-only divergence. 2 files, +175",
+      "commit": "test(ai): cover the BYOK upload short-circuit"
     }
   ],
   "backlog": [
@@ -794,6 +800,8 @@
     "Allowlist vs blocklist decides whether a stale name matters: SIDE_EFFECT_FREE_TOOLS is an allowlist, so three `describe_*` names that match nothing silently disabled the embedded-JSON fallback; NON_SCRIPTABLE_FUNCTION_NAMES is a blocklist, where extra entries (server-side/orchestrator tools) are harmless intent. Only allowlists need a test asserting every member exists.",
     "Roles.js already had 'every role only names tools that exist' — the invariant existed for one name list and not the other in the same subsystem. When adding a tool-name collection, copy the existing invariant test rather than trusting the literals.",
     "A fixed name list needs a behavioural test, not just a name-invariant: every existing embedded-JSON test used describe_instances, the single correct entry, so three dead names sat behind green tests. Drive the fixed entries through the real code path — and check each tool's declared required arguments and types first, or the test fails for the wrong reason (variable_scope is a string, not an object).",
-    "Tool-name lists in this subsystem, all now verified against GDEVELOP_OPENAI_TOOLS: SIDE_EFFECT_FREE_TOOLS (allowlist — every member must be declared, test-pinned since cycle 112/114), MUTATING_TOOL_NAMES (23 entries, all declared), READ_ONLY_TOOL_NAMES (subset used by a Roles test asserting the designer's non-variable tools are read-only), and each role's allowedToolNames (all 18 declared). getToolsForRole FILTERS the tools array, so a role is only ever sent its granted tools — enforcement is at the request level, not cosmetic."
+    "Tool-name lists in this subsystem, all now verified against GDEVELOP_OPENAI_TOOLS: SIDE_EFFECT_FREE_TOOLS (allowlist — every member must be declared, test-pinned since cycle 112/114), MUTATING_TOOL_NAMES (23 entries, all declared), READ_ONLY_TOOL_NAMES (subset used by a Roles test asserting the designer's non-variable tools are read-only), and each role's allowedToolNames (all 18 declared). getToolsForRole FILTERS the tools array, so a role is only ever sent its granted tools — enforcement is at the request level, not cosmetic.",
+    "PrepareAiUserContent keeps its upload caches at MODULE scope (so an unchanged project is not re-uploaded across turns) — a spec must jest.resetModules() per test or one test's upload leaks into the next. Also: gameProjectJson/eventsJson have 10KB/9KB upload minimums while the extensions summary has none, so small fixtures upload only the summary.",
+    "A new fork-only spec is legitimate divergence for fork-critical behavior (precedent: AiConfiguration.spec.js): run check-fork-divergence.js --update and commit the manifest in the same commit, as MAINTENANCE.md requires."
   ]
 }
