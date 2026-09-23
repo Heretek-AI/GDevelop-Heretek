@@ -633,7 +633,9 @@ describe('AiRequestProvider offline BYOK watch (no profile)', () => {
     expect(contextRef.current.activeSubAgents).toEqual({});
   });
 
-  it('does not call the watch API when logged out and the custom endpoint is disabled', async () => {
+  it('watches local-ai-* sub-agents when logged out even with the custom endpoint disabled', async () => {
+    // Cycle 66: local-ai-* ids are cache-only — the endpoint toggle must not
+    // gate the watch (getAiRequest short-circuits on the local-ai- prefix).
     setCustomEndpointConfig({
       enabled: false,
       baseUrl: 'http://localhost:11434/v1',
@@ -644,12 +646,32 @@ describe('AiRequestProvider offline BYOK watch (no profile)', () => {
     const { contextRef } = renderProvider(makeLoggedOutUser());
     if (!contextRef.current) throw new Error('Context not captured');
 
+    const parentWithOutput = {
+      ...makeAiRequest('parent-1', 'ready'),
+      output: [
+        {
+          type: 'function_call_output',
+          call_id: 'call-1',
+          output: 'done',
+        },
+      ],
+    };
+    const subReady = makeAiRequest('local-ai-sub-1', 'ready');
+    mockFn(getAiRequest).mockResolvedValue(subReady);
+
     await act(async () => {
       // $FlowFixMe[incompatible-use]
       contextRef.current.aiRequestStorage.updateAiRequest(
-        'local-ai-sub-1',
-        () => makeAiRequest('local-ai-sub-1', 'ready')
+        'parent-1',
+        () => parentWithOutput
       );
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.aiRequestStorage.updateAiRequest(
+        'local-ai-sub-1',
+        () => subReady
+      );
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.setSelectedAiRequestId('parent-1');
       // $FlowFixMe[incompatible-use]
       contextRef.current.activateSubAgent(
         'local-ai-sub-1',
@@ -663,12 +685,20 @@ describe('AiRequestProvider offline BYOK watch (no profile)', () => {
       await flushPromises();
     });
 
-    expect(mockFn(getAiRequest)).not.toHaveBeenCalled();
-    expect(mockFn(getAiRequestStatuses)).not.toHaveBeenCalled();
+    const fetchCall = mockFn(getAiRequest).mock.calls.find(
+      call => call[1] && call[1].aiRequestId === 'local-ai-sub-1'
+    );
+    expect(fetchCall).toBeTruthy();
+    if (fetchCall) {
+      expect(fetchCall[1].userId).toBe('local-byok-user');
+    }
+    // Hosted ids are never addressed without a profile: only the local call ran.
+    const hostedCall = mockFn(getAiRequest).mock.calls.find(
+      call => call[1] && !String(call[1].aiRequestId).startsWith('local-ai-')
+    );
+    expect(hostedCall).toBeFalsy();
     // $FlowFixMe[incompatible-use]
-    expect(Object.keys(contextRef.current.activeSubAgents)).toEqual([
-      'local-ai-sub-1',
-    ]);
+    expect(contextRef.current.activeSubAgents).toEqual({});
   });
 });
 

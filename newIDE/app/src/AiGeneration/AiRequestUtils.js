@@ -104,11 +104,20 @@ export const getStandaloneCreateOutcome = (aiRequest: {
  * drift — the stand-alone form used to require a profile for function-call
  * outputs even when a custom endpoint was enabled, which silently broke the
  * agent loop for offline BYOK sessions.
+ *
+ * A local-ai-* id is also allowed without a profile or custom endpoint: those
+ * chats live only in the local cache (cycle 64 lists them after logout /
+ * toggle-off, and Generation addMessage short-circuits them before any
+ * hosted call).
  */
 export const canSendAiRequestForSession = (
   profile: ?{ id: string },
-  customEndpointEnabled: boolean
-): boolean => !!profile || customEndpointEnabled;
+  customEndpointEnabled: boolean,
+  aiRequestId: ?string
+): boolean =>
+  !!profile ||
+  customEndpointEnabled ||
+  (!!aiRequestId && aiRequestId.startsWith('local-ai-'));
 
 /**
  * Whether the editor container's mount-time "tab open" full fetch should run
@@ -167,7 +176,13 @@ export const shouldFetchAiRequestSuggestions = (options: {|
     return false;
   }
   if (selectedAiRequest.status !== 'ready') return false;
-  if (!canSendAiRequestForSession(profile, customEndpointEnabled)) {
+  if (
+    !canSendAiRequestForSession(
+      profile,
+      customEndpointEnabled,
+      selectedAiRequest.id
+    )
+  ) {
     return false;
   }
   if (isFetchingSuggestions) return false;

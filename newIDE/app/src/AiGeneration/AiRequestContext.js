@@ -1205,16 +1205,20 @@ export const AiRequestProvider = ({
   // All the status-only checks for a given tick are batched
   // into a single request instead of one request per entity.
   const onWatch = async () => {
-    // Hosted watches need a profile; local BYOK watches do not — offline
+    // Hosted watches need a profile; local-ai-* watches do not — offline
     // studio must still retire finished sub-agents (otherwise hasActiveSubAgents
-    // stays true and the chat input never re-enables).
-    if (!canSendAiRequestForSession(profile, isCustomEndpointEnabled())) {
-      return;
-    }
+    // stays true and the chat input never re-enables). Do not early-return on
+    // canSendAiRequestForSession here: it is per-request, and this loop may
+    // only have local-ai-* ids to address (isAddressable below filters hosted
+    // ids without a profile).
     const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;
     // Without a profile only local-ai-* ids are addressable (never the hosted API).
     const isAddressable = (aiRequestId: string) =>
-      !!profile || aiRequestId.startsWith('local-ai-');
+      canSendAiRequestForSession(
+        profile,
+        isCustomEndpointEnabled(),
+        aiRequestId
+      );
     const now = Date.now();
 
     // Set to true whenever this tick observes activity (a status change or new

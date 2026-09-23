@@ -826,7 +826,13 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           createdProject?: ?gdProject,
           editorFunctionCallResults: Array<EditorFunctionCallResult>,
         |}) => {
-          if (!canSendAiRequestForSession(profile, isCustomEndpointEnabled()))
+          if (
+            !canSendAiRequestForSession(
+              profile,
+              isCustomEndpointEnabled(),
+              aiRequestId
+            )
+          )
             return;
 
           const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;

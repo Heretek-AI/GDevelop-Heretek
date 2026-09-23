@@ -531,7 +531,14 @@ export const AskAiStandAloneForm = ({
       // outputs without a logged-in profile — same rule as the editor
       // container's onSendMessage. Requiring a profile here silently stalled
       // the agent loop for offline sessions after the model asked to run tools.
-      if (!canSendAiRequestForSession(profile, isCustomEndpointEnabled()))
+      // A local-ai-* id is also allowed without a profile or endpoint (cache-only).
+      if (
+        !canSendAiRequestForSession(
+          profile,
+          isCustomEndpointEnabled(),
+          aiRequestId
+        )
+      )
         return;
 
       const aiRequestForSend = aiRequests[aiRequestId];

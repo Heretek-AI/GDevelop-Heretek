@@ -267,17 +267,29 @@ describe('canRetryAiRequest', () => {
 
 describe('canSendAiRequestForSession', () => {
   it('allows a logged-in profile', () => {
-    expect(canSendAiRequestForSession({ id: 'user-1' }, false)).toBe(true);
-    expect(canSendAiRequestForSession({ id: 'user-1' }, true)).toBe(true);
+    expect(canSendAiRequestForSession({ id: 'user-1' }, false, null)).toBe(
+      true
+    );
+    expect(canSendAiRequestForSession({ id: 'user-1' }, true, null)).toBe(true);
   });
 
   it('allows local/BYOK (custom endpoint) without a profile', () => {
-    expect(canSendAiRequestForSession(null, true)).toBe(true);
+    expect(canSendAiRequestForSession(null, true, null)).toBe(true);
+  });
+
+  it('allows a local-ai-* id without a profile or custom endpoint', () => {
+    expect(canSendAiRequestForSession(null, false, 'local-ai-123-abc')).toBe(
+      true
+    );
+    expect(
+      canSendAiRequestForSession(undefined, false, 'local-ai-123-abc')
+    ).toBe(true);
   });
 
   it('refuses hosted sends without a profile and without a custom endpoint', () => {
-    expect(canSendAiRequestForSession(null, false)).toBe(false);
-    expect(canSendAiRequestForSession(undefined, false)).toBe(false);
+    expect(canSendAiRequestForSession(null, false, null)).toBe(false);
+    expect(canSendAiRequestForSession(undefined, false, undefined)).toBe(false);
+    expect(canSendAiRequestForSession(null, false, 'hosted-1')).toBe(false);
   });
 });
 
@@ -318,6 +330,21 @@ describe('shouldFetchAiRequestSuggestions', () => {
         baseOptions({ profile: null, customEndpointEnabled: false })
       )
     ).toBe(false);
+  });
+
+  it('allows a local-ai-* chat without a profile or custom endpoint', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({
+          profile: null,
+          customEndpointEnabled: false,
+          selectedAiRequest: {
+            ...readyAgentRequest(),
+            id: 'local-ai-from-history',
+          },
+        })
+      )
+    ).toBe(true);
   });
 
   it('refuses while a send or another suggestions fetch is in flight', () => {
