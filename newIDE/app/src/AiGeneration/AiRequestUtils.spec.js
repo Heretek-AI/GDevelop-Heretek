@@ -9,6 +9,7 @@ import {
   shouldFetchAiRequestOnTabOpen,
   shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
+  canRetryAiRequestForSession,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
 
@@ -421,5 +422,26 @@ describe('shouldFetchAiRequestOnTabOpen', () => {
         customEndpointEnabled: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('canRetryAiRequestForSession', () => {
+  it('allows any profile for any request id', () => {
+    expect(canRetryAiRequestForSession({ id: 'user-1' }, 'hosted-1')).toBe(
+      true
+    );
+    expect(canRetryAiRequestForSession({ id: 'user-1' }, 'local-ai-1')).toBe(
+      true
+    );
+  });
+
+  it('allows local-ai-* without a profile (offline BYOK)', () => {
+    expect(canRetryAiRequestForSession(null, 'local-ai-abc')).toBe(true);
+    expect(canRetryAiRequestForSession(undefined, 'local-ai-abc')).toBe(true);
+  });
+
+  it('refuses non-local ids without a profile (hosted /action/retry needs auth)', () => {
+    expect(canRetryAiRequestForSession(null, 'hosted-1')).toBe(false);
+    expect(canRetryAiRequestForSession(undefined, 'hosted-1')).toBe(false);
   });
 });

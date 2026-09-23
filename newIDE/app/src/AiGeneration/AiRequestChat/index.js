@@ -150,9 +150,7 @@ type Props = {|
     userRequest: string,
     aiConfigurationPresetId: string,
   |}) => void,
-  onSendUserMessage: ({|
-    userMessage: string,
-  |}) => Promise<void>,
+  onSendUserMessage: ({| userMessage: string |}) => Promise<void>,
   // Called whenever the local "Auto edit" toggle changes (and on mount), so the
   // container can gate project-modifying tool calls behind a confirmation when
   // it is off. Auto edit is a frontend-only concern and is not sent to the API.
@@ -180,7 +178,7 @@ type Props = {|
   editorFunctionCallResults: Array<EditorFunctionCallResult> | null,
   editorCallbacks: EditorCallbacks,
   // Continues a request that stopped on an error, from where it stopped.
-  // Absent in contexts that can't resume a request (e.g. the standalone form).
+  // Absent only in contexts that cannot resume a request at all.
   onRetryAfterError?: ?() => Promise<void>,
   // Error that occurred while sending the last request.
   lastSendError: ?Error,

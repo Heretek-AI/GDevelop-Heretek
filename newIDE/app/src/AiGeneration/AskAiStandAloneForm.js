@@ -6,6 +6,7 @@ import { canPayForAiRequest } from './AiRequestChat/Utils';
 import {
   addMessageToAiRequest,
   createAiRequest,
+  retryAiRequest,
   type AiRequest,
   type AiRequestMessageAssistantFunctionCall,
 } from '../Utils/GDevelopServices/Generation';
@@ -20,6 +21,7 @@ import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { CreditsPackageStoreContext } from '../AssetStore/CreditsPackages/CreditsPackageStoreContext';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
+  canRetryAiRequestForSession,
   canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
@@ -453,6 +455,33 @@ export const AskAiStandAloneForm = ({
     ]
   );
 
+  // Continue a failed request from where it stopped (local BYOK: cache-only;
+  // hosted: needs a profile for /action/retry). Mirrors the editor container.
+  const onRetryAfterError = React.useCallback(
+    async () => {
+      const aiRequestId = aiRequestIdForForm;
+      if (!aiRequestId) return;
+      if (!canRetryAiRequestForSession(profile, aiRequestId)) return;
+      try {
+        const aiRequest = await retryAiRequest(getAuthorizationHeader, {
+          userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
+          aiRequestId,
+        });
+        updateAiRequest(aiRequest.id, () => aiRequest);
+      } catch (error) {
+        console.error('Error while retrying the AI request:', error);
+        setLastSendError(aiRequestId, error);
+      }
+    },
+    [
+      aiRequestIdForForm,
+      profile,
+      getAuthorizationHeader,
+      updateAiRequest,
+      setLastSendError,
+    ]
+  );
+
   const isLoading = isSendingAiRequest(aiRequestIdForForm);
 
   // Send the results of the function call outputs only.
@@ -750,6 +779,7 @@ export const AskAiStandAloneForm = ({
         isSending={isLoading}
         isSendingUserMessage={isSendingUserMessage}
         lastSendError={getLastSendError(aiRequestIdForForm)}
+        onRetryAfterError={onRetryAfterError}
         quota={quota}
         increaseQuotaOffering={
           isCustomEndpointEnabled()

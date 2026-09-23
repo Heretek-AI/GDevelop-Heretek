@@ -50,6 +50,17 @@ export const canRetryAiRequest = (aiRequest: AiRequest): boolean =>
   );
 
 /**
+ * Whether this session may offer the error row's Retry for one request id.
+ * Mirrors canSendAiRequestForSession: any profile, or a local-ai-* id that
+ * lives only in the local cache (no hosted API / auth needed). Non-local ids
+ * without a profile are refused — hosted /action/retry requires a userId.
+ */
+export const canRetryAiRequestForSession = (
+  profile: ?{ id: string },
+  aiRequestId: string
+): boolean => !!profile || aiRequestId.startsWith('local-ai-');
+
+/**
  * Whether a send/continue of an AI request may proceed for this session:
  * any logged-in profile, or a local/BYOK session with a custom endpoint
  * enabled (the hosted API is never involved for those). Hosted non-local

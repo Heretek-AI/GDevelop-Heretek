@@ -53,6 +53,7 @@ import {
 import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
+  canRetryAiRequestForSession,
   aiRequestHasWorkInProgress,
   canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
@@ -1041,7 +1042,8 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         async () => {
           if (!selectedAiRequestId) return;
           // Local BYOK chats retry through the local cache (no profile needed).
-          if (!profile && !selectedAiRequestId.startsWith('local-ai-')) return;
+          if (!canRetryAiRequestForSession(profile, selectedAiRequestId))
+            return;
           try {
             const aiRequest = await retryAiRequest(getAuthorizationHeader, {
               userId: profile ? profile.id : LOCAL_BYOK_USER_ID,

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 47,
+  "last_cycle": 48,
   "completed_targets": [
     {
       "cycle": 1,
@@ -277,12 +277,17 @@
       "target": "Local Retry after error re-invokes the model turn (hosted /action/retry parity: continue from last message, not clear-error-only)",
       "metric_delta": "customRetryAiRequest now async \u2192 customAddMessageToAiRequest({aiRequestId}) with no user message; failed continue rewrites status:error + server_error (returns so updateAiRequest syncs retriesInARowCount); tests 308\u2192309 (continue success, continue failure, Generation local path posts /chat/completions only); 22/22 suites",
       "commit": "fix(ai): continue the model turn when retrying a failed local request"
+    },
+    {
+      "cycle": 48,
+      "target": "Stand-alone Ask AI form wires onRetryAfterError + shared canRetryAiRequestForSession gate (error row Retry was dead)",
+      "metric_delta": "AskAiStandAloneForm now passes onRetryAfterError (local-ai-* offline + profile hosted); editor gate extracted to canRetryAiRequestForSession; +3 tests (profile any id, local without profile, hosted without profile refused); tests 309\u2192312; 22/22 suites",
+      "commit": "fix(ai): wire retry-after-error on the stand-alone Ask AI form"
     }
   ],
   "backlog": [
     "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) \u2014 empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "OnRetryAfterError: allow non-local custom-endpoint ids without profile when isCustomEndpointEnabled() (AskAiEditorContainer.js:1044)",
     "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
   ],
   "heuristics": [
@@ -328,6 +333,7 @@
     "Never spread customHeaders over Content-Type defaults; apply safe headers after the fixed Content-Type/Referer/X-Title set",
     "SendChatCompletion call sites must pass config: getEffectiveConfigForRequest(aiRequestId) when an id is in scope \u2014 omitting config falls back to the global model and ignores the per-chat override",
     "Streamed tool_call.index must not default to 0 when omitted \u2014 resolve by id, next free slot, or open-call continuation or multi-tool streams merge into one",
-    "Local retry must re-run the model (customAddMessageToAiRequest with empty userMessage/functionCallOutputs), not only clear status/error \u2014 hosted /action/retry resumes generation server-side; returning the failed request (not throwing) lets onRetryAfterError's updateAiRequest sync retriesInARowCount"
+    "Local retry must re-run the model (customAddMessageToAiRequest with empty userMessage/functionCallOutputs), not only clear status/error \u2014 hosted /action/retry resumes generation server-side; returning the failed request (not throwing) lets onRetryAfterError's updateAiRequest sync retriesInARowCount",
+    "Retry session gate is canRetryAiRequestForSession(profile, id): profile OR local-ai-* only \u2014 non-local ids without profile must stay refused because Generation.retryAiRequest only short-circuits local-ai-* and otherwise hits hosted /action/retry which requires a userId"
   ]
 }
