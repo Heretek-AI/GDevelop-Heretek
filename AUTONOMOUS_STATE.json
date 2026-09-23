@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 7,
+  "last_cycle": 8,
   "completed_targets": [
     {
       "cycle": 1,
@@ -37,14 +37,19 @@
       "target": "Fail loudly on malformed model JSON in customCreateAiGeneratedEvent",
       "metric_delta": "Before: a non-JSON model response silently produced a successful EMPTY event insert (isEventsJsonValid: true, creationSucceeded: true) \u2014 the user saw 'success' with zero events; a non-array generatedEvents payload went to the sheet unchecked. After: non-JSON responses fail with an actionable message, and generatedEvents (string or array) must parse to a JSON list or generation fails. 3 new tests (invalid JSON, non-list generatedEvents, valid string-array payload). Diff +40/-12 client, 37/37 tests green.",
       "commit": "fix(ai): reject malformed model JSON in event generation"
+    },
+    {
+      "cycle": 8,
+      "target": "Verify offline mock test coverage for the local AI client (backlog audit)",
+      "metric_delta": "CustomAIClient.spec.js (37 tests) runs fully offline: axios is jest-mocked, only URL strings appear, zero network calls \u2014 satisfying the 'offline mock test runner' backlog item. testConnection audited: /models fallback benefits from the cycle-4 401 hint via sendChatCompletion; no change needed.",
+      "commit": "(no code change \u2014 verification cycle)"
     }
   ],
   "backlog": [
     "Add timeoutMs field to the custom-AI preferences dialog UI (config currently localStorage-only)",
     "Add BYOK structured JSON schema validation for Event Sheet generation",
     "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
-    "Add local model token-budget calculator for GDevelop scene context",
-    "Add offline mock test runner for local LLM copilot actions"
+    "Add local model token-budget calculator for GDevelop scene context"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
