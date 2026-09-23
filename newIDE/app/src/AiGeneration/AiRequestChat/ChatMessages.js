@@ -54,6 +54,7 @@ import RobotIcon from '../../ProjectCreation/RobotIcon';
 import {
   isCustomEndpointEnabled,
   customGetAiRequestContextTrimCount,
+  customGetAiRequestTokenTotal,
 } from '../../AI/CustomAIClient';
 import CheckCircle from '@material-ui/icons/CheckCircle';
 import Link from '../../UI/Link';
@@ -1255,7 +1256,9 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
           })
           .filter(Boolean)}
 
-        {customGetAiRequestContextTrimCount(aiRequest.id) > 0 && !isWorking ? (
+        {!isWorking &&
+        (customGetAiRequestContextTrimCount(aiRequest.id) > 0 ||
+          customGetAiRequestTokenTotal(aiRequest.id) > 0) ? (
           <Line justifyContent="flex-start">
             <Text
               noMargin
@@ -1263,10 +1266,20 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
               size="body-small"
               color="secondary"
             >
-              <Trans>
-                Older messages were trimmed to fit the AI model's context
-                window.
-              </Trans>
+              {customGetAiRequestTokenTotal(aiRequest.id) > 0 ? (
+                <Trans>
+                  ≈{customGetAiRequestTokenTotal(aiRequest.id).toLocaleString()}{' '}
+                  tokens used locally
+                  {customGetAiRequestContextTrimCount(aiRequest.id) > 0
+                    ? ' — older messages were trimmed to fit the context window.'
+                    : '.'}
+                </Trans>
+              ) : (
+                <Trans>
+                  Older messages were trimmed to fit the AI model's context
+                  window.
+                </Trans>
+              )}
             </Text>
           </Line>
         ) : null}

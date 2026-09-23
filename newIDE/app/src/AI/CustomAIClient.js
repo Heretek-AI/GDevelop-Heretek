@@ -217,6 +217,27 @@ export const customGetAiRequestContextTrimCount = (
   aiRequestId: string
 ): number => localAiRequestTrimCounts[aiRequestId] || 0;
 
+/**
+ * Cumulative estimated tokens (prompt + response) consumed per request, for
+ * the local/BYOK cost meter in the chat UI. Estimate only (chars/4) — never
+ * a billing figure.
+ */
+const localAiRequestTokenTotals: { [id: string]: number } = {};
+
+const addTokenUsage = (
+  aiRequestId: string,
+  promptTokens: number,
+  responseTokens: number
+): void => {
+  localAiRequestTokenTotals[aiRequestId] =
+    (localAiRequestTokenTotals[aiRequestId] || 0) +
+    promptTokens +
+    responseTokens;
+};
+
+export const customGetAiRequestTokenTotal = (aiRequestId: string): number =>
+  localAiRequestTokenTotals[aiRequestId] || 0;
+
 const registerTurnAbortController = (
   aiRequestId: string,
   parentAiRequestId?: string | null
@@ -436,6 +457,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestTrimCounts)) {
     delete localAiRequestTrimCounts[key];
+  }
+  for (const key of Object.keys(localAiRequestTokenTotals)) {
+    delete localAiRequestTokenTotals[key];
   }
   for (const key of Object.keys(localAiTurnTails)) {
     delete localAiTurnTails[key];
@@ -2712,6 +2736,11 @@ export const customAddMessageToAiRequest = async ({
       throw error;
     }
     releaseTurnAbortController(aiRequestId);
+    addTokenUsage(
+      aiRequestId,
+      estimateMessagesTokens(budgetedMessages),
+      estimateTokens(assistantResponse.content)
+    );
 
     const assistantMsgId = `msg-asst-${Date.now()}`;
     const assistantMessage = parseAssistantMessage(
@@ -2842,6 +2871,11 @@ export const customCreateSubAgentAiRequest = async ({
     } finally {
       releaseTurnAbortController(reqId);
     }
+    addTokenUsage(
+      parentAiRequestId || reqId,
+      estimateMessagesTokens(budgetedMessages),
+      estimateTokens(assistantResponse.content)
+    );
 
     const assistantMessage = parseAssistantMessage(
       assistantResponse,

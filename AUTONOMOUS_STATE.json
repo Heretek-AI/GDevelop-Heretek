@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 22,
+  "last_cycle": 23,
   "completed_targets": [
     {
       "cycle": 1,
@@ -127,6 +127,12 @@
       "target": "Documentation audit: scripts/README.md accuracy and AGENTS.md stale claim",
       "metric_delta": "Verified scripts/README.md is fully accurate (every listed script exists; the 'Upstream scripts removed' section documents absent files rather than referencing them as instructions \u2014 fixed by commit 48ed4e38d). Updated AGENTS.md, which still carried the outdated 'partially stale' warning, so future sessions don't re-litigate a solved item.",
       "commit": "docs: correct stale scripts/README.md note in AGENTS.md"
+    },
+    {
+      "cycle": 23,
+      "target": "Token/cost meter: cumulative estimated tokens per request, surfaced in chat",
+      "metric_delta": "Before: no visibility into how much context a local/BYOK session consumed. After: each turn records estimateMessagesTokens(prompt) + estimateTokens(response) against the parent chat id (sub-agent usage attributed to the parent); customGetAiRequestTokenTotal exposes the running total and ChatMessages renders '\u2248N tokens used locally' alongside the trim note. Reset with client state. Audit note: src Flow errors (48, all pre-existing in CustomAIClient.js/spec) are identical with and without this diff \u2014 earlier per-cycle greps used a '^src/' anchor that never matches 'Error --- src/...' lines, so those '0 errors' readings were a measurement bug; correct baseline confirmed via clean-HEAD stash run.",
+      "commit": "feat(ai): per-request token meter for local AI chats"
     }
   ],
   "backlog": [
@@ -148,6 +154,7 @@
     "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source",
     "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement",
     "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors",
-    "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it"
+    "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it",
+    "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD \u2014 compare counts, not grep positions"
   ]
 }

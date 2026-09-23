@@ -34,6 +34,7 @@ import {
   trimMessagesToBudget,
   validateToolCallArguments,
   customGetAiRequestContextTrimCount,
+  customGetAiRequestTokenTotal,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -605,8 +606,10 @@ describe('CustomAIClient', () => {
       expect(stopped.status).toBe('suspended');
 
       expect(customGetAiRequestContextTrimCount(created.id)).toBeGreaterThan(0);
+      expect(customGetAiRequestTokenTotal(created.id)).toBeGreaterThan(0);
       _resetCustomAiClientForTesting();
       expect(customGetAiRequestContextTrimCount(created.id)).toBe(0);
+      expect(customGetAiRequestTokenTotal(created.id)).toBe(0);
     });
   });
 
