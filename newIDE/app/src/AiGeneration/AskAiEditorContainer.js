@@ -672,6 +672,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             if (
               !canAffordAiRequest({
                 isCustomEndpointEnabled: isCustomEndpointEnabled(),
+                userId: activeUserId,
                 quota,
                 price: aiRequestPrice,
                 availableCredits,
@@ -896,6 +897,8 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             if (
               !canAffordAiRequest({
                 isCustomEndpointEnabled: isCustomEndpointEnabled(),
+                userId: activeUserId,
+                aiRequestId,
                 quota,
                 price: aiRequestPrice,
                 availableCredits,

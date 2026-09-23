@@ -328,6 +328,7 @@ export const AskAiStandAloneForm = ({
         if (
           !canAffordAiRequest({
             isCustomEndpointEnabled: isCustomEndpointEnabled(),
+            userId: activeUserId,
             quota,
             price: aiRequestPrice,
             availableCredits,

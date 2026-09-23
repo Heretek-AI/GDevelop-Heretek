@@ -160,4 +160,44 @@ describe('canAffordAiRequest', () => {
       })
     ).toBe(true);
   });
+
+  it('allows a local-ai-* chat when the endpoint toggle is off and the hosted quota is exhausted', () => {
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: false,
+        aiRequestId: 'local-ai-123-0.456',
+        quota: exhaustedQuota,
+        price,
+        availableCredits: 0,
+        automaticallyUseCreditsForAiRequests: false,
+      })
+    ).toBe(true);
+  });
+
+  it('allows the offline BYOK user id when the endpoint toggle is off and the hosted quota is exhausted', () => {
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: false,
+        userId: 'local-byok-user',
+        quota: exhaustedQuota,
+        price,
+        availableCredits: 0,
+        automaticallyUseCreditsForAiRequests: false,
+      })
+    ).toBe(true);
+  });
+
+  it('still blocks a hosted chat id when the allowance is exhausted', () => {
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: false,
+        aiRequestId: 'hosted-ai-request-1',
+        userId: 'firebase-uid-1',
+        quota: exhaustedQuota,
+        price,
+        availableCredits: 0,
+        automaticallyUseCreditsForAiRequests: false,
+      })
+    ).toBe(false);
+  });
 });

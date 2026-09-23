@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 70,
+  "last_cycle": 71,
   "completed_targets": [
     {
       "cycle": 1,
@@ -415,10 +415,15 @@
       "target": "Block hosted suspend/rename/archive/delete without a profile",
       "metric_delta": "368->370 tests; canMutate drops isCustomEndpointEnabled (no LOCAL_BYOK/ userId on hosted mutations); suspend early-returns without profile after local short-circuit; 2 files, +63/-7",
       "commit": "fix(ai): never mutate hosted chats without a profile"
+    },
+    {
+      "cycle": 71,
+      "target": "Allow local-ai/local-user sends when hosted quota is exhausted",
+      "metric_delta": "370->373 tests; canAffordAiRequest accepts optional aiRequestId/userId and short-circuits on local-ai-*/local-* before canPay; wired into chat continue + both create paths + editor add; 5 files, +62/-5",
+      "commit": "fix(ai): allow local chats past an exhausted hosted quota"
     }
   ],
   "backlog": [
-    "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) — empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
     "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
   ],
@@ -489,5 +494,7 @@
     "Editor-tool hooks must share canUseEditorAiTools with the send/watch guards — a stale !profile && !endpoint auth throw after logout freezes agent function-calls for local-ai-* chats even though Generation dual-gates them offline",
     "Create-form account dialogs must share canStartAiRequestCreate with Generation local-* dual-gates — a stale !profile && !endpoint abort opens the account dialog and blocks new local chats while send/watch already work offline",
     "fetchAiSettings and getAiConfigurationPresetsWithAvailability must share DEFAULT_LOCAL_AI_SETTINGS as the offline catalog — CDN short-circuit on custom endpoint plus null-settings fallback, never an empty preset list",
-    "Hosted mutation gates must be profile-or-local-ai only — isCustomEndpointEnabled never authorizes hosted rename/suspend/delete for a logged-out session (empty or LOCAL_BYOK userId would still hit Generation)"]
+    "Hosted mutation gates must be profile-or-local-ai only — isCustomEndpointEnabled never authorizes hosted rename/suspend/delete for a logged-out session (empty or LOCAL_BYOK userId would still hit Generation)",
+    "Affordability gates must accept local session identity (local-ai-* id or local-* userId) alongside the endpoint toggle — canAfford with only isCustomEndpointEnabled still blocks offline BYOK sends when hosted quota is exhausted and the endpoint is off"
+  ]
 }

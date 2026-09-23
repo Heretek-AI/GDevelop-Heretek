@@ -616,6 +616,7 @@ export const AiRequestChat: React.ComponentType<{
 
     const cannotContinue = !canAffordAiRequest({
       isCustomEndpointEnabled: isCustomEndpointEnabled(),
+      aiRequestId: aiRequest ? aiRequest.id : null,
       quota,
       price,
       availableCredits,

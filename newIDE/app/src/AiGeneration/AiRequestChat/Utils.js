@@ -113,26 +113,38 @@ export const canPayForAiRequest = ({
 };
 
 /**
- * Whether a send may proceed for this endpoint mode. Local/BYOK (custom
- * endpoint) never depends on GDevelop credits or hosted quotas — the send
- * button already short-circuits on `!isCustomEndpointEnabled() && !canPay`;
- * create/continue paths must use the same rule so an exhausted hosted quota
- * cannot silently drop a local request.
+ * Whether a send may proceed for this endpoint mode. Local/BYOK never depends
+ * on GDevelop credits or hosted quotas — the send button already
+ * short-circuits on `!isCustomEndpointEnabled() && !canPay`; create/continue
+ * paths must use the same rule so an exhausted hosted quota cannot silently
+ * drop a local request.
+ *
+ * Besides the endpoint toggle, a local session is identified by:
+ * - `aiRequestId` starting with `local-ai-` (chats that live only in the
+ *   local cache — still sendable after logout / endpoint toggle-off), or
+ * - `userId` starting with `local-` (the offline BYOK session id used when
+ *   there is no profile).
  */
 export const canAffordAiRequest = ({
   isCustomEndpointEnabled,
+  aiRequestId,
+  userId,
   quota,
   price,
   availableCredits,
   automaticallyUseCreditsForAiRequests,
 }: {|
   isCustomEndpointEnabled: boolean,
+  aiRequestId?: ?string,
+  userId?: ?string,
   quota: Quota | null,
   price: UsagePrice | null,
   availableCredits: number,
   automaticallyUseCreditsForAiRequests: boolean,
 |}): boolean => {
   if (isCustomEndpointEnabled) return true;
+  if (aiRequestId && aiRequestId.startsWith('local-ai-')) return true;
+  if (userId && userId.startsWith('local-')) return true;
   return canPayForAiRequest({
     quota,
     price,
