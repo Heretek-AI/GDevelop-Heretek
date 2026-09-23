@@ -3072,6 +3072,26 @@ describe('CustomAIClient', () => {
         'answer after suspend'
       );
     });
+
+    it('resumes a stopped request when the user sends another message', async () => {
+      const aiRequest = await createRequest('Stop then continue');
+      customSuspendAiRequest(aiRequest.id);
+      expect((await customGetAiRequest(aiRequest.id)).status).toBe('suspended');
+
+      answerAfter('resumed answer', 0);
+      const resumed = await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: 'keep going',
+        functionCallOutputs: [],
+      });
+
+      // The explicit send must clear the stop, or RequestWriteGate and
+      // suggestions stay blocked forever behind "Stopped. Ready when you are."
+      expect(resumed.status).toBe('ready');
+      expect((await customGetAiRequest(aiRequest.id)).status).toBe('ready');
+      expect(JSON.stringify(resumed.output || '')).toContain('resumed answer');
+      expect(JSON.stringify(resumed.output || '')).toContain('keep going');
+    });
   });
 
   describe('Studio sub-agent role enforcement', () => {

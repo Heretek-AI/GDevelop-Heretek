@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 61,
+  "last_cycle": 62,
   "completed_targets": [
     {
       "cycle": 1,
@@ -361,6 +361,12 @@
       "target": "cancelable local create (pending registry + Stop before request id exists)",
       "metric_delta": "333->338 tests; pendingCreateAiRequestIds + createAbortRequested; Stop cancels hung create (status suspended, error null); early-cancel when Stop races create entry; isFailedAiRequestStart now flags suspended; 7 files, +188/-20",
       "commit": "fix(ai): allow stopping a hung local create before the request exists"
+    },
+    {
+      "cycle": 62,
+      "target": "Resume a stopped local AI request on the next explicit send",
+      "metric_delta": "338->339 tests; customAddMessageToAiRequest flips suspended→ready under the turn lock only when payload has non-empty userMessage or functionCallOutputs; empty continuation / mid-turn Stop still honor suspension; 2 files, +65/-25",
+      "commit": "fix(ai): resume a stopped local chat when the user sends again"
     }
   ],
   "backlog": [
@@ -425,6 +431,7 @@
     "trimMessagesToBudget never drops role:system — an oversized system prompt must be compacted (truncate Current Project Structure first) before history dropping; create/first turn must call trim like addMessage",
     "Any canPayForAiRequest gate on a create/continue path must short-circuit on isCustomEndpointEnabled(); the send button already does — align all gates through canAffordAiRequest",
     "compactSystemMessageToBudget changes the system prompt without incrementing localAiRequestTrimCounts (message-count trims only). Always pair it with noteSystemCompactedIfChanged + customGetAiRequestSystemCompacted and surface system-only compaction distinctly in ChatMessages — history-only notices hide structure loss.",
-    "Local create only writes localAiRequestsCache on settle, so the UI never sees the id mid-flight: track pending create ids + an early createAbortRequested flag; Stop-before-register must arm the flag, Stop-while-hung must abortTurnsForRequest on each pending id, and finally/reset must clear both. In hang tests wait for axios.post.mock.calls.length >= 1 (not > 1) after jest.clearAllMocks()."
+    "Local create only writes localAiRequestsCache on settle, so the UI never sees the id mid-flight: track pending create ids + an early createAbortRequested flag; Stop-before-register must arm the flag, Stop-while-hung must abortTurnsForRequest on each pending id, and finally/reset must clear both. In hang tests wait for axios.post.mock.calls.length >= 1 (not > 1) after jest.clearAllMocks().",
+    "Resume-on-send must be gated on an explicit payload (userMessage or functionCallOutputs); unconditionally flipping suspended→ready at turn start races with a Stop that lands before the lock and broke the mid-turn suspension invariant."
   ]
 }

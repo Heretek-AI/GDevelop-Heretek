@@ -3309,15 +3309,40 @@ export const customAddMessageToAiRequest = async ({
   mode?: 'chat' | 'agent' | 'orchestrator',
 |}): Promise<AiRequest> => {
   return withLocalAiTurnLock(aiRequestId, async () => {
-    const existing = localAiRequestsCache[aiRequestId] || {
-      id: aiRequestId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      userId: LOCAL_BYOK_USER_ID,
-      status: 'ready',
-      output: [],
-      error: null,
-    };
+    let existing = localAiRequestsCache[aiRequestId];
+    // An explicit send/continue resumes a stopped request. The chat shows
+    // "Stopped. Ready when you are." after Stop, so the next user message (or
+    // function-call results) must flip suspended → ready *before* the turn:
+    // the success write-back below only keeps 'suspended' when it re-reads
+    // that status under this lock, which would otherwise pin the request
+    // stopped forever and leave RequestWriteGate / suggestions blocked.
+    //
+    // Only an explicit payload resumes: an empty continuation (retry-style
+    // continue turn) must not undo a Stop that lands first, and a suspend
+    // during this turn is still honored by the write-back re-reading the cache.
+    const hasExplicitPayload =
+      !!(userMessage && userMessage.trim()) ||
+      !!(functionCallOutputs && functionCallOutputs.length > 0);
+    if (existing && existing.status === 'suspended' && hasExplicitPayload) {
+      existing = {
+        ...existing,
+        status: 'ready',
+        updatedAt: new Date().toISOString(),
+      };
+      localAiRequestsCache[aiRequestId] = existing;
+      saveLocalAiRequests();
+    }
+    if (!existing) {
+      existing = {
+        id: aiRequestId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        userId: LOCAL_BYOK_USER_ID,
+        status: 'ready',
+        output: [],
+        error: null,
+      };
+    }
 
     const output = [...(existing.output || [])];
 
