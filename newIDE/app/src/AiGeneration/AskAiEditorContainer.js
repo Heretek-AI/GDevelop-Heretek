@@ -1767,9 +1767,13 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             setForkingState(null);
             await showAlert({
               title: t`Error`,
-              message: t`An error occurred while restoring the project version: ${
-                error.message
-              }`,
+              // A non-Error throw (a rejected promise with no reason) would
+              // throw again while building this message, replacing the alert
+              // with an unhandled error.
+              message: t`An error occurred while restoring the project version: ${(error &&
+                typeof error.message === 'string' &&
+                error.message) ||
+                'unknown error'}`,
             });
           }
         },

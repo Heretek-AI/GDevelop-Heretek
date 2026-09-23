@@ -127,7 +127,15 @@ export const useSearchAndInstallResource = ({
                   resourceName: resourceToSearch.resourceName,
                   resourceKind: resourceToSearch.resourceKind,
                   status: 'error',
-                  error: error.message,
+                  // A rejected promise with no reason gives `undefined`, and
+                  // reading `.message` on it would throw inside this catch —
+                  // losing the whole batch's result for that resource. The
+                  // branch above already uses a fallback string.
+                  error:
+                    (error &&
+                      typeof error.message === 'string' &&
+                      error.message) ||
+                    'Failed to install the resource.',
                 };
               }
             }
