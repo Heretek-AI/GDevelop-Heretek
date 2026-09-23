@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 4,
+  "last_cycle": 5,
   "completed_targets": [
     {
       "cycle": 1,
@@ -25,6 +25,12 @@
       "target": "Distinguishable 401 error when no API key is configured",
       "metric_delta": "Before: a keyless misconfigured hosted provider surfaced a raw 'AI Provider Error (401)' only after a full round trip with no hint. After: sendChatCompletion appends an actionable hint ('No API key is configured... set one in AI preferences') only when status is 401 AND no key is set; keyed 401s pass through untouched. Diff +10/-1 client, +27 tests.",
       "commit": "feat(ai): hint missing API key on 401 provider errors"
+    },
+    {
+      "cycle": 5,
+      "target": "Pin Node 20 via .nvmrc to match CI (toolchain hygiene)",
+      "metric_delta": "Before: local machine runs Node 26 while all 5 CI jobs use Node 20 \u2014 no in-repo pin, drift risk for dev vs CI. After: .nvmrc with '20' (upstream has none \u2014 new fork-only path, recorded in fork-divergence.json). GitHub Actions inventory audited: all actions current (checkout@v4, setup-node@v4, codeql@v3), no deprecation drift.",
+      "commit": "chore(toolchain): pin Node 20 via .nvmrc to match CI"
     }
   ],
   "backlog": [
@@ -40,6 +46,7 @@
     "The Edit tool collapsed leading whitespace across 2360 lines of CustomAIClient.js \u2014 for this codebase prefer python-based exact-text replacement for surgical edits in large Flow files; verify with `git diff --stat` that the footprint matches the intended change",
     "LSP diagnostics on Flow files are TS-parser noise (8006/8008/8010) \u2014 use eslint as the source of truth there",
     "Client is non-streaming (axios POST); SSE-recovery hardening does not apply to current architecture",
-    "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted"
+    "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted",
+    "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs"
   ]
 }
