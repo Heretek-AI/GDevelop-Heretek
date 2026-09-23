@@ -350,6 +350,20 @@ const noteSystemCompactedIfChanged = (
 const localAiRequestTokenTotals: { [id: string]: number } = {};
 
 /**
+ * The prompt size of a request's most recent turn: how much of the model's
+ * context window the conversation occupies right now.
+ *
+ * Distinct from `localAiRequestTokenTotals`, which is a cumulative cost meter
+ * that grows every turn. Occupancy must be the last prompt's size, not the sum
+ * of every turn ever billed — dividing the cumulative total by the per-request
+ * budget would inflate forever and say nothing about the window.
+ */
+const localAiRequestContextTokens: { [id: string]: number } = {};
+
+export const customGetAiRequestContextTokens = (aiRequestId: string): number =>
+  localAiRequestContextTokens[aiRequestId] || 0;
+
+/**
  * Tokens a completion billed for: its answer plus any chain of thought.
  *
  * A reasoning model can spend most of its output on `reasoning_content`
@@ -902,6 +916,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestTokenTotals)) {
     delete localAiRequestTokenTotals[key];
+  }
+  for (const key of Object.keys(localAiRequestContextTokens)) {
+    delete localAiRequestContextTokens[key];
   }
   for (const key of Object.keys(localAiRequestModelOverrides)) {
     delete localAiRequestModelOverrides[key];
@@ -3617,6 +3634,7 @@ export const customCreateAiRequest = async ({
 
   // Same accounting as addMessage / sub-agent turns: the chat's local cost
   // meter must include the first turn, not only later continues.
+  localAiRequestContextTokens[reqId] = estimateMessagesTokens(budgetedMessages);
   addTokenUsage(
     reqId,
     estimateMessagesTokens(budgetedMessages),
@@ -3819,6 +3837,9 @@ export const customAddMessageToAiRequest = async ({
     }
     releaseTurnAbortController(aiRequestId);
     delete localAiRequestPartialContent[aiRequestId];
+    localAiRequestContextTokens[aiRequestId] = estimateMessagesTokens(
+      budgetedMessages
+    );
     addTokenUsage(
       aiRequestId,
       estimateMessagesTokens(budgetedMessages),
@@ -3975,6 +3996,11 @@ export const customCreateSubAgentAiRequest = async ({
       releaseTurnAbortController(reqId);
       delete localAiRequestPartialContent[parentAiRequestId || reqId];
     }
+    // Sub-agent occupancy is attributed to the parent chat, which is what the
+    // UI reads (the same key its trims and partial content use).
+    localAiRequestContextTokens[
+      parentAiRequestId || reqId
+    ] = estimateMessagesTokens(budgetedMessages);
     addTokenUsage(
       parentAiRequestId || reqId,
       estimateMessagesTokens(budgetedMessages),
@@ -4125,6 +4151,7 @@ export const customDeleteAiRequest = (aiRequestId: string): void => {
   delete localAiRequestTrimCounts[aiRequestId];
   delete localAiRequestSystemCompacted[aiRequestId];
   delete localAiRequestTokenTotals[aiRequestId];
+  delete localAiRequestContextTokens[aiRequestId];
   delete localAiRequestModelOverrides[aiRequestId];
   delete localAiRequestPartialContent[aiRequestId];
   delete localAiTurnTails[aiRequestId];

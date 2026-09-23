@@ -46,6 +46,7 @@ import {
   customHasPendingCreateAiRequest,
   customAbortPendingCreateAiRequests,
   customGetAiRequestTokenTotal,
+  customGetAiRequestContextTokens,
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
   loadLocalAiRequests,
@@ -4022,6 +4023,54 @@ describe('CustomAIClient', () => {
       });
       expect(message.content).toHaveLength(1);
       expect(message.content[0].type).toBe('reasoning');
+    });
+  });
+
+  describe('context occupancy is the latest prompt, not the running cost', () => {
+    it('tracks the most recent prompt size while tokens total keeps growing', async () => {
+      // The gauge reports how full the window is NOW, so it must read the last
+      // prompt's size. The cost meter is cumulative — dividing it by a
+      // per-request budget would inflate every turn and describe nothing.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValue({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      const firstPrompt = customGetAiRequestContextTokens(created.id);
+      const firstTotal = customGetAiRequestTokenTotal(created.id);
+      expect(firstPrompt).toBeGreaterThan(0);
+
+      await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: 'a second, longer user message to grow the prompt',
+      });
+
+      const secondPrompt = customGetAiRequestContextTokens(created.id);
+      const secondTotal = customGetAiRequestTokenTotal(created.id);
+
+      // Occupancy grows with the conversation...
+      expect(secondPrompt).toBeGreaterThan(firstPrompt);
+      // ...and remains distinct from the cumulative cost meter, which carries
+      // every turn's prompt and answer. Using the total as the numerator would
+      // make the gauge climb forever.
+      expect(secondTotal).toBeGreaterThan(secondPrompt);
+      expect(secondTotal).toBeGreaterThan(firstTotal);
+    });
+
+    it('is zero for a request with no turns', () => {
+      expect(customGetAiRequestContextTokens('local-ai-never-ran')).toBe(0);
     });
   });
 

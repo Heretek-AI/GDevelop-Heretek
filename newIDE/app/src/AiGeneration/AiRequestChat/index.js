@@ -76,7 +76,7 @@ import {
   customGetAiRequestModelOverride,
   customSetAiRequestModelOverride,
   customHasPendingCreateAiRequest,
-  customGetAiRequestTokenTotal,
+  customGetAiRequestContextTokens,
   getMessageBudget,
   getEffectiveConfigForRequest,
   GDEVELOP_OPENAI_TOOLS,
@@ -554,7 +554,10 @@ export const AiRequestChat: React.ComponentType<{
             ? aiRequest.contextStats.usedPercentage
             : aiRequest
             ? getLocalAiRequestContextUsedRatio(
-                customGetAiRequestTokenTotal(aiRequest.id),
+                // The LAST prompt's size, not the cumulative cost meter: the
+                // gauge reports how full the window is now, and the cumulative
+                // total grows every turn without bound.
+                customGetAiRequestContextTokens(aiRequest.id),
                 getMessageBudget(
                   getEffectiveConfigForRequest(aiRequest.id),
                   GDEVELOP_OPENAI_TOOLS

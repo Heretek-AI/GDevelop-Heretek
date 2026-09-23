@@ -775,6 +775,19 @@ describe('getLocalAiRequestContextUsedRatio', () => {
     expect(getLocalAiRequestContextUsedRatio(1500, 1000)).toBe(1.5);
   });
 
+  it('stays bounded when a chat has many turns', () => {
+    // Regression on the numerator choice: occupancy comes from the latest
+    // prompt, so a long chat with a modest window must not creep past 1 just
+    // because it has been running. A cumulative cost total would climb
+    // without bound against the same budget.
+    const budget = 1000;
+    const latestPrompt = 400;
+    expect(getLocalAiRequestContextUsedRatio(latestPrompt, budget)).toBe(0.4);
+    // The same chat after twenty turns: occupancy is unchanged, because the
+    // prompt is trimmed to the budget rather than accumulating.
+    expect(getLocalAiRequestContextUsedRatio(latestPrompt, budget)).toBe(0.4);
+  });
+
   it('is null when either side is unknown, so the gauge is hidden', () => {
     expect(getLocalAiRequestContextUsedRatio(0, 1000)).toBeNull();
     expect(getLocalAiRequestContextUsedRatio(100, 0)).toBeNull();
