@@ -3,6 +3,7 @@ import {
   canPayForAiRequest,
   canAffordAiRequest,
   canCancelPendingCreateAiRequest,
+  shouldShowSendAgainLabel,
 } from './Utils';
 import {
   type Quota,
@@ -256,6 +257,29 @@ describe('canCancelPendingCreateAiRequest', () => {
         isSending: true,
         hasAiRequest: true,
       })
+    ).toBe(false);
+  });
+});
+
+describe('shouldShowSendAgainLabel', () => {
+  it('shows Send again after a failed send while idle', () => {
+    expect(
+      shouldShowSendAgainLabel({ hasSendError: true, isWorking: false })
+    ).toBe(true);
+  });
+
+  it('hides the label when a request is working', () => {
+    expect(
+      shouldShowSendAgainLabel({ hasSendError: true, isWorking: true })
+    ).toBe(false);
+  });
+
+  it('keeps the default icon-only button when there is no error', () => {
+    expect(
+      shouldShowSendAgainLabel({ hasSendError: false, isWorking: false })
+    ).toBe(false);
+    expect(
+      shouldShowSendAgainLabel({ hasSendError: false, isWorking: true })
     ).toBe(false);
   });
 });

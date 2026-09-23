@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 72,
+  "last_cycle": 73,
   "completed_targets": [
     {
       "cycle": 1,
@@ -427,6 +427,12 @@
       "target": "Keep pending-create Stop available after endpoint toggle-off",
       "metric_delta": "373->377 tests; canCancelPendingCreateAiRequest allows Stop when endpoint is on OR a create is pending (registry), still requires isSending && !aiRequest; wired into AiRequestChat new-chat Stop; 3 files, +91/-5",
       "commit": "fix(ai): keep pending-create Stop after endpoint toggle-off"
+    },
+    {
+      "cycle": 73,
+      "target": "Show Send again label after a failed AI send",
+      "metric_delta": "377->380 tests; shouldShowSendAgainLabel drives Send again on new/existing chat buttons when lastSendError set and not working; cleared TODOs in AskAiStandAloneForm/AskAiEditorContainer; 5 files, +56/-4",
+      "commit": "fix(ai): show Send again after a failed AI send"
     }
   ],
   "backlog": [
@@ -502,6 +508,7 @@
     "fetchAiSettings and getAiConfigurationPresetsWithAvailability must share DEFAULT_LOCAL_AI_SETTINGS as the offline catalog — CDN short-circuit on custom endpoint plus null-settings fallback, never an empty preset list",
     "Hosted mutation gates must be profile-or-local-ai only — isCustomEndpointEnabled never authorizes hosted rename/suspend/delete for a logged-out session (empty or LOCAL_BYOK userId would still hit Generation)",
     "Affordability gates must accept local session identity (local-ai-* id or local-* userId) alongside the endpoint toggle — canAfford with only isCustomEndpointEnabled still blocks offline BYOK sends when hosted quota is exhausted and the endpoint is off",
-    "Pending-create Stop must accept the customHasPendingCreateAiRequest registry as an alternative to the endpoint toggle — requiring endpoint-on alone hides Stop if the user flips the toggle while an Ollama/VRAM create is still hung"
+    "Pending-create Stop must accept the customHasPendingCreateAiRequest registry as an alternative to the endpoint toggle — requiring endpoint-on alone hides Stop if the user flips the toggle while an Ollama/VRAM create is still hung",
+    "Failed-send UX: setLastSendError must drive a visible Send again label (not only error text) — lastSendError already clears on setSendingAiRequest(true) retry, so gate on hasSendError && !isWorking and never while Stop/cancel is active"
   ]
 }

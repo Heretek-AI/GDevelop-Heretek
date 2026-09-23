@@ -64,7 +64,11 @@ import Stop from '../../UI/CustomSvgIcons/Stop';
 import AutoEditButton from './AutoEditButton';
 import { EditApprovalRow } from './EditApprovalRow';
 import { type EditApprovalRequest } from '../Utils';
-import { canAffordAiRequest, canCancelPendingCreateAiRequest } from './Utils';
+import {
+  canAffordAiRequest,
+  canCancelPendingCreateAiRequest,
+  shouldShowSendAgainLabel,
+} from './Utils';
 import { AiUsageIndicator } from './AiUsageIndicator';
 import {
   isCustomEndpointEnabled,
@@ -651,6 +655,10 @@ export const AiRequestChat: React.ComponentType<{
       !aiRequest;
 
     const sendButtonIcon = getSendButtonIcon();
+    const showSendAgainLabel = shouldShowSendAgainLabel({
+      hasSendError: !!lastSendError,
+      isWorking,
+    });
 
     const onSubmitForNewChat = React.useCallback(
       async () => {
@@ -840,6 +848,11 @@ export const AiRequestChat: React.ComponentType<{
                               ) : (
                                 sendButtonIcon
                               )
+                            }
+                            label={
+                              !canCancelPendingCreate && showSendAgainLabel ? (
+                                <Trans>Send again</Trans>
+                              ) : null
                             }
                             style={{ flexShrink: 0 }}
                             disabled={
@@ -1184,7 +1197,11 @@ export const AiRequestChat: React.ComponentType<{
                             sendButtonIcon
                           )
                         }
-                        label={null}
+                        label={
+                          !canRequestBeStopped && showSendAgainLabel ? (
+                            <Trans>Send again</Trans>
+                          ) : null
+                        }
                         onClick={onClickExistingChatButton}
                       />
                     </LineStackLayout>

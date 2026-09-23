@@ -174,3 +174,16 @@ export const canCancelPendingCreateAiRequest = ({
   hasAiRequest: boolean,
 |}): boolean =>
   (isCustomEndpointEnabled || hasPendingCreate) && isSending && !hasAiRequest;
+
+/**
+ * Whether the send control should show a "Send again" label after a failed
+ * send (lastSendError set). Hidden while a request is working so Stop /
+ * send-in-progress icons stay unchanged.
+ */
+export const shouldShowSendAgainLabel = ({
+  hasSendError,
+  isWorking,
+}: {|
+  hasSendError: boolean,
+  isWorking: boolean,
+|}): boolean => hasSendError && !isWorking;

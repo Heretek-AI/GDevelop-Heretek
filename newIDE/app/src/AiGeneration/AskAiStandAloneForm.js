@@ -641,7 +641,6 @@ export const AskAiStandAloneForm = ({
           clearEditorFunctionCallResults(aiRequest.id);
         }
       } catch (error) {
-        // TODO: update the label of the button to send again.
         setLastSendError(aiRequestId, error);
       }
 
