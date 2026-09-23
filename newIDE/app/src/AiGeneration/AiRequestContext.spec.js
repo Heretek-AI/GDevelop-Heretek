@@ -979,6 +979,56 @@ describe('AiRequestProvider opening a chat from the history', () => {
     );
   });
 
+  it('does not call the hosted suspend API for a non-local id when logged out', async () => {
+    const { contextRef } = renderProvider(makeLoggedOutUser());
+    if (!contextRef.current) throw new Error('Context not captured');
+
+    mockFn(suspendAiRequest).mockClear();
+    const hostedRequest = makeAiRequest('chat-hosted-1', 'working');
+    await act(async () => {
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.aiRequestStorage.updateAiRequest(
+        'chat-hosted-1',
+        () => hostedRequest
+      );
+    });
+
+    await act(async () => {
+      await getContext(contextRef).suspendAiRequest('chat-hosted-1');
+    });
+
+    // Empty-string userIds must never reach the Generation suspend endpoint.
+    expect(mockFn(suspendAiRequest)).not.toHaveBeenCalled();
+  });
+
+  it('renames a hosted id without a profile without calling the hosted API', async () => {
+    const { contextRef } = renderProvider(makeLoggedOutUser());
+    if (!contextRef.current) throw new Error('Context not captured');
+
+    mockFn(apiUpdateAiRequest).mockClear();
+    const hostedSummary = {
+      ...makeAiRequest('chat-hosted-2', 'ready'),
+      title: 'Hosted chat',
+      archivedAt: null,
+    };
+    await act(async () => {
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.aiRequestStorage.updateAiRequest(
+        'chat-hosted-2',
+        () => hostedSummary
+      );
+    });
+
+    await act(async () => {
+      await getContext(contextRef).aiRequestStorage.renameAiRequest(
+        'chat-hosted-2',
+        'Renamed while logged out'
+      );
+    });
+
+    expect(mockFn(apiUpdateAiRequest)).not.toHaveBeenCalled();
+  });
+
   it('keeps a loading error until the user retries', async () => {
     const contextRef = renderProviderToUnmount();
     mockFn(getAiRequest).mockRejectedValue(new Error('Network error'));

@@ -514,14 +514,15 @@ export const useAiRequestsStorage = (): AiRequestStorage => {
     []
   );
 
-  // Local BYOK chats (and any chat while a custom endpoint is enabled) must be
-  // renameable/archivable/deletable without a logged-in profile — the hosted
-  // API is never involved for local-ai-* ids.
+  // Local BYOK chats must be renameable/archivable/deletable without a logged-in
+  // profile — the hosted API is never involved for local-ai-* ids. Hosted IDs
+  // still need a profile: without one the mutation would send LOCAL_BYOK (or
+  // '') as userId to the Generation API. The custom-endpoint flag must not open
+  // that path (endpoint-on only makes local creates; it does not authorize
+  // hosted mutations for a logged-out session).
   const canMutateAiRequest = React.useCallback(
     (aiRequestId: string): boolean =>
-      !!profile ||
-      aiRequestId.startsWith('local-ai-') ||
-      isCustomEndpointEnabled(),
+      !!profile || aiRequestId.startsWith('local-ai-'),
     [profile]
   );
 
@@ -1512,11 +1513,16 @@ export const AiRequestProvider = ({
         return;
       }
 
+      // Hosted suspend needs a profile. Logged-out sessions only own local-ai-*
+      // ids (handled above); an empty-string userId would still hit the
+      // Generation API. The optimistic 'suspended' state stands either way.
+      if (!profile) return;
+
       try {
         const suspendedRequest = await apiSuspendAiRequest(
           getAuthorizationHeader,
           {
-            userId: profile ? profile.id : '',
+            userId: profile.id,
             aiRequestId,
           }
         );
