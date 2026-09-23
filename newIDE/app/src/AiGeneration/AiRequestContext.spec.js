@@ -12,6 +12,7 @@ import {
   type AiRequestSummary,
   type AiRequestUserMessage,
 } from '../Utils/GDevelopServices/Generation';
+import { customGetAiRequest } from '../AI/CustomAIClient';
 import { type AuthenticatedUser } from '../Profile/AuthenticatedUserContext';
 import AuthenticatedUserContext, {
   initialAuthenticatedUser,
@@ -730,6 +731,28 @@ describe('AiRequestProvider opening a chat from the history', () => {
     });
     expect(getContext(contextRef).selectedAiRequest).toEqual(aiRequest);
     expect(mockFn(getAiRequest)).not.toHaveBeenCalled();
+  });
+
+  it('suspends a local BYOK request without touching the hosted API', async () => {
+    const contextRef = renderProviderToUnmount();
+    const workingLocalRequest = makeAiRequest('local-ai-test-1', 'working');
+    act(() => {
+      getContext(contextRef).aiRequestStorage.updateAiRequest(
+        'local-ai-test-1',
+        () => workingLocalRequest
+      );
+    });
+
+    await act(async () => {
+      await getContext(contextRef).suspendAiRequest('local-ai-test-1');
+      await flushPromises();
+    });
+
+    expect(mockFn(suspendAiRequest)).not.toHaveBeenCalled();
+    // The local cache copy is suspended (which also aborts its model turn).
+    expect(customGetAiRequest('local-ai-test-1').status).toBe('suspended');
+    // The client was invoked so its in-flight turn gets cancelled.
+    expect(customGetAiRequest('local-ai-test-1').id).toBe('local-ai-test-1');
   });
 
   it('suspends a chat left with work in progress before opening it', async () => {

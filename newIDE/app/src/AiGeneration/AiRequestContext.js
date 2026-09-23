@@ -33,7 +33,10 @@ import {
   getUserRequestText,
 } from './AiRequestUtils';
 import { type EditApprovalRequest } from './Utils';
-import { customUpdateAiRequest } from '../AI/CustomAIClient';
+import {
+  customUpdateAiRequest,
+  customSuspendAiRequest,
+} from '../AI/CustomAIClient';
 
 type EditorFunctionCallResultsStorage = {|
   getEditorFunctionCallResults: (
@@ -1433,7 +1436,6 @@ export const AiRequestProvider = ({
 
   const suspendAiRequest = React.useCallback(
     async (aiRequestId: string): Promise<void> => {
-      if (!profile) return;
       // Dismiss any pending edit approval.
       editApprovalResolverRef.current = null;
       setPendingEditApproval(null);
@@ -1449,14 +1451,27 @@ export const AiRequestProvider = ({
         clearEditorFunctionCallResults(aiRequestId);
       }
 
-      const suspendedRequest = await apiSuspendAiRequest(
-        getAuthorizationHeader,
-        {
-          userId: profile.id,
-          aiRequestId,
-        }
-      );
-      updateAiRequest(suspendedRequest.id, () => suspendedRequest);
+      // Local BYOK requests never touch the hosted API: suspending flips the
+      // local cache status (which also aborts their in-flight model turn).
+      if (aiRequestId.startsWith('local-ai-')) {
+        customSuspendAiRequest(aiRequestId);
+        return;
+      }
+
+      try {
+        const suspendedRequest = await apiSuspendAiRequest(
+          getAuthorizationHeader,
+          {
+            userId: profile ? profile.id : '',
+            aiRequestId,
+          }
+        );
+        updateAiRequest(suspendedRequest.id, () => suspendedRequest);
+      } catch (error) {
+        // The optimistic 'suspended' state stands: never let a hosted-API
+        // failure abort the close/navigation the user asked for.
+        console.error('Failed to suspend the AI request:', error);
+      }
     },
     [
       profile,

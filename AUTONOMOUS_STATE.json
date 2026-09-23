@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 32,
+  "last_cycle": 33,
   "completed_targets": [
     {
       "cycle": 1,
@@ -187,9 +187,17 @@
       "target": "Warn on configured-model mismatch in Test Connection",
       "metric_delta": "Before: Test Connection reported success even when the configured model identifier was not served by the endpoint \u2014 a typo only surfaced as a failed generation later. After: when /models returns a list that does not contain the configured model, the success message appends a typo-check warning (per-model-family tags like ollama:tag still match by prefix). 2 new tests (mismatch warned, match not warned); 72/72 green.",
       "commit": "feat(ai): warn on model mismatch in test connection"
+    },
+    {
+      "cycle": 33,
+      "target": "Stop button works for local BYOK requests (was a silent no-op)",
+      "metric_delta": "Before: suspendAiRequest early-returned when no profile existed \u2014 the common Heretek local session \u2014 so clicking Stop (or refusing an inline edit) did nothing: no suspended status, no cache write, and the agent loop kept running; with a profile it additionally sent 'local-ai-*' ids to the hosted API (unhandled rejection could abort editor close). After: local-ai-* requests are suspended via customSuspendAiRequest (which also aborts their in-flight model turn) before any hosted call; the hosted apiSuspendAiRequest is wrapped so its failure never escapes into requestClose. Provider test added: local request suspended in cache, hosted API untouched; 17/17 context suite green.",
+      "commit": "fix(ai): suspend local BYOK requests on Stop"
     }
   ],
   "backlog": [
+    "generateEvents poll loop reports terminal 'error' status as generationCompleted: true (UseGenerateEvents.js:154-190)",
+    "Watch loop polls local-ai-* ids against the hosted API for logged-in BYOK users (aiRequestShouldBeWatched)",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)"
   ],
   "heuristics": [
