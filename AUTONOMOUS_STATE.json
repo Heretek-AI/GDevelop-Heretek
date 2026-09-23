@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 121,
+  "last_cycle": 122,
   "completed_targets": [
     {
       "cycle": 75,
@@ -693,6 +693,12 @@
       "target": "Extend the action bump to the remaining live workflows",
       "metric_delta": "build-release.yml, build-storybook.yml, fallow.yml and upstream-sync.yml still pinned the same deprecated majors; bumped identically so the warning cannot return on their runs. The three translation workflows (extract-translations, update-translations, update-extension-translations) are upstream-guarded with `if: github.repository == '4ian/GDevelop'` and never run in this fork, so they were left alone to avoid needless divergence. All four YAMLs parse, every `permissions:` block preserved, fork-divergence guard clean.",
       "commit": "ci: extend the action runtime bump to the remaining live workflows"
+    },
+    {
+      "cycle": 122,
+      "target": "Move codeql-action/upload-sarif off Node 20",
+      "metric_delta": "After the checkout/setup-node/artifact bumps, the Fallow job still logged one Node-20 deprecation annotation: github/codeql-action/upload-sarif@v3. v4 runs on node24 and keeps the `sarif_file` input the step passes, so the SARIF upload is unchanged. Identified by reading the per-job check-run annotations rather than the (empty) job logs. Kept on a major tag, matching its prior pinning.",
+      "commit": "ci: move codeql-action/upload-sarif off Node 20"
     }
   ],
   "backlog": [
@@ -830,6 +836,7 @@
     "AiRequestContext's initialAiRequestContextState no-op stubs (renameAiRequest: async () => {}) are the createContext default, correct for components rendering before the provider mounts — do not mistake them for dead code.",
     "transformGDevelopMessagesToOpenAi dereferences msg.role on the FIRST line of its input loop, and its final filter reads msg.role too — both unguarded, unlike the sibling helpers fixed in cycles 100/101. Assessed as LATENT, not live: all four callers pass an app-constructed array, loadLocalAiRequests shape-validates persisted entries (id/status are strings), and no test can produce a null element. Left unchanged deliberately (a guard for an unreproduced failure is not worth the diff, per cycle 103); re-open only if a caller ever passes caller-supplied arrays.",
     "normalizeBaseUrl is the only scheme-repair point in the BYOK path; test any change to it against BOTH malformed schemes (must pass through) and host:port forms like localhost:11434 (must be repaired). A negative lookahead (?!\\d+(?:/|$)) is what separates `word:digits` (a port) from `scheme:path` (a typo).",
-    "Actions deprecation notices are visible via `gh api repos/OWNER/REPO/check-runs/<job-id>/annotations` (the job-logs endpoint can return empty for older runs). Use the annotation count before/after to prove an action bump removed the warning. `actions/*` are pinned by major tag in this repo; third-party actions stay SHA-pinned with a version comment per MAINTENANCE.md. `node-version: 20` in setup-node is the npm Node runtime and is unrelated to the action's own node24 runtime — keep it."
+    "Actions deprecation notices are visible via `gh api repos/OWNER/REPO/check-runs/<job-id>/annotations` (the job-logs endpoint can return empty for older runs). Use the annotation count before/after to prove an action bump removed the warning. `actions/*` are pinned by major tag in this repo; third-party actions stay SHA-pinned with a version comment per MAINTENANCE.md. `node-version: 20` in setup-node is the npm Node runtime and is unrelated to the action's own node24 runtime — keep it.",
+    "The workflows are only one deprecation source: after bumping the actions/* majors, re-scan the per-job check-run annotations, because third-party actions (e.g. github/codeql-action/upload-sarif) carry their own runtime. The remaining v4 references in extract-translations/update-translations/update-extension-translations are intentional — those workflows are upstream-guarded and report `skipped` in this fork."
   ]
 }
