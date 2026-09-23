@@ -740,6 +740,17 @@ describe('mergeIncrementalAiRequest', () => {
     expect(mergedOutput[1]).toBe(fetchedOutput[0]);
   });
 
+  it('does not throw when the fetched first message is not an object', () => {
+    // `output[0]` is network-supplied and getAiRequest validates only the
+    // request's `id` key, so reading `.messageId` off a null entry threw out of
+    // the polling loop.
+    const previous = requestWithOutput([message('a')]);
+    for (const bad of [null, undefined, 'text', 42]) {
+      const fetched = requestWithOutput([(bad: any), message('b')]);
+      expect(mergeIncrementalAiRequest(previous, fetched, 'a')).toBe(fetched);
+    }
+  });
+
   it('returns the fetched request as-is when it is a full output, not a slice', () => {
     const previous = requestWithOutput([message('a'), message('b')]);
     const fetched = requestWithOutput([

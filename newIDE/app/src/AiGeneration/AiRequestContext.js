@@ -946,11 +946,17 @@ export const mergeIncrementalAiRequest = (
 ): AiRequest => {
   const fetchedOutput = fetchedAiRequest.output || [];
   const previousOutput = previousAiRequest && previousAiRequest.output;
+  // The first element is network-supplied and only the request's `id` key is
+  // validated on fetch (`ensureObjectHasProperty`), so `output[0]` may not be an
+  // object — reading `.messageId` off null/undefined threw out of the polling
+  // loop. A non-object first entry simply means "not an incremental slice".
+  const firstFetchedMessage = fetchedOutput[0];
   const isIncrementalSlice =
     !!outputFromMessageId &&
     !!previousOutput &&
-    fetchedOutput.length > 0 &&
-    fetchedOutput[0].messageId === outputFromMessageId;
+    !!firstFetchedMessage &&
+    typeof firstFetchedMessage === 'object' &&
+    firstFetchedMessage.messageId === outputFromMessageId;
   if (!isIncrementalSlice || !previousOutput) return fetchedAiRequest;
 
   const spliceIndex = previousOutput.findIndex(

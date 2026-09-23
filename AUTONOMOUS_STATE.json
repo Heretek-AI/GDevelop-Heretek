@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 139,
+  "last_cycle": 140,
   "completed_targets": [
     {
       "cycle": 75,
@@ -801,6 +801,12 @@
       "target": "Fix the third and last surrogate-splitting truncation (GDD context note)",
       "metric_delta": "Swept for the cycle-138 class and found the third instance: buildGddContextNote capped the studio design note with `note.slice(0, 4000)`, and that note is fed into every sub-agent's prompt, so a cut mid-emoji/CJK sent a U+FFFD to the sub-agent. Extracted the boundary logic into a new fork-only module SafeTruncation.js (truncateAtCodePointBoundary) because FinalizeSubAgents already imports from SpawnSubAgents, so importing the shared helper the other way would be a cycle — the same reason the repo keeps NonScriptableFunctionNames in its own module. Both callers (report cap, GDD note cap) now delegate to it, and no bare slice of either remains. +1 test sweeping EVERY cut point 1..length over emoji-heavy text (the helper had none); also confirmed the caller-level test still discriminates. fork-divergence.json --update was surgical: {\"forkOnly\":\"+1\"}, only the new file, no baseline churn. 24/24 FinalizeSubAgents, eslint --max-warnings=0, prettier + tsc clean. (SpawnSubAgents' 3 failures remain the environmental libGD ones.)",
       "commit": "fix(ai): share one surrogate-safe truncation across the studio caps"
+    },
+    {
+      "cycle": 140,
+      "target": "Stop mergeIncrementalAiRequest throwing on a null fetched message",
+      "metric_delta": "mergeIncrementalAiRequest read `fetchedOutput[0].messageId` unguarded after only a `.length > 0` check. The first element is network-supplied and getAiRequest validates ONLY the request's `id` key (ensureObjectHasProperty), so a null/non-object entry threw `TypeError: Cannot read properties of null (reading 'messageId')` out of the polling loop that merges every incremental fetch — the same class as cycles 134-136 and the reason ChatMessages already guards `Array.isArray(message.content)`. Fixed by reading the first element once and requiring it to be an object; a non-object simply means 'not an incremental slice', so the fetched request is used as-is (no behaviour change for well-formed responses). +1 test covering null/undefined/string/number first entries, mutation-checked (pre-fix throws the TypeError). 28/28 AiRequestContext via the project's own `npm test` (npx jest alone cannot transform the repo's .ts files — see heuristic).",
+      "commit": "fix(ai): stop mergeIncrementalAiRequest throwing on a non-object message"
     }
   ],
   "backlog": [
@@ -956,6 +962,7 @@
     "Optional chaining is supported in the app (used in ~8 files) and is the cleanest form for a deep walk on an API response; the fork's Flow files accept it (verified: no new Flow errors, baseline 847 unchanged). The full app Flow baseline is 847 errors and must be compared against stashed HEAD before attributing any error to a change.",
     "The modifiesProject flag is a security-relevant invariant in two places (the read-only run_script filter and the edit-approval prompt), so audit it in BOTH directions: a mutating tool flagged false leaks into read-only scripts, and a read-only tool flagged true is wrongly withheld. Nine of the flags live in EditorFunctions/Extensions/*.js and GameplayTestTools.js, not in EditorFunctions/index.js — a single-file grep reports them as 'absent' and is misleading.",
     "When a bug class is fixed (cycle 129's surrogate-splitting slice), grep for OTHER bare `.slice(0, N)`/`substring` truncations of text that reaches the wire — buildSubAgentReport carried the same defect 9 cycles later. And when adding a helper for a cap, TEST THROUGH THE CALLER: a test that calls truncateReport directly passes even after buildSubAgentReport is reverted to a raw slice; only driving buildSubAgentReport catches it.",
-    "The surrogate-splitting truncation appeared THREE times (token budget, sub-agent report, GDD note); each was found only by grepping for the pattern after fixing the previous. When two fork modules both need a tiny pure helper but one already imports the other, add a new leaf module (SafeTruncation.js) rather than importing backwards or duplicating — and record the new file in fork-divergence.json in the same commit, which is what the guard's --update does surgically."
+    "The surrogate-splitting truncation appeared THREE times (token budget, sub-agent report, GDD note); each was found only by grepping for the pattern after fixing the previous. When two fork modules both need a tiny pure helper but one already imports the other, add a new leaf module (SafeTruncation.js) rather than importing backwards or duplicating — and record the new file in fork-divergence.json in the same commit, which is what the guard's --update does surgically.",
+    "Run fork specs with `npm test` (react-app-rewired with the CRA babel config), NOT a bare `npx jest`: bare jest fails to transform the repo's .ts files (e.g. UseForceUpdate.ts) and reports a SyntaxError that looks like an environmental failure. The earlier aiGeneration 'libGD missing' failures were also an artifact of bare jest in some suits — prefer `npm test -- --testPathPattern=<name>` to get a trustworthy signal."
   ]
 }
