@@ -391,19 +391,6 @@ export const customGetAiRequestPartialContent = (aiRequestId: string): string =>
 
 const localAiRequestModelOverrides: { [id: string]: string } = {};
 
-export const customSetAiRequestModelOverride = (
-  aiRequestId: string,
-  model: string
-): void => {
-  const trimmedModel = (model || '').trim();
-  if (trimmedModel) {
-    localAiRequestModelOverrides[aiRequestId] = trimmedModel;
-  } else {
-    delete localAiRequestModelOverrides[aiRequestId];
-  }
-  saveLocalAiRequestModelOverrides();
-};
-
 /**
  * Per-chat model choice, persisted.
  *
@@ -426,10 +413,6 @@ const saveLocalAiRequestModelOverrides = (): void => {
   }
 };
 
-/** Exposed so a test can simulate a fresh session's load. */
-export const loadLocalAiRequestModelOverridesForTesting = (): void =>
-  loadLocalAiRequestModelOverrides();
-
 const loadLocalAiRequestModelOverrides = (): void => {
   if (typeof localStorage === 'undefined') return;
   try {
@@ -447,6 +430,23 @@ const loadLocalAiRequestModelOverrides = (): void => {
   } catch (err) {
     console.warn('Error reading local AI model overrides:', err);
   }
+};
+
+/** Exposed so a test can simulate a fresh session's load. */
+export const loadLocalAiRequestModelOverridesForTesting = (): void =>
+  loadLocalAiRequestModelOverrides();
+
+export const customSetAiRequestModelOverride = (
+  aiRequestId: string,
+  model: string
+): void => {
+  const trimmedModel = (model || '').trim();
+  if (trimmedModel) {
+    localAiRequestModelOverrides[aiRequestId] = trimmedModel;
+  } else {
+    delete localAiRequestModelOverrides[aiRequestId];
+  }
+  saveLocalAiRequestModelOverrides();
 };
 
 export const customGetAiRequestModelOverride = (aiRequestId: string): string =>

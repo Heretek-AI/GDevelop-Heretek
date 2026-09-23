@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 96,
+  "last_cycle": 97,
   "completed_targets": [
     {
       "cycle": 75,
@@ -572,6 +572,12 @@
       "target": "Persist the per-chat model choice across sessions",
       "metric_delta": "428->431 tests; localAiRequestModelOverrides was in-memory only, so the per-chat model selector in the chat (AiRequestChat/index.js:1133) silently reverted to the global model on reload — in a BYOK setup often a different, sometimes unavailable, model. The map is now written to its own localStorage key (short strings, so the saved requests are not inflated), loaded at module init, cleared on reset-to-empty, and ignores non-string/blank values so a corrupt entry cannot become a model name. 2 files, +115/-1",
       "commit": "fix(ai): persist the per-chat model choice across sessions"
+    },
+    {
+      "cycle": 97,
+      "target": "Declare the override store helpers before their call site",
+      "metric_delta": "431 tests (unchanged); customSetAiRequestModelOverride (cycle 96) called saveLocalAiRequestModelOverrides, which was declared below it as a const. It works at runtime because the call happens after module evaluation — verified with a focused test that set() reaches storage with no TDZ error — but the ordering is a latent trap for the next edit. Both helpers and the testing wrapper now sit above the call site. 1 file, reorder only",
+      "commit": "refactor(ai): declare the override store helpers before use"
     }
   ],
   "backlog": [
