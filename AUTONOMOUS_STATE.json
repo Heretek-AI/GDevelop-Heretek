@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 97,
+  "last_cycle": 98,
   "completed_targets": [
     {
       "cycle": 75,
@@ -578,6 +578,12 @@
       "target": "Declare the override store helpers before their call site",
       "metric_delta": "431 tests (unchanged); customSetAiRequestModelOverride (cycle 96) called saveLocalAiRequestModelOverrides, which was declared below it as a const. It works at runtime because the call happens after module evaluation — verified with a focused test that set() reaches storage with no TDZ error — but the ordering is a latent trap for the next edit. Both helpers and the testing wrapper now sit above the call site. 1 file, reorder only",
       "commit": "refactor(ai): declare the override store helpers before use"
+    },
+    {
+      "cycle": 98,
+      "target": "Never preselect an unavailable AI configuration preset",
+      "metric_delta": "431->435 tests; getDefaultAiConfigurationPresetId picked the preset with isDefault regardless of `disabled`, and its only caller (AiRequestChat/index.js:561) uses the id directly with no further check. The backend can mark the default preset disabled for a user's tier, so the chat would preselect a configuration the user cannot run. It now prefers the enabled default, then any enabled preset, and keeps the old behaviour only when every preset is disabled (so the selector still has a value). Test proven red pre-fix (Expected 'chat-basic', Received 'chat-premium'). 2 files, +102/-2",
+      "commit": "fix(ai): never preselect an unavailable AI configuration preset"
     }
   ],
   "backlog": [
@@ -695,6 +701,7 @@
     "Cycle-93 tests asserted type:'text' and passed — a test written from the implementation encodes the bug instead of catching it. When a value must satisfy a consumer contract, assert against the consumer's own union (RenderItem.messageContent allows only 'output_text' | 'reasoning'), not what the producer happens to emit.",
     "Fixing a producer does not fix already-persisted data: with no format version, chats saved under the old shape keep it forever. Normalize on read (rewrite the entry when loaded) so existing users are healed without a migration pass or a version bump.",
     "An eval write corrupted CustomAIClient.js with inline `__omp_shell(\"...\")` artifacts around the multi-line conditions, breaking the file with a syntax error that 7 suites caught. After any scripted write to a large source file, grep for artifact markers (and run the suite) before trusting it.",
-    "Per-request state kept in a module-level map is lost on reload unless persisted: the per-chat model override had a UI control and a read path but no storage, so the user's choice silently reverted. When adding a per-request registry entry that a user can set, check whether it needs its own persisted key."
+    "Per-request state kept in a module-level map is lost on reload unless persisted: the per-chat model override had a UI control and a read path but no storage, so the user's choice silently reverted. When adding a per-request registry entry that a user can set, check whether it needs its own persisted key.",
+    "A *WithAvailability helper must honour the availability it computes: getDefaultAiConfigurationPresetId ignored `disabled` while every other consumer of those presets respects it. When a module derives availability, check that the selectors it feeds also read it."
   ]
 }

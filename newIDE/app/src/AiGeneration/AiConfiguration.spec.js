@@ -104,6 +104,88 @@ describe('getDefaultAiConfigurationPresetId', () => {
     expect(id).toBe('chat-default');
   });
 
+  it('prefers an enabled preset when the default one is disabled', () => {
+    // The backend can mark the default preset disabled for a user's tier.
+    // Returning it would preselect a configuration the user cannot use.
+    const id = getDefaultAiConfigurationPresetId('chat', [
+      {
+        mode: 'chat',
+        id: 'chat-premium',
+        nameByLocale: { en: 'Premium chat' },
+        disabled: true,
+        isDefault: true,
+        enableWith: 'higher-tier-plan',
+        enabledWithPlans: ['gold'],
+      },
+      {
+        mode: 'chat',
+        id: 'chat-basic',
+        nameByLocale: { en: 'Basic chat' },
+        disabled: false,
+        isDefault: false,
+        enableWith: null,
+        enabledWithPlans: [],
+      },
+    ]);
+    expect(id).toBe('chat-basic');
+  });
+
+  it('picks the enabled default when the default itself is usable', () => {
+    const id = getDefaultAiConfigurationPresetId('chat', [
+      {
+        mode: 'chat',
+        id: 'chat-other',
+        nameByLocale: { en: 'Other' },
+        disabled: false,
+        isDefault: false,
+        enableWith: null,
+        enabledWithPlans: [],
+      },
+      {
+        mode: 'chat',
+        id: 'chat-default',
+        nameByLocale: { en: 'Default' },
+        disabled: false,
+        isDefault: true,
+        enableWith: null,
+        enabledWithPlans: [],
+      },
+    ]);
+    expect(id).toBe('chat-default');
+  });
+
+  it('keeps the disabled default when every preset is disabled', () => {
+    // Nothing usable: still return a real id so the selector has a value.
+    const id = getDefaultAiConfigurationPresetId('agent', [
+      {
+        mode: 'agent',
+        id: 'agent-locked',
+        nameByLocale: { en: 'Locked' },
+        disabled: true,
+        isDefault: true,
+        enableWith: 'higher-tier-plan',
+        enabledWithPlans: ['gold'],
+      },
+    ]);
+    expect(id).toBe('agent-locked');
+  });
+
+  it('ignores presets of another mode', () => {
+    const id = getDefaultAiConfigurationPresetId('orchestrator', [
+      {
+        mode: 'chat',
+        id: 'chat-default',
+        nameByLocale: { en: 'Chat' },
+        disabled: false,
+        isDefault: true,
+        enableWith: null,
+        enabledWithPlans: [],
+      },
+    ]);
+    // No orchestrator preset at all: the documented fallback.
+    expect(id).toBe('default');
+  });
+
   it('falls back to default when the list is empty', () => {
     expect(getDefaultAiConfigurationPresetId('orchestrator', [])).toBe(
       'default'

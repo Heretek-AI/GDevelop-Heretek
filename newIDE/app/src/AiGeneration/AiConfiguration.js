@@ -71,8 +71,26 @@ export const getDefaultAiConfigurationPresetId = (
   mode: 'chat' | 'agent' | 'orchestrator',
   aiConfigurationPresetsWithAvailability: Array<AiConfigurationPresetWithAvailability>
 ): string => {
-  const defaultPresetWithAvailability = aiConfigurationPresetsWithAvailability.find(
-    preset => preset.isDefault && preset.mode === mode
+  const presetsForMode = aiConfigurationPresetsWithAvailability.filter(
+    preset => preset.mode === mode
+  );
+
+  // The backend can mark the default preset disabled for a user's tier. Picking
+  // it anyway preselects a configuration the user cannot use (the selector shows
+  // it struck through / the send path may refuse it), so prefer an enabled
+  // preset: the enabled default first, then any enabled one.
+  const enabledDefault = presetsForMode.find(
+    preset => preset.isDefault && !preset.disabled
+  );
+  if (enabledDefault) return enabledDefault.id;
+
+  const anyEnabled = presetsForMode.find(preset => !preset.disabled);
+  if (anyEnabled) return anyEnabled.id;
+
+  // Everything is disabled (or the list is empty): keep the previous behaviour
+  // so the selector still has a value to show.
+  const defaultPresetWithAvailability = presetsForMode.find(
+    preset => preset.isDefault
   );
 
   return (
