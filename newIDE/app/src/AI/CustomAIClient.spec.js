@@ -860,6 +860,23 @@ describe('CustomAIClient', () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
       expect(axios.post).toHaveBeenCalledTimes(1);
     });
+
+    it('does not retry non-streaming after a user abort mid-stream', async () => {
+      const controller = new AbortController();
+      // Stream fails because the user aborted mid-request.
+      global.fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('AI request was aborted.'));
+      const pending = sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+        signal: controller.signal,
+      });
+      controller.abort();
+
+      await expect(pending).rejects.toThrow(/aborted/);
+      expect(axios.post).not.toHaveBeenCalled();
+    });
   });
 
   describe('per-request model override', () => {

@@ -2486,6 +2486,9 @@ export const sendChatCompletion = async ({
         ),
       });
     } catch (streamError) {
+      // A user abort must not trigger a retry: the caller signal is already
+      // aborted and the non-streaming request would immediately fail too.
+      if (signal && signal.aborted) throw streamError;
       // Some endpoints reject streaming or drop mid-stream; a single
       // non-streaming retry keeps the turn alive at worst-case latency.
       console.warn(

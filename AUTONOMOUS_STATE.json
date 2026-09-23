@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 28,
+  "last_cycle": 29,
   "completed_targets": [
     {
       "cycle": 1,
@@ -163,9 +163,17 @@
       "target": "Progressive streamed-token display in the AI chat",
       "metric_delta": "Before: streaming accumulated server-side only \u2014 the user saw a generic thinking indicator for the whole generation. After: sendChatCompletion accepts onStreamDelta, streamChatCompletion invokes it with the accumulated content after every chunk batch, the chat turn writes it into a fork-only registry (cleared on settle), and ChatMessages renders PartialStreamText \u2014 a 300ms-polled tail (last 160 chars) of the partial output beside the thinking indicator, only while working. Health sweep this cycle: 176/176 suites, 1960 tests green; divergence green.",
       "commit": "feat(ai): progressive streamed-token display in the chat"
+    },
+    {
+      "cycle": 29,
+      "target": "No non-streaming retry after a user abort mid-stream",
+      "metric_delta": "Before: a user abort during a streamed turn made streamChatCompletion throw the abort error, but sendChatCompletion's fallback treated it like any streaming failure and fired a second non-streaming request with the already-aborted signal (wasted request, extra failure mode). After: the fallback rethrows when the caller signal is aborted; the abort surfaces immediately. Regression test pins: rejects with /aborted/, axios.post never called. 66/66 green. Also swept: full suite 176/176 (1960 tests), upstream drift checked (upstream active at df9de041f; daily sync workflow owns the merge).",
+      "commit": "fix(ai): do not retry non-streaming after a user abort"
     }
   ],
-  "backlog": [],
+  "backlog": [
+    "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)"
+  ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
     "Prefer pure JS/TS mocks for local AI endpoint testing to avoid external network calls during CI",
