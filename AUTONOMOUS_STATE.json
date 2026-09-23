@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 25,
+  "last_cycle": 26,
   "completed_targets": [
     {
       "cycle": 1,
@@ -145,10 +145,15 @@
       "target": "Per-request model override plumbing (roadmap A.2 groundwork)",
       "metric_delta": "Before: every turn of every chat used the single globally-configured model \u2014 no way to run one chat on a different model. After: localAiRequestModelOverrides registry + customSetAiRequestModelOverride/customGetAiRequestModelOverride + getEffectiveConfigForRequest; turn functions (chat turn, sub-agent turn) pass the effective config to sendChatCompletion and use it for the token budget, so a chat and all its sub-agents stay on the overridden model. Empty string clears the override. 3 new tests (override applied to payload, sub-agent inheritance, global fallback); 62/62 green. UI picker still to come.",
       "commit": "feat(ai): per-request model override plumbing"
+    },
+    {
+      "cycle": 26,
+      "target": "Model picker UI in the AI chat (BYOK mode only)",
+      "metric_delta": "Before: model overrides were only settable programmatically (cycle 25 plumbing). After: a 'Model for this chat' compact TextField renders above the existing-chat input when the custom endpoint is enabled and the request belongs to this project; empty value falls back to the global model (placeholder shows it). Change is in AiRequestChat/index.js only (+14 lines), reusing the cycle-25 plumbing. Verification: eslint --max-warnings=0, flow (no new errors vs the 48-error baseline), 62/62 client tests, production build. Honest caveat: the picker's live rendering could not be exercised in headless Chromium \u2014 the AI chat requires completing the interactive project-creation flow, which did not respond to synthetic/trusted click attempts; compile+flow+lint coverage only.",
+      "commit": "feat(ai): per-chat model picker in BYOK mode"
     }
   ],
   "backlog": [
-    "Model picker UI in the AI chat (plumbing: customSetAiRequestModelOverride ready)",
     "Stream responses from local endpoints behind a config flag (SSE) to reduce time-to-first-token in the agent loop"
   ],
   "heuristics": [

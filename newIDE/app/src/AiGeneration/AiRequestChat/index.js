@@ -69,7 +69,10 @@ import { AiUsageIndicator } from './AiUsageIndicator';
 import {
   isCustomEndpointEnabled,
   getCustomEndpointConfig,
+  customGetAiRequestModelOverride,
+  customSetAiRequestModelOverride,
 } from '../../AI/CustomAIClient';
+import TextField from '../../UI/TextField';
 
 const TOO_MANY_USER_MESSAGES_WARNING_COUNT = 15;
 const TOO_MANY_USER_MESSAGES_ERROR_COUNT = 20;
@@ -1082,6 +1085,21 @@ export const AiRequestChat: React.ComponentType<{
             ) : null}
           </ColumnStackLayout>
         </ScrollView>
+        {isCustomEndpointEnabled() && !isForAnotherProject && (
+          <Line noMargin alignItems="center" justifyContent="flex-end" expand>
+            <Text size="body-small" color="secondary" noMargin>
+              <Trans>Model for this chat:</Trans>
+            </Text>
+            <TextField
+              value={customGetAiRequestModelOverride(aiRequestId)}
+              onChange={(event, value) =>
+                customSetAiRequestModelOverride(aiRequestId, value)
+              }
+              placeholder={getCustomEndpointConfig().model}
+              fullWidth={false}
+            />
+          </Line>
+        )}
         <form
           onSubmit={onSubmitForExistingChat}
           className={classNames({
