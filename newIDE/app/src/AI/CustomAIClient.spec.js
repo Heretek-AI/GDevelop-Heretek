@@ -3516,6 +3516,97 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('output allowance in the context budget', () => {
+    const base = {
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      temperature: 0.7,
+    };
+
+    it('reserves half the window when no maxTokens is set', () => {
+      // qwen -> 32768 window; the conservative default still holds half back.
+      expect(getTokenBudget({ ...base, model: 'qwen2.5-coder' })).toBe(16384);
+      expect(getTokenBudget({ ...base, model: 'llama3.2' })).toBe(4096);
+    });
+
+    it('reserves exactly maxTokens when the user capped the reply', () => {
+      // A 512-token cap must not hold back 16384 tokens of a 32768 window.
+      expect(
+        getTokenBudget({ ...base, model: 'qwen2.5-coder', maxTokens: 512 })
+      ).toBe(32768 - 512);
+      expect(
+        getTokenBudget({ ...base, model: 'llama3.2', maxTokens: 256 })
+      ).toBe(8192 - 256);
+    });
+
+    it('never reserves more than half the window, however large maxTokens is', () => {
+      // A cap beyond the window must not drive the input budget to zero (or
+      // negative): the history would lose its system prompt entirely.
+      expect(
+        getTokenBudget({ ...base, model: 'llama3.2', maxTokens: 999999 })
+      ).toBe(4096);
+      expect(
+        getTokenBudget({ ...base, model: 'qwen2.5-coder', maxTokens: 32768 })
+      ).toBe(16384);
+    });
+
+    it('ignores a non-positive or non-numeric maxTokens', () => {
+      expect(getTokenBudget({ ...base, model: 'llama3.2', maxTokens: 0 })).toBe(
+        4096
+      );
+      expect(
+        getTokenBudget({ ...base, model: 'llama3.2', maxTokens: -10 })
+      ).toBe(4096);
+      // $FlowFixMe deliberately malformed config for the guard.
+      expect(
+        getTokenBudget({ ...base, model: 'llama3.2', maxTokens: 'lots' })
+      ).toBe(4096);
+    });
+
+    it('keeps a project structure the default half-window reserve would compact', async () => {
+      // Size the structure to sit between the two budgets: it exceeds the
+      // default reserve (16384 - tools) but fits the widened one
+      // (32768 - 512 - tools). Pre-fix this always reported compaction.
+      const qwen = { ...base, model: 'qwen2.5-coder' };
+      const widened = { ...qwen, maxTokens: 512 };
+      const structure = JSON.stringify({
+        scenes: Array.from({ length: 90 }, (_, i) => ({
+          name: 'Scene' + i,
+          events: Array.from({ length: 8 }, (_, j) => ({
+            type: 'Event' + j,
+            code: 'x'.repeat(70),
+          })),
+        })),
+      });
+      const structureTokens = estimateTokens(structure);
+      expect(structureTokens).toBeGreaterThan(
+        getMessageBudget(qwen, GDEVELOP_OPENAI_TOOLS)
+      );
+      expect(structureTokens).toBeLessThan(
+        getMessageBudget(widened, GDEVELOP_OPENAI_TOOLS)
+      );
+
+      setCustomEndpointConfig(widened);
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: structure,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+      });
+
+      expect(axios.post.mock.calls[0][1].max_tokens).toBe(512);
+      // The structure survived intact: the freed context was actually used.
+      expect(customGetAiRequestSystemCompacted(created.id)).toBe(false);
+    });
+  });
+
   describe('tool schema counts against the context budget', () => {
     const llamaConfig = {
       enabled: true,

@@ -496,17 +496,44 @@ const FAMILY_CONTEXT_WINDOWS = {
 };
 
 /**
- * Input-token budget for a request: half the model family's context window,
- * so output and tool definitions always have room.
+ * Context window for a model, by family.
  */
-export const getTokenBudget = (config?: ?CustomAIConfig): number => {
+const getContextWindow = (config?: ?CustomAIConfig): number => {
   const model = String((config && config.model) || '').toLowerCase();
   const window = Object.keys(FAMILY_CONTEXT_WINDOWS).reduce(
     (found, family) =>
       found || (model.includes(family) ? FAMILY_CONTEXT_WINDOWS[family] : 0),
     0
   );
-  return ((window || DEFAULT_CONTEXT_WINDOW) * 1) / 2;
+  return window || DEFAULT_CONTEXT_WINDOW;
+};
+
+/**
+ * Input-token budget for a request: the context window minus the output
+ * allowance.
+ *
+ * Without an explicit `maxTokens` that allowance is half the window
+ * (conservative: local models are small and the caller may not have capped
+ * the reply). With one, the request sends exactly that `max_tokens`, so
+ * reserving the default half instead would throw away half the window on a
+ * model the user has already told us to keep short — a 512-token cap on a
+ * 32k model would leave the history budget at 16k rather than 32k minus 512.
+ *
+ * Clamped to half the window so an oversized `maxTokens` cannot drive the
+ * input budget to zero. Tool definitions are subtracted separately (see
+ * getMessageBudget): they are not part of this reserve.
+ */
+export const getTokenBudget = (config?: ?CustomAIConfig): number => {
+  const fullWindow = getContextWindow(config);
+  const defaultReserve = Math.floor(fullWindow / 2);
+  const requested =
+    config && typeof config.maxTokens === 'number' && config.maxTokens > 0
+      ? config.maxTokens
+      : 0;
+  const outputReserve = requested
+    ? Math.min(requested, defaultReserve)
+    : defaultReserve;
+  return fullWindow - outputReserve;
 };
 
 /**

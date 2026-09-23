@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 81,
+  "last_cycle": 82,
   "completed_targets": [
     {
       "cycle": 75,
@@ -482,6 +482,12 @@
       "target": "Count the tool schema against the model context budget",
       "metric_delta": "391->396 tests; trimMessagesToBudget measured only messages, but the 41-tool schema rides on the same request. Measured against the real JSON, the toolset serializes to ~6.5k tokens while a llama-family model's message budget is 4096 — so every llama request was over-window before any history counted, and qwen/mistral lost a fifth of their usable context. getMessageBudget now subtracts estimateToolsTokens(tools) at all three turn paths, with a 1024-token floor so a model that cannot hold the schema keeps its system prompt and history instead of silently losing all context (the first attempt had no floor and broke three existing compaction tests — caught and fixed before commit). All 5 new tests fail pre-fix. 2 files, +107/-7",
       "commit": "fix(ai): count the tool schema against the model context budget"
+    },
+    {
+      "cycle": 82,
+      "target": "Honour an explicit maxTokens in the context budget",
+      "metric_delta": "396->401 tests; getTokenBudget always reserved half the context window for output, ignoring a user-set maxTokens, even though the request sends that value as max_tokens. A 512-token cap on a 32k model therefore reserved 16384 tokens for output it would never use and compacted the project structure to fit 9860 instead of the available 25732 - so a capped model silently lost project structure it had room to keep. getTokenBudget now reserves max(min(maxTokens, half-window)) and a named getContextWindow replaces the duplicated lookup. Clamped at half the window so an oversized maxTokens cannot zero the input budget. 2 tests proven red pre-fix, including one that asserts a structure only the widened budget can hold survives un-compacted. 2 files, +122/-4",
+      "commit": "fix(ai): honour an explicit maxTokens in the context budget"
     }
   ],
   "backlog": [
@@ -581,6 +587,7 @@
     "Streaming and non-streaming paths must produce the same message shape: the SSE accumulator read only delta.content while parseAssistantMessage also reads reasoning_content, so reasoning models silently lost their thinking under streaming. When adding a field to one path, check the other.",
     "The built-in GDEVELOP_OPENAI_TOOLS schema is ~6.5k tokens of serialized JSON (measure it on JSON.stringify, not the indented source — the source reads ~10.8k and overstates by 65%). It shares the request's context window with the messages, so any budget that only measures messages over-sends on small local models.",
     "When subtracting a large fixed cost from a budget, clamp with a floor: without one, a model whose window cannot hold the fixed cost gets a zero budget and silently loses its system prompt and history — a worse failure than the oversized request it was meant to prevent.",
-    "Measured tool-budget outcome (verified): tools ~6524 tokens. llama window 8192 -> messages 4096 before / 1024 after, total 7548 which now FITS (before: 10620, over). qwen-mistral 32768 -> 16384 before / 9860 after, total exactly 16384. gpt/claude/deepseek 128000 -> 64000 / 57476. So the floor does not merely avoid silent amnesia on llama: it makes the request fit. The commit message's claim that the shortfall 'surfaces through the server's context-length error' applies only to a hypothetical model whose window is below ~7.6k, not to llama."
+    "Measured tool-budget outcome (verified): tools ~6524 tokens. llama window 8192 -> messages 4096 before / 1024 after, total 7548 which now FITS (before: 10620, over). qwen-mistral 32768 -> 16384 before / 9860 after, total exactly 16384. gpt/claude/deepseek 128000 -> 64000 / 57476. So the floor does not merely avoid silent amnesia on llama: it makes the request fit. The commit message's claim that the shortfall 'surfaces through the server's context-length error' applies only to a hypothetical model whose window is below ~7.6k, not to llama.",
+    "getTokenBudget's output reserve must track the max_tokens actually sent: reserving a blanket half-window while the request caps output at a few hundred tokens discards usable context and silently compacts the system prompt. Any future output-side knob must feed the same reserve."
   ]
 }
