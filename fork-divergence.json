@@ -144,6 +144,7 @@
     "SECRETS.md",
     "SharedLibs/ThreeAddons/package-lock.json",
     "SharedLibs/TileMapHelper/package-lock.json",
+    "docs/HERETEK-ROADMAP.md",
     "newIDE/app/index.html",
     "newIDE/app/src/AI/CustomAIClient.js",
     "newIDE/app/src/AI/CustomAIClient.spec.js",
