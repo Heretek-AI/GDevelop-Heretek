@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 107,
+  "last_cycle": 108,
   "completed_targets": [
     {
       "cycle": 75,
@@ -633,6 +633,12 @@
       "target": "Fail a turn when a 200 response carries an error body",
       "metric_delta": "454->456 tests; the non-streaming path read response.data.error only on non-2xx responses, so a server reporting a model failure with HTTP 200 and an error body fell through to `return response.data`. parseAssistantMessage found no `content`, and an EMPTY assistant message was recorded as a successful turn — the user saw a blank reply with no error and no Retry (pre-fix the request status is 'ready' where it must be 'error'). A 200 with an error body now raises 'AI Provider Error (200 with an error body): <server message>' with response.status attached so the existing hint resolution applies. 2 files, +74",
       "commit": "fix(ai): fail a turn when a 200 response carries an error body"
+    },
+    {
+      "cycle": 108,
+      "target": "Surface a streamed error chunk instead of a generic drop",
+      "metric_delta": "456->457 tests; the SSE parser read only chunk.choices, so a server that explains a mid-stream failure in an error chunk had its reason discarded — the user got 'the stream ended without any content (connection may have been dropped mid-stream)' for a failure the server had already described. The parser now captures that reason and the turn fails with 'AI Provider Error (streamed): <server message>', flagged isServerReportedError so sendChatCompletion does not start the pointless non-streaming retry (same precedent as isStreamTimeout/isOutputBudgetExhausted). 2 files, +29",
+      "commit": "fix(ai): surface a streamed error chunk instead of a generic drop"
     }
   ],
   "backlog": [

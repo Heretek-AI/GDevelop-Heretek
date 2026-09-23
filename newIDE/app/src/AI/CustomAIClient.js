@@ -2875,6 +2875,9 @@ const streamChatCompletion = async ({
     // means a finished answer sits idle until the watchdog aborts it — the
     // user's answer appears, but only after the full idle timeout.
     let sawDone = false;
+    // The reason the server streamed, when it sent an error chunk instead of
+    // a completion.
+    let streamErrorMessage = null;
     const toolCalls: { [index: number]: Object } = {};
     let finishReason = null;
 
@@ -2914,6 +2917,18 @@ const streamChatCompletion = async ({
         chunk = JSON.parse(data);
       } catch (ignored) {
         return; // malformed chunk: skip, the stream may recover.
+      }
+      // A streamed error chunk (`{"error": {...}}`) carries the server's own
+      // reason (model loading, OOM). Ignoring it left only the generic
+      // "connection may have been dropped" message for a failure the server
+      // had already explained.
+      if (chunk && chunk.error) {
+        const rawError = chunk.error;
+        streamErrorMessage =
+          typeof rawError === 'string'
+            ? rawError
+            : rawError.message || JSON.stringify(rawError);
+        return;
       }
       const choice = chunk && chunk.choices && chunk.choices[0];
       if (!choice) return;
@@ -2984,6 +2999,16 @@ const streamChatCompletion = async ({
       .map(index => toolCalls[index])
       .filter(toolCall => toolCall && toolCall.function.name);
 
+    if (streamErrorMessage) {
+      // The server explained this failure itself, so it is deterministic:
+      // retrying non-streaming would wait again for the same answer.
+      // $FlowFixMe[prop-missing] flags read by sendChatCompletion below.
+      const streamedError: any = new Error(
+        `AI Provider Error (streamed): ${streamErrorMessage}`
+      );
+      streamedError.isServerReportedError = true;
+      throw streamedError;
+    }
     if (finishReason === 'length' && !content) {
       // A reasoner that ran out of output budget has already spent it on
       // its thinking: blaming a dropped connection would send the user to
@@ -3134,6 +3159,10 @@ export const sendChatCompletion = async ({
       // would only double the wait before failing identically.
       // $FlowFixMe[prop-missing] flag set by streamChatCompletion.
       if (streamError && streamError.isOutputBudgetExhausted) throw streamError;
+      // Deterministic: the server reported the failure in the stream, so the
+      // non-streaming retry would only re-ask the same failing model.
+      // $FlowFixMe[prop-missing] flag set by streamChatCompletion.
+      if (streamError && streamError.isServerReportedError) throw streamError;
       // Some endpoints reject streaming or drop mid-stream; a single
       // non-streaming retry keeps the turn alive at worst-case latency.
       console.warn(

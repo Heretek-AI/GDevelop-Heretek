@@ -4026,6 +4026,57 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('a streamed error chunk', () => {
+    it("fails the turn with the server's own reason", async () => {
+      // A server can explain a mid-stream failure in an error chunk. Ignoring
+      // it left only the generic "connection may have been dropped" message
+      // for a failure the server had already described.
+      const encoder = new TextEncoder();
+      const sse =
+        'data: ' +
+        JSON.stringify({ error: { message: 'model unloaded from memory' } }) +
+        '\n' +
+        'data: [DONE]\n';
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'text/event-stream' },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(sse) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      let thrownMessage = '';
+      try {
+        await sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: {
+            enabled: true,
+            baseUrl: 'http://localhost:11434/v1',
+            apiKey: '',
+            model: 'qwen2.5-coder',
+            temperature: 0.7,
+            streaming: true,
+          },
+        });
+      } catch (error) {
+        thrownMessage = error.message;
+      }
+
+      expect(thrownMessage).toContain('model unloaded from memory');
+      expect(thrownMessage).not.toContain('dropped mid-stream');
+    });
+  });
+
   describe('a 200 response carrying an error body', () => {
     it('fails the turn instead of recording an empty answer', async () => {
       // Some servers report model failures with HTTP 200 and an error body.
