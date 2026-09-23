@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 83,
+  "last_cycle": 84,
   "completed_targets": [
     {
       "cycle": 75,
@@ -494,6 +494,12 @@
       "target": "Count non-Latin text at its real token density",
       "metric_delta": "401->404 tests; estimateTokens used a flat chars/4, which is calibrated for English. CJK is ~1 token per character, so a project whose object/scene names are Chinese (GDevelop ships zh_CN/ja_JP/ko_KR) was under-counted ~4x — the 'budget' then permitted an over-window request, the exact failure the budget exists to prevent, and one the streaming/trim work could not catch. The estimator now counts non-ASCII code units at 1 token and the ASCII remainder at 1-per-4, so ASCII behaviour is bit-identical (ceil(ascii/4) == old ceil(len/4)) while CJK reports its real weight. 2 tests proven red pre-fix; a third guards accented Latin against over-correction. 2 files, +51/-3",
       "commit": "fix(ai): count non-Latin text at its real token density"
+    },
+    {
+      "cycle": 84,
+      "target": "Truncate non-Latin prompts to the same budget they are measured against",
+      "metric_delta": "404->407 tests; cycle 83 taught estimateTokens that CJK costs a full token per character, but the two truncation sites still converted the token budget back to characters with a flat `* 4`. Measured against the estimate, a 'capped' Chinese system prompt came out at 501 tokens for a 163-token budget — 3x over, so compaction stopped enforcing the limit it exists for. sliceToTokenBudget is now the documented inverse of estimateTokens (ASCII 1 quarter-token, non-ASCII 4) and both hardCapSystemContent and compactSystemMessageToBudget use it. Regression test proven red on the cycle-83 code; 2 files, +80/-11",
+      "commit": "fix(ai): truncate non-Latin prompts to the budget they are measured against"
     }
   ],
   "backlog": [
@@ -595,6 +601,7 @@
     "When subtracting a large fixed cost from a budget, clamp with a floor: without one, a model whose window cannot hold the fixed cost gets a zero budget and silently loses its system prompt and history — a worse failure than the oversized request it was meant to prevent.",
     "Measured tool-budget outcome (verified): tools ~6524 tokens. llama window 8192 -> messages 4096 before / 1024 after, total 7548 which now FITS (before: 10620, over). qwen-mistral 32768 -> 16384 before / 9860 after, total exactly 16384. gpt/claude/deepseek 128000 -> 64000 / 57476. So the floor does not merely avoid silent amnesia on llama: it makes the request fit. The commit message's claim that the shortfall 'surfaces through the server's context-length error' applies only to a hypothetical model whose window is below ~7.6k, not to llama.",
     "getTokenBudget's output reserve must track the max_tokens actually sent: reserving a blanket half-window while the request caps output at a few hundred tokens discards usable context and silently compacts the system prompt. Any future output-side knob must feed the same reserve.",
-    "estimateTokens feeds every trim/compaction/budget decision, so a unit error there silently invalidates all of them: the flat chars/4 rule under-counted CJK ~4x while being correct for English. Keep the ASCII path bit-identical when changing it (ceil(ascii/4) preserves the old result) and guard non-Latin scripts explicitly rather than lowering the ratio globally."
+    "estimateTokens feeds every trim/compaction/budget decision, so a unit error there silently invalidates all of them: the flat chars/4 rule under-counted CJK ~4x while being correct for English. Keep the ASCII path bit-identical when changing it (ceil(ascii/4) preserves the old result) and guard non-Latin scripts explicitly rather than lowering the ratio globally.",
+    "A token->character conversion must be the exact inverse of the token estimator: when estimateTokens became script-aware, the flat `* 4` in hardCapSystemContent/compactSystemMessageToBudget silently disagreed and 'capped' CJK prompts came out 4x over. Any change to the estimator must audit every site that converts budgets back to lengths."
   ]
 }

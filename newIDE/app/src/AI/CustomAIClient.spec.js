@@ -39,6 +39,7 @@ import {
   getTokenBudget,
   estimateMessagesTokens,
   trimMessagesToBudget,
+  compactSystemMessageToBudget,
   validateToolCallArguments,
   customGetAiRequestContextTrimCount,
   customGetAiRequestSystemCompacted,
@@ -3632,6 +3633,56 @@ describe('CustomAIClient', () => {
       expect(axios.post.mock.calls[0][1].max_tokens).toBe(512);
       // The structure survived intact: the freed context was actually used.
       expect(customGetAiRequestSystemCompacted(created.id)).toBe(false);
+    });
+  });
+
+  describe('compaction honours the budget in non-Latin scripts', () => {
+    it('caps a CJK system prompt at its token budget, not 4x it', () => {
+      // Regression: estimateTokens counted CJK as one token per character (so
+      // ~4x the old flat rate) while the truncation still converted the token
+      // budget back to characters with a flat * 4 — a "capped" Chinese prompt
+      // came out four times over the budget it was capped for.
+      const budget = 400;
+      const cjk = '创建精灵对象并设置生命值'.repeat(200); // far over budget
+      const messages = [
+        { role: 'system', content: 'Current Project Structure:\n' + cjk },
+        { role: 'user', content: 'hi' },
+      ];
+
+      const compacted = compactSystemMessageToBudget(messages, budget);
+      const system = compacted.find(m => m.role === 'system');
+      expect(system).toBeTruthy();
+      expect(estimateTokens(system.content)).toBeLessThanOrEqual(
+        budget -
+          256 +
+          estimateTokens(
+            '\n[... project structure truncated to fit the model context window ...]\n'
+          ) +
+          1
+      );
+      // The truncation note must actually have been applied.
+      expect(system.content).toContain('truncated to fit the model context');
+    });
+
+    it('still compacts ASCII to its budget after the script-aware change', () => {
+      const budget = 400;
+      const ascii = 'x'.repeat(8000);
+      const messages = [
+        { role: 'system', content: 'Current Project Structure:\n' + ascii },
+        { role: 'user', content: 'hi' },
+      ];
+      const compacted = compactSystemMessageToBudget(messages, budget);
+      const system = compacted.find(m => m.role === 'system');
+      expect(system.content).toContain('truncated to fit the model context');
+      expect(estimateTokens(system.content)).toBeLessThanOrEqual(budget);
+    });
+
+    it('leaves a prompt that fits the budget untouched', () => {
+      const messages = [
+        { role: 'system', content: 'short system prompt' },
+        { role: 'user', content: 'hi' },
+      ];
+      expect(compactSystemMessageToBudget(messages, 400)).toBe(messages);
     });
   });
 

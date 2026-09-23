@@ -504,6 +504,26 @@ export const estimateTokens = (text: ?string): number => {
   return Math.ceil(ascii / 4) + Math.ceil(nonAscii * NON_LATIN_TOKEN_RATIO);
 };
 
+/**
+ * Longest prefix of `text` that stays within `maxTokens`.
+ *
+ * The inverse of estimateTokens, and it must stay one: converting a token
+ * budget to a character count with a flat `* 4` assumes every character costs
+ * a quarter token, so after estimateTokens learned that CJK costs a full
+ * token the two disagreed and a "capped" CJK prompt came out 4x over its
+ * budget. Budget in quarter-tokens so the two use the same exchange rate.
+ */
+const sliceToTokenBudget = (text: string, maxTokens: number): string => {
+  const maxQuarters = Math.max(0, maxTokens) * 4;
+  let quarters = 0;
+  for (let i = 0; i < text.length; i++) {
+    const cost = text.charCodeAt(i) > 0x7f ? 4 : 1;
+    if (quarters + cost > maxQuarters) return text.slice(0, i);
+    quarters += cost;
+  }
+  return text;
+};
+
 const DEFAULT_CONTEXT_WINDOW = 128000;
 // Conservative context windows per model family (local models are small).
 const FAMILY_CONTEXT_WINDOWS = {
@@ -616,12 +636,13 @@ const SYSTEM_TRUNCATION_NOTE =
   '\n[... project structure truncated to fit the model context window ...]\n';
 
 const hardCapSystemContent = (content: string, maxTokens: number): string => {
-  const maxChars = Math.max(
-    64,
-    (maxTokens - estimateTokens(SYSTEM_TRUNCATION_NOTE)) * 4
+  const bodyBudget = Math.max(
+    16,
+    maxTokens - estimateTokens(SYSTEM_TRUNCATION_NOTE)
   );
-  if (content.length <= maxChars) return content;
-  return content.slice(0, maxChars) + SYSTEM_TRUNCATION_NOTE;
+  const body = sliceToTokenBudget(content, bodyBudget);
+  if (body.length === content.length) return content;
+  return body + SYSTEM_TRUNCATION_NOTE;
 };
 
 /**
@@ -674,13 +695,10 @@ export const compactSystemMessageToBudget = (
       estimateTokens(suffix) +
       estimateTokens(SYSTEM_TRUNCATION_NOTE);
     const allowedBodyTokens = Math.max(64, maxSystemTokens - overhead);
-    const allowedBodyChars = allowedBodyTokens * 4;
+    const allowedBody = sliceToTokenBudget(body, allowedBodyTokens);
     nextContent =
-      body.length > allowedBodyChars
-        ? prefix +
-          body.slice(0, allowedBodyChars) +
-          SYSTEM_TRUNCATION_NOTE +
-          suffix
+      allowedBody.length < body.length
+        ? prefix + allowedBody + SYSTEM_TRUNCATION_NOTE + suffix
         : hardCapSystemContent(content, maxSystemTokens);
   } else {
     nextContent = hardCapSystemContent(content, maxSystemTokens);
