@@ -442,6 +442,8 @@ export default class PreferencesProvider extends React.Component<Props, State> {
     setAiCustomTemperature: (this._setAiCustomTemperature.bind(this): any),
     // $FlowFixMe[method-unbinding]
     setAiCustomTimeoutMs: (this._setAiCustomTimeoutMs.bind(this): any),
+    // $FlowFixMe[method-unbinding]
+    setAiCustomStreaming: (this._setAiCustomStreaming.bind(this): any),
   };
 
   componentDidMount() {
@@ -453,6 +455,7 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       model: this.state.values.aiCustomModel,
       temperature: this.state.values.aiCustomTemperature,
       timeoutMs: this.state.values.aiCustomTimeoutMs,
+      streaming: this.state.values.aiCustomStreaming,
     });
 
     this._periodicUpdateCheckTimeout = setTimeout(
@@ -1577,6 +1580,21 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       () => {
         this._persistValuesToLocalStorage(this.state);
         setCustomEndpointConfig({ temperature: newValue });
+      }
+    );
+  }
+
+  _setAiCustomStreaming(newValue: boolean) {
+    this.setState(
+      state => ({
+        values: {
+          ...state.values,
+          aiCustomStreaming: newValue,
+        },
+      }),
+      () => {
+        this._persistValuesToLocalStorage(this.state);
+        setCustomEndpointConfig({ streaming: newValue });
       }
     );
   }

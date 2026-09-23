@@ -36,6 +36,10 @@ export type CustomAIConfig = {|
    * models on large contexts need more than axios' generic timeout message
    * suggests). */
   timeoutMs?: number,
+  /** Stream responses via SSE when the endpoint supports it (reduces
+   * time-to-first-token in agent loops). Falls back to a non-streaming
+   * request automatically if the server rejects streaming. */
+  streaming?: boolean,
 |};
 
 export const DEFAULT_CUSTOM_AI_CONFIG: CustomAIConfig = {
@@ -86,6 +90,7 @@ export const getCustomEndpointConfig = (): CustomAIConfig => {
             typeof parsed.timeoutMs === 'number' && parsed.timeoutMs > 0
               ? parsed.timeoutMs
               : undefined,
+          streaming: parsed.streaming === true,
           maxTokens:
             typeof parsed.maxTokens === 'number' && parsed.maxTokens > 0
               ? parsed.maxTokens
@@ -2231,6 +2236,176 @@ const getErrorHint = (error: any): string => {
 };
 
 /**
+ * Stream a chat completion via SSE (fetch + ReadableStream) and return the
+ * same message shape as the non-streaming path. Skips malformed chunks; a
+ * connection drop mid-stream surfaces as a stream error. Aborts on the
+ * caller signal, on the configured timeout, or on server-side cancellation.
+ */
+const streamChatCompletion = async ({
+  endpointUrl,
+  headers,
+  payload,
+  signal,
+  timeoutMs,
+  apiKeyConfigured,
+}: {|
+  endpointUrl: string,
+  headers: { [string]: string },
+  payload: Object,
+  signal?: ?AbortSignal,
+  timeoutMs: number,
+  apiKeyConfigured: boolean,
+|}): Promise<Object> => {
+  const combinedController = new AbortController();
+  const abortFromCaller = () => combinedController.abort();
+  if (signal) {
+    if (signal.aborted) combinedController.abort();
+    else signal.addEventListener('abort', abortFromCaller);
+  }
+  const timeoutId = setTimeout(() => combinedController.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...payload, stream: true }),
+      signal: combinedController.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const data = await response.json();
+        errorMessage =
+          (data && data.error && (data.error.message || data.error)) ||
+          errorMessage;
+      } catch (ignored) {
+        // Non-JSON error body: keep the generic message.
+      }
+      const error = new Error(
+        `AI Provider Error (${response.status}): ${errorMessage}`
+      );
+      // $FlowFixMe[prop-missing] attach status for hint resolution.
+      error.response = {
+        status: response.status,
+        data: { error: { message: errorMessage } },
+      };
+      throw error;
+    }
+    if (!response.body) {
+      throw new Error('The endpoint returned an empty stream.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+    const toolCalls: { [index: number]: Object } = {};
+    let finishReason = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // keep the trailing partial line.
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const data = trimmed.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+        let chunk;
+        try {
+          chunk = JSON.parse(data);
+        } catch (ignored) {
+          continue; // malformed chunk: skip, the stream may recover.
+        }
+        const choice = chunk && chunk.choices && chunk.choices[0];
+        if (!choice) continue;
+        const delta = choice.delta || {};
+        if (typeof delta.content === 'string') content += delta.content;
+        if (Array.isArray(delta.tool_calls)) {
+          for (const toolCall of delta.tool_calls) {
+            const index = toolCall.index || 0;
+            const existing = toolCalls[index];
+            if (!existing) {
+              toolCalls[index] = {
+                id: toolCall.id,
+                type: toolCall.type || 'function',
+                function: {
+                  name: (toolCall.function && toolCall.function.name) || '',
+                  arguments:
+                    (toolCall.function && toolCall.function.arguments) || '',
+                },
+              };
+            } else {
+              if (toolCall.id) existing.id = toolCall.id;
+              if (toolCall.function && toolCall.function.name) {
+                existing.function.name =
+                  (existing.function.name || '') + toolCall.function.name;
+              }
+              if (
+                toolCall.function &&
+                typeof toolCall.function.arguments === 'string'
+              ) {
+                existing.function.arguments += toolCall.function.arguments;
+              }
+            }
+          }
+        }
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+      }
+    }
+
+    const toolCallsArray = Object.keys(toolCalls)
+      .map(index => toolCalls[index])
+      .filter(toolCall => toolCall && toolCall.function.name);
+
+    if (
+      !content &&
+      toolCallsArray.length === 0 &&
+      finishReason !== 'stop' &&
+      finishReason !== 'tool_calls'
+    ) {
+      throw new Error(
+        'The AI provider stream ended without any content (connection may have been dropped mid-stream).'
+      );
+    }
+
+    const message = { role: 'assistant', content };
+    if (toolCallsArray.length > 0) message.tool_calls = toolCallsArray;
+    return message;
+  } catch (error) {
+    if (signal && signal.aborted) {
+      throw new Error('AI request was aborted.');
+    }
+    if (error && error.name === 'AbortError') {
+      throw new Error(
+        `The request timed out or was aborted after ${timeoutMs} ms (streaming). Increase the timeout in the AI preferences for slow local models.`
+      );
+    }
+    if (
+      error instanceof TypeError &&
+      /failed to fetch|networkerror|load failed/i.test(error.message || '')
+    ) {
+      throw new Error(
+        `The endpoint is not reachable: check the base URL and make sure the local AI server is running. Original error: ${
+          error.message
+        }`
+      );
+    }
+    // Streaming is not universally supported: let the caller retry without it.
+    // $FlowFixMe[prop-missing]
+    error.isStreamUnsupported = !!(error.response && error.response.status);
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener('abort', abortFromCaller);
+  }
+};
+
+/**
  * Send a chat completion request to the OpenAI-compatible endpoint.
  */
 export const sendChatCompletion = async ({
@@ -2278,6 +2453,28 @@ export const sendChatCompletion = async ({
   }
   if (currentConfig.maxTokens) {
     payload.max_tokens = currentConfig.maxTokens;
+  }
+
+  if (currentConfig.streaming && typeof fetch !== 'undefined') {
+    try {
+      return await streamChatCompletion({
+        endpointUrl,
+        headers,
+        payload,
+        signal,
+        timeoutMs,
+        apiKeyConfigured: !!(
+          currentConfig.apiKey && currentConfig.apiKey.trim()
+        ),
+      });
+    } catch (streamError) {
+      // Some endpoints reject streaming or drop mid-stream; a single
+      // non-streaming retry keeps the turn alive at worst-case latency.
+      console.warn(
+        'Streaming failed, retrying without streaming:',
+        streamError.message
+      );
+    }
   }
 
   try {

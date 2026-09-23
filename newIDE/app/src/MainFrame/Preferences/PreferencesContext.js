@@ -264,6 +264,7 @@ export type PreferencesValues = {|
   aiCustomModel: string,
   aiCustomTemperature: number,
   aiCustomTimeoutMs: number,
+  aiCustomStreaming: boolean,
 |};
 
 /**
@@ -403,6 +404,7 @@ export type Preferences = {|
   setAiCustomModel: (model: string) => void,
   setAiCustomTemperature: (temperature: number) => void,
   setAiCustomTimeoutMs: (timeoutMs: number) => void,
+  setAiCustomStreaming: (streaming: boolean) => void,
 |};
 
 export const initialPreferences = {
@@ -478,6 +480,7 @@ export const initialPreferences = {
     aiCustomModel: 'qwen2.5-coder',
     aiCustomTemperature: 0.7,
     aiCustomTimeoutMs: 120000,
+    aiCustomStreaming: false,
   },
   setMultipleValues: () => {},
   setLanguage: () => {},
@@ -580,6 +583,7 @@ export const initialPreferences = {
   setAiCustomModel: (model: string) => {},
   setAiCustomTemperature: (temperature: number) => {},
   setAiCustomTimeoutMs: (timeoutMs: number) => {},
+  setAiCustomStreaming: (streaming: boolean) => {},
 };
 
 const PreferencesContext: React.Context<Preferences> = React.createContext<Preferences>(

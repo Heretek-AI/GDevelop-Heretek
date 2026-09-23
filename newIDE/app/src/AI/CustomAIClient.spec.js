@@ -37,6 +37,7 @@ import {
   customGetAiRequestTokenTotal,
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
+  _resetCustomAiClientForTesting as _resetForStreamTests,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -710,6 +711,154 @@ describe('CustomAIClient', () => {
       ).rejects.toThrow(
         /^AI Provider Error \(500\): internal shuffle failure$/
       );
+    });
+  });
+
+  describe('SSE streaming', () => {
+    const streamConfig = {
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+      streaming: true,
+    };
+    const sseBody = [
+      'data: ' +
+        JSON.stringify({
+          choices: [{ delta: { role: 'assistant', content: 'Hel' } }],
+        }) +
+        '\n',
+      'data: ' +
+        JSON.stringify({ choices: [{ delta: { content: 'lo' } }] }) +
+        '\n',
+      'data: ' +
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'c1',
+                    function: { name: 'create_', arguments: '{"scene_name' },
+                  },
+                ],
+              },
+            },
+          ],
+        }) +
+        '\n',
+      'data: ' +
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  { index: 0, function: { arguments: '":"Menu"}' } },
+                ],
+              },
+            },
+          ],
+        }) +
+        '\n',
+      'data: ' +
+        JSON.stringify({
+          choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+        }) +
+        '\n',
+      'data: [DONE]\n',
+    ].join('');
+    const mockStreamResponse = body => {
+      const encoder = new TextEncoder();
+      // Node's jest env has no ReadableStream global: a minimal reader mock.
+      const reader = {
+        read: (() => {
+          let done = false;
+          return async () => {
+            if (done) return { done: true, value: undefined };
+            done = true;
+            return { done: false, value: encoder.encode(body) };
+          };
+        })(),
+      };
+      return { ok: true, status: 200, body: { getReader: () => reader } };
+    };
+    beforeEach(() => {
+      _resetForStreamTests();
+    });
+
+    it('assembles content and tool calls from SSE chunks', async () => {
+      global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(sseBody));
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('Hello');
+      expect(message.tool_calls).toHaveLength(1);
+      expect(message.tool_calls[0].function.name).toBe('create_');
+      expect(message.tool_calls[0].function.arguments).toBe(
+        '{"scene_name":"Menu"}'
+      );
+      const fetchArgs = global.fetch.mock.calls[0];
+      expect(JSON.parse(fetchArgs[1].body).stream).toBe(true);
+    });
+
+    it('skips malformed chunks and empty streams fail loudly', async () => {
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue(
+          mockStreamResponse(
+            'data: {broken json\n' +
+              'data: {"choices":[{"delta":{"content":"ok"}}]}\n' +
+              'data: [DONE]\n'
+          )
+        );
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+      expect(message.content).toBe('ok');
+
+      // An empty stream falls back to the non-streaming request (by design):
+      global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(''));
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'recovered' } }],
+        },
+      });
+      const recovered = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+      expect(recovered.content).toBe('recovered');
+    });
+
+    it('falls back to a non-streaming request when streaming fails', async () => {
+      global.fetch = jest.fn().mockRejectedValue(
+        Object.assign(new TypeError('fetch failed'), {
+          isStreamUnsupported: false,
+        })
+      );
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'fallback' } }],
+        },
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+      expect(message.content).toBe('fallback');
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(axios.post).toHaveBeenCalledTimes(1);
     });
   });
 

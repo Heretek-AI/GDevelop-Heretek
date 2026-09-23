@@ -455,6 +455,7 @@ const PreferencesDialog = ({
     setAiCustomModel,
     setAiCustomTemperature,
     setAiCustomTimeoutMs,
+    setAiCustomStreaming,
   } = React.useContext(PreferencesContext);
 
   const [
@@ -1427,6 +1428,16 @@ const PreferencesDialog = ({
                 setAiCustomTemperature(Math.max(0.0, Math.min(1.0, parsed)));
               }
             }}
+          />
+          <CompactToggleField
+            checked={!!values.aiCustomStreaming}
+            onCheck={setAiCustomStreaming}
+            label={
+              <Trans>
+                Stream responses (experimental — falls back automatically if the
+                endpoint does not support it)
+              </Trans>
+            }
           />
           <TextField
             type="number"

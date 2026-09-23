@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 26,
+  "last_cycle": 27,
   "completed_targets": [
     {
       "cycle": 1,
@@ -151,10 +151,16 @@
       "target": "Model picker UI in the AI chat (BYOK mode only)",
       "metric_delta": "Before: model overrides were only settable programmatically (cycle 25 plumbing). After: a 'Model for this chat' compact TextField renders above the existing-chat input when the custom endpoint is enabled and the request belongs to this project; empty value falls back to the global model (placeholder shows it). Change is in AiRequestChat/index.js only (+14 lines), reusing the cycle-25 plumbing. Verification: eslint --max-warnings=0, flow (no new errors vs the 48-error baseline), 62/62 client tests, production build. Honest caveat: the picker's live rendering could not be exercised in headless Chromium \u2014 the AI chat requires completing the interactive project-creation flow, which did not respond to synthetic/trusted click attempts; compile+flow+lint coverage only.",
       "commit": "feat(ai): per-chat model picker in BYOK mode"
+    },
+    {
+      "cycle": 27,
+      "target": "SSE streaming for local/BYOK endpoints behind a config flag",
+      "metric_delta": "Before: every request waited for the full completion (high time-to-first-token in agent loops on local models). After: CustomAIConfig.streaming (off by default) switches sendChatCompletion to a fetch+SSE path: chunks parsed incrementally (malformed chunks skipped), tool_call deltas assembled across chunks (id/name/arguments concatenation), caller AbortSignal honored, configured timeoutMs aborts the stream with a clearer message, HTTP errors carry the status for the cycle-19 hint resolver, and any streaming failure falls back to exactly one non-streaming request so a turn never dies to a streaming incompatibility. Preferences toggle 'Stream responses (experimental)' plumbed through context/provider (sanitized on load: parsed.streaming === true). 3 new tests via a minimal reader mock (assembly incl. split tool-call arguments, malformed-chunk tolerance + empty-stream fallback, network-error fallback). 65/65 green.",
+      "commit": "feat(ai): SSE streaming behind a config flag with non-streaming fallback"
     }
   ],
   "backlog": [
-    "Stream responses from local endpoints behind a config flag (SSE) to reduce time-to-first-token in the agent loop"
+    "Surface streamed tokens progressively in the chat UI (streaming currently accumulates server-side only)"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
