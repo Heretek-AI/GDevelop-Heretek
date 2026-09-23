@@ -163,6 +163,8 @@
     "newIDE/app/src/AiGeneration/Studio/PlanStore.spec.js",
     "newIDE/app/src/AiGeneration/Studio/RequestWriteGate.js",
     "newIDE/app/src/AiGeneration/Studio/RequestWriteGate.spec.js",
+    "newIDE/app/src/AiGeneration/Studio/RoleToolPolicy.js",
+    "newIDE/app/src/AiGeneration/Studio/RoleToolPolicy.spec.js",
     "newIDE/app/src/AiGeneration/Studio/Roles.js",
     "newIDE/app/src/AiGeneration/Studio/Roles.spec.js",
     "newIDE/app/src/AiGeneration/Studio/SafeTruncation.js",

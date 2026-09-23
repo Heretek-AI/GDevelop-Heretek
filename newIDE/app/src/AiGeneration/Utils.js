@@ -74,7 +74,7 @@ import {
 import { createLoopGuard } from './Studio/LoopGuard';
 import { mergePlanResultOutput } from './Studio/PlanStore';
 import { isSubAgentAtTurnCap } from './Studio/FinalizeSubAgents';
-import { getStudioRole } from './Studio/Roles';
+import { getRoleToolPolicy, isRoleReadOnly } from './Studio/RoleToolPolicy';
 import {
   createRequestWriteQueue,
   getRequestWriteBlock,
@@ -504,13 +504,17 @@ export const useProcessFunctionCalls = ({
       // (defense in depth: the model is offered only these, and anything else it
       // still calls is refused here). All denied calls stay in
       // `functionCallsToProcess` so their in-flight locks are released below.
-      const studioRole = aiRequest.studioRoleId
-        ? getStudioRole((aiRequest.studioRoleId: any))
-        : null;
+      // The role policy is resolved through a helper (see `getRoleToolPolicy`):
+      // `aiRequest.studioRoleId` is persisted and unvalidated, so an
+      // unrecognized id denies every call rather than throwing (which would
+      // stall the batch before a single call is dispatched) or being treated as
+      // "no role" (which would hand a read-only sub-agent every tool).
+      const studioRoleId = aiRequest.studioRoleId || null;
+      const rolePolicy = getRoleToolPolicy(studioRoleId);
       const studioDeniedCallIds = new Set<string>();
-      if (studioRole) {
+      if (studioRoleId) {
         for (const functionCall of functionCallsToProcess) {
-          if (!studioRole.allowedToolNames.includes(functionCall.name)) {
+          if (!rolePolicy.allowedToolNames.includes(functionCall.name)) {
             studioDeniedCallIds.add(functionCall.call_id);
             addEditorFunctionCallResults(aiRequest.id, [
               {
@@ -518,9 +522,15 @@ export const useProcessFunctionCalls = ({
                 call_id: functionCall.call_id,
                 success: false,
                 output: {
-                  message: `The tool ${
-                    functionCall.name
-                  } is not available for the ${studioRole.displayName} role.`,
+                  message: rolePolicy.roleResolved
+                    ? `The tool ${
+                        functionCall.name
+                      } is not available for the ${String(
+                        rolePolicy.displayName
+                      )} role.`
+                    : `The tool ${
+                        functionCall.name
+                      } is not available: this sub-agent's studio role could not be resolved.`,
                 },
               },
             ]);
@@ -537,7 +547,7 @@ export const useProcessFunctionCalls = ({
         aiRequests: aiRequestsRef.current,
       });
       const isReadOnlyScriptContext =
-        subAgentKind === 'explorer' || (!!studioRole && !!studioRole.readOnly);
+        subAgentKind === 'explorer' || isRoleReadOnly(studioRoleId);
 
       // Gate project-modifying calls behind a user confirmation when auto-edit
       // is off. Read-only calls (exploration, inspection) always run. The first
@@ -563,13 +573,16 @@ export const useProcessFunctionCalls = ({
         const modifyingFunctionCalls = functionCallsToProcess.filter(
           functionCall =>
             doesFunctionCallModifyProject(functionCall) &&
+            // A call the role filter already refused is not dispatched, so
+            // asking the user to approve it would prompt for nothing.
+            !studioDeniedCallIds.has(functionCall.call_id) &&
             // An explorer sub-agent's `run_script` is read-only (exposed only
             // non-mutating functions), so it never needs an edit approval even
             // though `run_script` is declared as project-modifying.
             !(isReadOnlyScriptContext && functionCall.name === 'run_script') &&
             // A read-only studio role never raises the prompt (its subset was
             // fixed at spawn and is enforced by the dispatch filter above).
-            !(studioRole && studioRole.readOnly) &&
+            !isRoleReadOnly(studioRoleId) &&
             !isCallApproved(functionCall)
         );
 
