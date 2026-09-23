@@ -2180,13 +2180,28 @@ export const parseAssistantMessage = (
         const functionName = toolCall.function.name;
         const functionArgs = toolCall.function.arguments;
         let parsedArgs = {};
+        let argsValid = false;
         try {
           parsedArgs =
             typeof functionArgs === 'string'
               ? JSON.parse(functionArgs)
               : functionArgs || {};
+          // Arguments must be a JSON object — arrays or scalars would break
+          // tool implementations that read named properties.
+          argsValid =
+            !!parsedArgs &&
+            typeof parsedArgs === 'object' &&
+            !Array.isArray(parsedArgs);
         } catch (e) {
           console.warn('Error parsing function call arguments JSON:', e);
+        }
+        if (!argsValid) {
+          parsedArgs = {};
+          console.warn(
+            `Tool call '${String(
+              functionName
+            )}' had invalid arguments; executing with empty arguments.`
+          );
         }
         const callId =
           toolCall.id ||
@@ -2198,7 +2213,13 @@ export const parseAssistantMessage = (
           status: 'completed',
           call_id: callId,
           name: functionName,
-          arguments: functionArgs || '{}',
+          // Round-trip the sanitized arguments so the tool executes exactly
+          // what was validated, not the malformed original.
+          arguments: argsValid
+            ? JSON.stringify(parsedArgs)
+            : typeof functionArgs === 'string' && functionArgs
+            ? functionArgs
+            : '{}',
         });
         functionCalls.push({
           id: callId,

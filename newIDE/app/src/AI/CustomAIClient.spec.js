@@ -343,6 +343,39 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('tool-call argument validation', () => {
+    const parseOne = content =>
+      parseAssistantMessage({
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-1',
+            function: { name: 'test_tool', arguments: content },
+          },
+        ],
+      });
+
+    it('parses valid JSON object arguments', () => {
+      const message = parseOne('{"sceneName": "Menu"}');
+      const call = message.functionCalls[0];
+      expect(call.callArguments).toEqual({ sceneName: 'Menu' });
+    });
+
+    it('falls back to empty arguments on malformed JSON', () => {
+      const message = parseOne('{not valid json');
+      expect(message.functionCalls[0].callArguments).toEqual({});
+    });
+
+    it('rejects non-object arguments (array, scalar)', () => {
+      const arrayMessage = parseOne('["not","an","object"]');
+      expect(arrayMessage.functionCalls[0].callArguments).toEqual({});
+
+      const scalarMessage = parseOne('42');
+      expect(scalarMessage.functionCalls[0].callArguments).toEqual({});
+    });
+  });
+
   describe('token budget helpers', () => {
     it('estimates tokens at ~4 characters per token', () => {
       expect(estimateTokens(null)).toBe(0);
