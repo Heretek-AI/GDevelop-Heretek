@@ -21,6 +21,7 @@ import {
   isCustomEndpointEnabled,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
+import { canUseEditorAiTools } from './AiRequestUtils';
 
 const gd: libGDevelop = global.gd;
 
@@ -75,7 +76,7 @@ export const useGenerateEvents = ({
       estimatedComplexity: number | null,
     |}): Promise<EventsGenerationResult> => {
       if (!project) throw new Error('No project is opened.');
-      if (!profile && !isCustomEndpointEnabled())
+      if (!canUseEditorAiTools(profile, isCustomEndpointEnabled()))
         throw new Error('User should be authenticated.');
 
       const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;

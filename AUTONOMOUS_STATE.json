@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 66,
+  "last_cycle": 67,
   "completed_targets": [
     {
       "cycle": 1,
@@ -391,6 +391,12 @@
       "target": "Allow local-ai-* sends and watches without a profile or endpoint toggle",
       "metric_delta": "353->355 tests; canSendAiRequestForSession accepts optional aiRequestId (local-ai-* allowed offline); watch loop isAddressable uses the shared guard instead of a blanket !profile early-return; editor/standalone send + suggestions gates pass the request id; 6 files, +114/-23",
       "commit": "fix(ai): watch and send local chats offline without the endpoint toggle"
+    },
+    {
+      "cycle": 67,
+      "target": "Allow AI editor tools offline for local BYOK sessions",
+      "metric_delta": "355->358 tests; shared canUseEditorAiTools guard replaces the stale !profile && !endpoint auth throw in UseGenerateEvents / UseSearchAndInstallAsset / UseSearchAndInstallResource so agent function-calls work for local-ai-* chats after logout; 5 files, +49/-3",
+      "commit": "fix(ai): run editor tools offline for local BYOK sessions"
     }
   ],
   "backlog": [
@@ -461,5 +467,6 @@
   ,
     "When listing chat history, always merge the local BYOK cache with the hosted page — exclusive local-XOR-hosted routing hides one side when the endpoint toggle or profile changes",
     "Generation create paths must dual-gate isCustomEndpointEnabled() with userId.startsWith('local-') (and local-ai relatedAiRequestId for event/asset search) — endpoint toggle alone strands offline BYOK creates",
-    "Session send/watch guards must be per-request (pass aiRequestId) so local-ai-* chats work logged out with the endpoint toggle off — a blanket !profile early-return freezes sub-agent retirement"]
+    "Session send/watch guards must be per-request (pass aiRequestId) so local-ai-* chats work logged out with the endpoint toggle off — a blanket !profile early-return freezes sub-agent retirement",
+    "Editor-tool hooks must share canUseEditorAiTools with the send/watch guards — a stale !profile && !endpoint auth throw after logout freezes agent function-calls for local-ai-* chats even though Generation dual-gates them offline"]
 }

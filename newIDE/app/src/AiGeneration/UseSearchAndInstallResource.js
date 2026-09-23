@@ -18,6 +18,7 @@ import {
   isCustomEndpointEnabled,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
+import { canUseEditorAiTools } from './AiRequestUtils';
 
 import PromisePool from '@supercharge/promise-pool';
 
@@ -40,7 +41,7 @@ export const useSearchAndInstallResource = ({
       async ({
         resources,
       }: ResourceSearchAndInstallOptions): Promise<ResourceSearchAndInstallResult> => {
-        if (!profile && !isCustomEndpointEnabled())
+        if (!canUseEditorAiTools(profile, isCustomEndpointEnabled()))
           throw new Error('User should be authenticated.');
         if (!project) throw new Error('Project should be opened.');
 

@@ -6,6 +6,7 @@ import {
   aiRequestPollSawActivity,
   canRetryAiRequest,
   canSendAiRequestForSession,
+  canUseEditorAiTools,
   shouldFetchAiRequestOnTabOpen,
   shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
@@ -544,5 +545,22 @@ describe('canSendFeedbackForSession', () => {
   it('refuses non-local ids without a profile (hosted set-feedback needs auth)', () => {
     expect(canSendFeedbackForSession(null, 'hosted-1')).toBe(false);
     expect(canSendFeedbackForSession(undefined, 'hosted-1')).toBe(false);
+  });
+});
+
+describe('canUseEditorAiTools', () => {
+  it('allows a logged-in profile with or without the custom endpoint', () => {
+    expect(canUseEditorAiTools({ id: 'user-1' }, false)).toBe(true);
+    expect(canUseEditorAiTools({ id: 'user-1' }, true)).toBe(true);
+  });
+
+  it('allows offline local BYOK (no profile, endpoint off)', () => {
+    expect(canUseEditorAiTools(null, false)).toBe(true);
+    expect(canUseEditorAiTools(undefined, false)).toBe(true);
+  });
+
+  it('allows local/BYOK without a profile when the endpoint is on', () => {
+    expect(canUseEditorAiTools(null, true)).toBe(true);
+    expect(canUseEditorAiTools(undefined, true)).toBe(true);
   });
 });

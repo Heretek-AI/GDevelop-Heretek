@@ -17,6 +17,7 @@ import {
   isCustomEndpointEnabled,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
+import { canUseEditorAiTools } from './AiRequestUtils';
 
 type _FuncReturnType = {
   searchAndInstallAsset: AssetSearchAndInstallOptions => Promise<AssetSearchAndInstallResult>,
@@ -53,7 +54,7 @@ export const useSearchAndInstallAsset = ({
         exactOrPartialAssetId,
         ...assetSearchOptions
       }: AssetSearchAndInstallOptions): Promise<AssetSearchAndInstallResult> => {
-        if (!profile && !isCustomEndpointEnabled())
+        if (!canUseEditorAiTools(profile, isCustomEndpointEnabled()))
           throw new Error('User should be authenticated.');
 
         const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;

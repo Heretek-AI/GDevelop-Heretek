@@ -120,6 +120,31 @@ export const canSendAiRequestForSession = (
   (!!aiRequestId && aiRequestId.startsWith('local-ai-'));
 
 /**
+ * Whether the AI editor tools (event generation, asset search, resource
+ * search) may run for this session.
+ *
+ * Always allowed: a profile uses the hosted APIs when the custom endpoint is
+ * off (or the local client when it is on). Without a profile the hooks set
+ * activeUserId to LOCAL_BYOK_USER_ID ('local-byok-user'), which Generation
+ * and prepareAiUserContent dual-gate onto the offline client before any
+ * authorized call — so a missing profile must not throw.
+ *
+ * The old `!profile && !customEndpointEnabled` throw blocked agent
+ * function-calls for local-ai-* chats after logout / endpoint toggle-off
+ * (cycles 64–66 list, send, and watch those chats offline).
+ */
+export const canUseEditorAiTools = (
+  profile: ?{ id: string },
+  customEndpointEnabled: boolean
+): boolean => {
+  if (profile) return true;
+  // Logged-out: LOCAL_BYOK_USER_ID starts with 'local-', so every Generation
+  // dual-gate accepts it regardless of the endpoint toggle. Accept the flag
+  // for call-site symmetry with canSendAiRequestForSession but do not require it.
+  return customEndpointEnabled || !profile;
+};
+
+/**
  * Whether the editor container's mount-time "tab open" full fetch should run
  * for the currently selected chat. Mirrors AiRequestContext.loadAiRequest:
  * a profile always can; without one, local-ai-* ids (cache-only) and any id
