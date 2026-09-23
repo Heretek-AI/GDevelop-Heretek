@@ -48,7 +48,11 @@ import { type FunctionCallItem, type RenderItem } from './Utils';
 import { DislikeFeedbackDialog } from './DislikeFeedbackDialog';
 import { AiRequestErrorRow } from './AiRequestErrorRow';
 import { AiCreditsLimitRow } from './AiCreditsLimitRow';
-import { canPayForAiRequest, useLocalColdStartHint } from './Utils';
+import {
+  canPayForAiRequest,
+  getAvailableCredits,
+  useLocalColdStartHint,
+} from './Utils';
 import Text from '../../UI/Text';
 import { ColumnStackLayout, LineStackLayout } from '../../UI/Layout';
 import Floppy from '../../UI/CustomSvgIcons/Floppy';
@@ -275,7 +279,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
     } = React.useContext(SubscriptionContext);
     const subscriptionPlansWithPricingSystems = getSubscriptionPlansWithPricingSystems();
     const { subscription, limits } = React.useContext(AuthenticatedUserContext);
-    const availableCredits = limits ? limits.credits.userBalance.amount : 0;
+    const availableCredits = getAvailableCredits(limits);
     const quota =
       (limits && limits.quotas && limits.quotas['consumed-ai-credits']) || null;
     const hasReachedLimit =

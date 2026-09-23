@@ -83,6 +83,22 @@ export type RenderItem =
   | OrchestratorPlanRenderItem;
 
 /**
+ * The user's GDevelop credit balance, or 0 when the limits response is absent
+ * or partial.
+ *
+ * `getUserLimits` validates only that the top-level `capabilities` key exists
+ * (`ensureObjectHasProperty`), so `credits.userBalance.amount` is unverified at
+ * runtime even though `Limits` declares it required — reading it behind only a
+ * top-level `limits ?` guard threw on every chat render for a partial response.
+ */
+export const getAvailableCredits = (limits: ?Limits): number => {
+  const credits = limits && limits.credits;
+  const userBalance = credits && credits.userBalance;
+  const amount = userBalance && userBalance.amount;
+  return typeof amount === 'number' ? amount : 0;
+};
+
+/**
  * Whether the user can pay for one more AI request right now: either their AI
  * usage allowance is not exhausted, or they chose to pay with GDevelop credits
  * and have enough of them.

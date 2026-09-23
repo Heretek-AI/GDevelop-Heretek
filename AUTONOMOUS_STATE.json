@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 134,
+  "last_cycle": 135,
   "completed_targets": [
     {
       "cycle": 75,
@@ -771,6 +771,12 @@
       "target": "Stop getAiConfigurationPresetsWithAvailability throwing on partial limits",
       "metric_delta": "limits.capabilities.ai.availablePresets was walked three levels deep behind only an `if (!limits)` guard, so a partial limits response — `capabilities` present but `ai` (or `availablePresets`) missing — threw `TypeError: Cannot read properties of undefined (reading 'availablePresets')`. Reachable and confirmed against the real module: getUserLimits validates only that the top-level `capabilities` key exists (ensureObjectHasProperty checks `data[propertyName] === undefined`, nothing deeper), and this function runs on EVERY chat render from AskAiEditorContainer/AskAiStandAloneForm with live limits — so one bad API response would break the whole chat view. Same class as cycles 127/131 (nested guard not deep enough). Fixed with a default-empty array; the existing `if (!limits)` and `|| DEFAULT_LOCAL_AI_SETTINGS` fallbacks already handled the shallower misses. +1 test covering capabilities:{}, capabilities:{ai:{}} and capabilities:null, mutation-checked (pre-fix each throws the TypeError above). Note: 3 AiGeneration suites fail under a bare npx jest (global.gd undefined — no libGD artifact); verified identical failures on stashed HEAD, so they are environmental, not from this change; CI supplies the artifact via build-libgd.",
       "commit": "fix(ai): stop preset availability throwing on a partial limits response"
+    },
+    {
+      "cycle": 135,
+      "target": "Stop the chat credit reads throwing on a partial limits response",
+      "metric_delta": "Same class as cycle 134, found by sweeping the fork-modified files for other deep walks on the unvalidated limits response. `limits ? limits.credits.userBalance.amount : 0` appeared in three fork-owned chat files (ChatMessages.js:278, AskAiEditorContainer.js:611, AskAiStandAloneForm.js:265) with only a top-level `limits ?` guard — and getUserLimits validates ONLY the top-level `capabilities` key, never `credits`. A partial response therefore threw `TypeError: Cannot read properties of undefined (reading 'userBalance')` on every chat render. Two of the three feed canAffordAiRequest, so it would break both the render and the affordability check. Replaced with one shared getAvailableCredits(limits) helper in AiRequestChat/Utils.js (each level defaulted, non-numeric rejected) rather than three inline ternaries; +3 tests, mutation-checked (naive ternary throws the TypeError, and returns a string for a non-numeric balance). 52/52 across the touched suites, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
+      "commit": "fix(ai): stop the chat credit reads throwing on a partial limits response"
     }
   ],
   "backlog": [
@@ -921,6 +927,7 @@
     "A truthiness check on a value that is then treated as an array is a latent TypeError (`x.tasks && x.tasks.some(...)`). Prefer Array.isArray for anything parsed from model output or restored from localStorage. Also: getLatestActivePlan feeds the studio plan lifecycle from three call sites but had zero spec coverage — when auditing, cross-check that fork-critical readers are actually tested rather than assuming the surrounding suites cover them.",
     "When fixing a duplicated code path, fix every copy: buildPlanStatusUpdateOutput mirrors getLatestActivePlan's search and carried the same latent bug. Also verify a new test actually discriminates — a malformed-only input passes under both the truthiness and Array.isArray guards; the failing-before case needed a VALID message placed before the malformed one so the unguarded loop would match the later one.",
     "Two cheap systematic checks find real bugs faster than reading components: (a) cross-check every fork allowlist name against the tool registry AND every registry name against the editor function map (dangling either way silently disables a path); (b) cross-check quota/affordability gates — any site using the hosted-only canPayForAiRequest must be guarded by !isCustomEndpointEnabled(), or BYOK users get blocked by a hosted limit. Also: SuggestionLines.js is upstream-identical and must NOT be edited even when it looks fragile; the fork maintains the invariant on its side (sanitizeAiRequestSuggestions always emits an array).",
-    "ensureObjectHasProperty only validates the TOP-LEVEL key, so any deeper path on an API response (limits.capabilities.ai.availablePresets) is unverified at runtime despite a non-optional Flow type. Treat nested API-response walks as unchecked and default each level. Also: a bare `npx jest <dir>` in newIDE/app lacks the libGD test artifact, so specs touching global.gd fail — confirm a failure is pre-existing by stashing and re-running before blaming the change."
+    "ensureObjectHasProperty only validates the TOP-LEVEL key, so any deeper path on an API response (limits.capabilities.ai.availablePresets) is unverified at runtime despite a non-optional Flow type. Treat nested API-response walks as unchecked and default each level. Also: a bare `npx jest <dir>` in newIDE/app lacks the libGD test artifact, so specs touching global.gd fail — confirm a failure is pre-existing by stashing and re-running before blaming the change.",
+    "After finding one unguarded deep API-response walk, sweep the fork-modified files for the same shape rather than fixing one instance: `limits.credits.userBalance.amount` appeared at three more sites after cycle 134's `limits.capabilities.ai.availablePresets`. Extract a single defaulting helper when the same deep read repeats, so the guard cannot drift between copies."
   ]
 }

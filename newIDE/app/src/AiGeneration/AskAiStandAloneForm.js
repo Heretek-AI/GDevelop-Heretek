@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { type I18n as I18nType } from '@lingui/core';
 import { AiRequestChat, type AiRequestChatInterface } from './AiRequestChat';
-import { canAffordAiRequest } from './AiRequestChat/Utils';
+import { canAffordAiRequest, getAvailableCredits } from './AiRequestChat/Utils';
 import {
   addMessageToAiRequest,
   createAiRequest,
@@ -262,7 +262,7 @@ export const AskAiStandAloneForm = ({
     !!limits.capabilities.classrooms &&
     limits.capabilities.classrooms.hideAskAi;
 
-  const availableCredits = limits ? limits.credits.userBalance.amount : 0;
+  const availableCredits = getAvailableCredits(limits);
   const quota =
     (limits && limits.quotas && limits.quotas['consumed-ai-credits']) || null;
   const aiRequestPrice =

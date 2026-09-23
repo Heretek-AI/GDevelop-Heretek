@@ -20,7 +20,7 @@ import {
 import { type ObjectWithContext } from '../ObjectsList/EnumerateObjects';
 import Paper from '../UI/Paper';
 import { AiRequestChat, type AiRequestChatInterface } from './AiRequestChat';
-import { canAffordAiRequest } from './AiRequestChat/Utils';
+import { canAffordAiRequest, getAvailableCredits } from './AiRequestChat/Utils';
 import { registerAskAiPrefillListener } from './AskAiPrefill';
 import {
   addMessageToAiRequest,
@@ -608,7 +608,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         false
       );
 
-      const availableCredits = limits ? limits.credits.userBalance.amount : 0;
+      const availableCredits = getAvailableCredits(limits);
       const quota =
         (limits && limits.quotas && limits.quotas['consumed-ai-credits']) ||
         null;

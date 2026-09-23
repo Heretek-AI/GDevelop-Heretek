@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import {
   canPayForAiRequest,
+  getAvailableCredits,
   canAffordAiRequest,
   canCancelPendingCreateAiRequest,
   shouldShowSendAgainLabel,
@@ -20,6 +21,36 @@ import {
 } from '../../Utils/GDevelopServices/Usage';
 
 const price: UsagePrice = { priceInCredits: 5 };
+
+describe('getAvailableCredits', () => {
+  it('reads the balance from a complete limits response', () => {
+    expect(
+      getAvailableCredits(({ credits: { userBalance: { amount: 42 } } }: any))
+    ).toBe(42);
+  });
+
+  it('returns 0 for an absent or partial limits response', () => {
+    // getUserLimits validates only the top-level `capabilities` key, so
+    // `credits.userBalance.amount` is unverified at runtime; reading it behind
+    // only a `limits ?` guard threw on every chat render.
+    for (const limits of [
+      null,
+      undefined,
+      {},
+      { credits: null },
+      { credits: {} },
+      { credits: { userBalance: {} } },
+    ]) {
+      expect(getAvailableCredits((limits: any))).toBe(0);
+    }
+  });
+
+  it('ignores a non-numeric balance', () => {
+    expect(
+      getAvailableCredits(({ credits: { userBalance: { amount: '12' } } }: any))
+    ).toBe(0);
+  });
+});
 
 const exhaustedQuota: Quota = {
   limitReached: true,
