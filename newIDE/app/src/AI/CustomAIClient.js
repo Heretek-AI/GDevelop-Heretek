@@ -734,7 +734,7 @@ export const trimMessagesToBudget = (
   // model keeps knowing the tool ran. The newest exchange and the system
   // prompt are never touched.
   const COMPACT_THRESHOLD = 4000; // ~1000 tokens
-  const KEPT_HEAD = 500; // ~125 tokens
+  const KEPT_HEAD = 125; // tokens of the message to keep as a head.
   for (;;) {
     if (estimate <= budget) return messages;
     let largestIndex = -1;
@@ -751,15 +751,18 @@ export const trimMessagesToBudget = (
     }
     if (largestIndex === -1) break;
     const message = messages[largestIndex];
-    const removed = message.content.length - KEPT_HEAD;
+    const keptHead = sliceToTokenBudget(message.content, KEPT_HEAD);
+    const removed = message.content.length - keptHead.length;
+    const nextContent =
+      keptHead +
+      `\n[... trimmed: ${removed} characters removed to fit the model context window ...]`;
     messages = messages.slice();
-    messages[largestIndex] = {
-      ...message,
-      content:
-        message.content.slice(0, KEPT_HEAD) +
-        `\n[... trimmed: ${removed} characters removed to fit the model context window ...]`,
-    };
-    estimate -= Math.ceil(removed / 4);
+    messages[largestIndex] = { ...message, content: nextContent };
+    // Decrement by what the estimator actually charged for the removed text
+    // rather than assuming a quarter-token per character: a CJK message costs
+    // a full token per character, so the flat rule left the running estimate
+    // inflated and every later message was dropped unnecessarily.
+    estimate -= estimateTokens(message.content) - estimateTokens(nextContent);
   }
   const kept = [];
   let dropToolOutputs = false;

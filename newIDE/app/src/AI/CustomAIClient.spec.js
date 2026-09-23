@@ -3636,6 +3636,53 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('history trimming decrements by real token cost', () => {
+    it('does not over-drop history when a CJK message is compacted', () => {
+      // Regression: compacting a message decremented the running estimate by
+      // removedChars/4. A CJK message costs a full token per character (4800
+      // chars ~ 4800 tokens), so after one compaction the loop's running
+      // estimate still read 3734 while the real total was 528 — far above the
+      // budget it had actually reached, so it kept dropping older history that
+      // no longer needed to go.
+      const cjkBody = '创建精灵对象并设置生命值'.repeat(400); // 4800 chars
+      const messages = [
+        { role: 'system', content: 'sys' },
+        { role: 'assistant', content: cjkBody },
+        { role: 'user', content: 'old-1' },
+        { role: 'user', content: 'old-2' },
+        { role: 'user', content: 'newest-a' },
+        { role: 'user', content: 'newest-b' },
+      ];
+      // Sits between the true post-compaction total (~528) and the pre-fix
+      // inflated one (~3734): only the correct decrement stops here.
+      const budget = 2131;
+
+      const trimmed = trimMessagesToBudget(messages, budget);
+
+      // Both old messages survive, because compacting the CJK message alone
+      // brought the prompt under budget once its real cost was charged.
+      expect(trimmed.some(m => m.content === 'old-1')).toBe(true);
+      expect(trimmed.some(m => m.content === 'old-2')).toBe(true);
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(budget);
+    });
+
+    it('keeps only a bounded head of a compacted message', () => {
+      // The newest exchange is protected, so the compacted message must sit
+      // earlier in the list for the head-slicing path to run at all.
+      const messages = [
+        { role: 'system', content: 'sys' },
+        { role: 'assistant', content: 'x'.repeat(20000) },
+        { role: 'user', content: 'middle' },
+        { role: 'user', content: 'newest' },
+      ];
+      const trimmed = trimMessagesToBudget(messages, 200);
+      const assistant = trimmed.find(m => m.role === 'assistant');
+      expect(assistant.content).toContain('trimmed:');
+      // The kept head is a token budget (~125 tokens), not a 500-char slice.
+      expect(estimateTokens(assistant.content)).toBeLessThan(300);
+    });
+  });
+
   describe('compaction honours the budget in non-Latin scripts', () => {
     it('caps a CJK system prompt at its token budget, not 4x it', () => {
       // Regression: estimateTokens counted CJK as one token per character (so

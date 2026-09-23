@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 84,
+  "last_cycle": 85,
   "completed_targets": [
     {
       "cycle": 75,
@@ -500,6 +500,12 @@
       "target": "Truncate non-Latin prompts to the same budget they are measured against",
       "metric_delta": "404->407 tests; cycle 83 taught estimateTokens that CJK costs a full token per character, but the two truncation sites still converted the token budget back to characters with a flat `* 4`. Measured against the estimate, a 'capped' Chinese system prompt came out at 501 tokens for a 163-token budget — 3x over, so compaction stopped enforcing the limit it exists for. sliceToTokenBudget is now the documented inverse of estimateTokens (ASCII 1 quarter-token, non-ASCII 4) and both hardCapSystemContent and compactSystemMessageToBudget use it. Regression test proven red on the cycle-83 code; 2 files, +80/-11",
       "commit": "fix(ai): truncate non-Latin prompts to the budget they are measured against"
+    },
+    {
+      "cycle": 85,
+      "target": "Charge the real token cost when compacting history",
+      "metric_delta": "407->409 tests; trimMessagesToBudget decremented its running estimate by removedChars/4 after compacting a message. For a CJK message (4800 chars ~ 4800 tokens) that left the estimate at 3734 while the true total was 528, so the loop kept dropping older history it no longer needed to drop. The decrement is now the estimator's own delta (estimateTokens(before) - estimateTokens(after)) and the kept head is a token budget rather than a 500-char slice. Test proven red on the cycle-84 code at a budget that sits between the true and inflated totals; 2 files, +59/-9",
+      "commit": "fix(ai): charge the real token cost when compacting history"
     }
   ],
   "backlog": [
@@ -602,6 +608,7 @@
     "Measured tool-budget outcome (verified): tools ~6524 tokens. llama window 8192 -> messages 4096 before / 1024 after, total 7548 which now FITS (before: 10620, over). qwen-mistral 32768 -> 16384 before / 9860 after, total exactly 16384. gpt/claude/deepseek 128000 -> 64000 / 57476. So the floor does not merely avoid silent amnesia on llama: it makes the request fit. The commit message's claim that the shortfall 'surfaces through the server's context-length error' applies only to a hypothetical model whose window is below ~7.6k, not to llama.",
     "getTokenBudget's output reserve must track the max_tokens actually sent: reserving a blanket half-window while the request caps output at a few hundred tokens discards usable context and silently compacts the system prompt. Any future output-side knob must feed the same reserve.",
     "estimateTokens feeds every trim/compaction/budget decision, so a unit error there silently invalidates all of them: the flat chars/4 rule under-counted CJK ~4x while being correct for English. Keep the ASCII path bit-identical when changing it (ceil(ascii/4) preserves the old result) and guard non-Latin scripts explicitly rather than lowering the ratio globally.",
-    "A token->character conversion must be the exact inverse of the token estimator: when estimateTokens became script-aware, the flat `* 4` in hardCapSystemContent/compactSystemMessageToBudget silently disagreed and 'capped' CJK prompts came out 4x over. Any change to the estimator must audit every site that converts budgets back to lengths."
+    "A token->character conversion must be the exact inverse of the token estimator: when estimateTokens became script-aware, the flat `* 4` in hardCapSystemContent/compactSystemMessageToBudget silently disagreed and 'capped' CJK prompts came out 4x over. Any change to the estimator must audit every site that converts budgets back to lengths.",
+    "A running token estimate must be decremented by re-measuring the content, never by a chars/N assumption: after the estimator became script-aware, trimMessagesToBudget's chars/4 decrement left a phantom 3207 tokens of estimate and dropped history that fit. Test such bugs by choosing a budget between the true and the stale totals, or the test passes either way."
   ]
 }
