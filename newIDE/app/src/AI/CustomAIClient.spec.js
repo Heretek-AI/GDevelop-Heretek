@@ -2115,6 +2115,96 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('legacy persisted chats render after upgrading', () => {
+    const memoryStorage = {};
+    const fakeStorage = {
+      getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+      setItem: (key, value) => {
+        memoryStorage[key] = String(value);
+      },
+      removeItem: key => {
+        delete memoryStorage[key];
+      },
+    };
+    beforeEach(() => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+      global.localStorage = fakeStorage;
+      _resetCustomAiClientForTesting();
+    });
+    afterEach(() => {
+      delete global.localStorage;
+    });
+
+    it("rewrites a stored 'text' entry to output_text on load", () => {
+      // Chats persisted before the parser emitted output_text carry 'text',
+      // which no renderer handles — the answer would be invisible on reload.
+      fakeStorage.setItem(
+        'gd-custom-ai-requests',
+        JSON.stringify({
+          'local-ai-old': {
+            id: 'local-ai-old',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            userId: LOCAL_BYOK_USER_ID,
+            status: 'ready',
+            error: null,
+            output: [
+              {
+                type: 'message',
+                role: 'assistant',
+                status: 'completed',
+                messageId: 'm1',
+                content: [
+                  { type: 'text', status: 'completed', text: 'Old answer.' },
+                ],
+              },
+            ],
+          },
+        })
+      );
+
+      const loaded = loadLocalAiRequests();
+      const entry = loaded['local-ai-old'].output[0].content[0];
+      expect(entry.type).toBe('output_text');
+      expect(entry.text).toBe('Old answer.');
+      expect(entry.annotations).toEqual([]);
+    });
+
+    it('leaves an already-correct entry untouched by identity', () => {
+      const message = {
+        type: 'message',
+        role: 'assistant',
+        status: 'completed',
+        messageId: 'm2',
+        content: [
+          {
+            type: 'output_text',
+            status: 'completed',
+            text: 'Fine.',
+            annotations: [],
+          },
+        ],
+      };
+      fakeStorage.setItem(
+        'gd-custom-ai-requests',
+        JSON.stringify({
+          'local-ai-ok': {
+            id: 'local-ai-ok',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            userId: LOCAL_BYOK_USER_ID,
+            status: 'ready',
+            error: null,
+            output: [message],
+          },
+        })
+      );
+
+      const loaded = loadLocalAiRequests();
+      expect(loaded['local-ai-ok'].output[0]).toEqual(message);
+    });
+  });
+
   describe('persisted request pruning keeps the most recent chats', () => {
     const memoryStorage = {};
     const fakeStorage = {

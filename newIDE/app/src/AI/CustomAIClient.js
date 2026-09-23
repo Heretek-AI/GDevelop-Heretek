@@ -874,6 +874,54 @@ export const _resetCustomAiClientForTesting = () => {
  * (Object.assign of `null`/scalars creates keys that crash list sorting and
  * status mapping on the next customGetAiRequests call).
  */
+/**
+ * Normalize a persisted request's message content types on read.
+ *
+ * Chats saved before the local parser emitted `output_text` carry `type:
+ * 'text'` for their answer entries. Nothing renders that type (ChatMessages
+ * returns null and RenderItem's union does not admit it), so an existing chat
+ * would show no answers after upgrading. Rewriting on read heals the stored
+ * copy the next time it is saved, with no format version or migration pass.
+ */
+const normalizePersistedMessages = (request: AiRequest): AiRequest => {
+  const output = request.output;
+  if (!Array.isArray(output)) return request;
+  let changed = false;
+  const normalizedOutput = [];
+  for (const message of output) {
+    if (
+      !message ||
+      message.type !== 'message' ||
+      !Array.isArray(message.content)
+    ) {
+      normalizedOutput.push(message);
+      continue;
+    }
+    let messageChanged = false;
+    const content = [];
+    for (const entry of message.content) {
+      if (entry && entry.type === 'text') {
+        messageChanged = true;
+        content.push({
+          ...entry,
+          type: 'output_text',
+          annotations: Array.isArray(entry.annotations)
+            ? entry.annotations
+            : [],
+        });
+      } else {
+        content.push(entry);
+      }
+    }
+    if (!messageChanged) {
+      normalizedOutput.push(message);
+      continue;
+    }
+    changed = true;
+    normalizedOutput.push({ ...message, content });
+  }
+  return changed ? { ...request, output: normalizedOutput } : request;
+};
 export const loadLocalAiRequests = (): { [id: string]: AiRequest } => {
   try {
     if (typeof localStorage !== 'undefined') {
@@ -892,7 +940,9 @@ export const loadLocalAiRequests = (): { [id: string]: AiRequest } => {
               typeof value.id === 'string' &&
               typeof value.status === 'string'
             ) {
-              localAiRequestsCache[key] = (value: any);
+              localAiRequestsCache[key] = (normalizePersistedMessages(
+                (value: any)
+              ): any);
             }
           }
         }
