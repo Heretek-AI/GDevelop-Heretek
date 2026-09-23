@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 124,
+  "last_cycle": 125,
   "completed_targets": [
     {
       "cycle": 75,
@@ -711,6 +711,12 @@
       "target": "Give context overflow its own hint instead of misreporting it as VRAM",
       "metric_delta": "LOCAL_SERVER_ERROR_HINTS covered VRAM exhaustion and missing models but not context overflow — the sibling 400 a local server returns. Worse, a real ollama/llama.cpp overflow message ('...maximum context length is 4096 tokens, however you requested 5000 tokens (the input is too large)') matched the broad /too large/i in the VRAM pattern, so the user was told to shrink their quantization/GPU memory for what was actually a full window. Added a context-length pattern listed BEFORE the VRAM entry, with a hint naming the real remedies. getErrorHint's table order is now load-bearing. +2 tests, both mutation-checked: pre-fix the overflow message produced '(The model likely does not fit in the available GPU/VRAM...)', post-fix 'context window'. 180/180 file, eslint --max-warnings=0, prettier clean.",
       "commit": "fix(ai): hint at context overflow instead of blaming VRAM"
+    },
+    {
+      "cycle": 125,
+      "target": "Bound the request timeout so setTimeout cannot overflow to 1 ms",
+      "metric_delta": "timeoutMs was validated only as `> 0`, at both the persisted-config load and the request-time resolution, with no upper bound — and the preferences field fed `parseInt` straight in. setTimeout (and axios, which wraps it) stores its delay in a 32-bit signed integer: any value above 2^31-1 is clamped to 1 ms by the runtime (proven locally: a 3e9 ms delay fires after 2 ms). So an oversized timeout silently aborted every request almost instantly, with a misleading 'timed out after 3000000000 ms' message. Added MAX_TIMEOUT_MS = 2147483647 and clamped at all three entry points: sanitizeCustomAIConfig (load), sendChatCompletion's request-time resolution (the raw-config bypass path), and the preferences input. +2 tests, each mutation-checked: with its clamp removed the request-time test sees axios handed 3000000000, the load-time test sees the config keep 3000000000. 182/182 file, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
+      "commit": "fix(ai): bound the request timeout to what setTimeout can hold"
     }
   ],
   "backlog": [
@@ -851,6 +857,7 @@
     "Actions deprecation notices are visible via `gh api repos/OWNER/REPO/check-runs/<job-id>/annotations` (the job-logs endpoint can return empty for older runs). Use the annotation count before/after to prove an action bump removed the warning. `actions/*` are pinned by major tag in this repo; third-party actions stay SHA-pinned with a version comment per MAINTENANCE.md. `node-version: 20` in setup-node is the npm Node runtime and is unrelated to the action's own node24 runtime — keep it.",
     "The workflows are only one deprecation source: after bumping the actions/* majors, re-scan the per-job check-run annotations, because third-party actions (e.g. github/codeql-action/upload-sarif) carry their own runtime. The remaining v4 references in extract-translations/update-translations/update-extension-translations are intentional — those workflows are upstream-guarded and report `skipped` in this fork.",
     ".circleci/config.yml is upstream-identical (absent from fork-divergence.json) — do not edit it, per MAINTENANCE.md's 'leave it' rule; it already tracks cimg/node:24.x. Only .github/workflows/** is fork-owned and sync-protected.",
-    "In LOCAL_SERVER_ERROR_HINTS the order of entries is load-bearing: the VRAM pattern ends with a broad /too large/i, so any new pattern must be listed before it or genuine mismatches occur. Context overflow is a 400 whose remedy is 'start a new chat / larger window', not 'smaller quantization'."
+    "In LOCAL_SERVER_ERROR_HINTS the order of entries is load-bearing: the VRAM pattern ends with a broad /too large/i, so any new pattern must be listed before it or genuine mismatches occur. Context overflow is a 400 whose remedy is 'start a new chat / larger window', not 'smaller quantization'.",
+    "setTimeout (and axios's `timeout`) clamps any delay above 2^31-1 ms to 1 ms rather than to the maximum — so an unbounded user-supplied timeout does not merely fail to wait, it aborts instantly. Any config value that becomes a timer delay needs an upper bound, not just a `> 0` check. Clamp at BOTH sanitizeCustomAIConfig and the sendChatCompletion resolution, because `config || getCustomEndpointConfig()` lets a caller pass a raw unsanitized config."
   ]
 }

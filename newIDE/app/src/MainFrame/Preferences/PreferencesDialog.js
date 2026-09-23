@@ -43,7 +43,7 @@ import { useResponsiveWindowSize } from '../../UI/Responsive/ResponsiveWindowMea
 import { adaptAcceleratorString } from '../../UI/AcceleratorString';
 import RaisedButton from '../../UI/RaisedButton';
 import TextField from '../../UI/TextField';
-import { testConnection } from '../../AI/CustomAIClient';
+import { testConnection, MAX_TIMEOUT_MS } from '../../AI/CustomAIClient';
 import {
   getElectronAccelerator,
   getShortcutDisplayName,
@@ -1452,7 +1452,7 @@ const PreferencesDialog = ({
               if (Number.isNaN(parsed) || parsed <= 0) {
                 setAiCustomTimeoutMs(120000);
               } else {
-                setAiCustomTimeoutMs(parsed);
+                setAiCustomTimeoutMs(Math.min(parsed, MAX_TIMEOUT_MS));
               }
             }}
           />

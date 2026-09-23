@@ -10,6 +10,7 @@ import {
   transformGDevelopMessagesToOpenAi,
   parseAssistantMessage,
   DEFAULT_CUSTOM_AI_CONFIG,
+  MAX_TIMEOUT_MS,
   GDEVELOP_OPENAI_TOOLS,
   SIDE_EFFECT_FREE_TOOLS,
   LOCAL_BYOK_USER_ID,
@@ -887,6 +888,37 @@ describe('CustomAIClient', () => {
       const trimmed = trimMessagesToBudget(messages, 4096);
       expect(trimmed[0]).toBe(system);
       expect(trimmed).toBe(messages);
+    });
+  });
+
+  describe('request timeout bound', () => {
+    it('never passes an overflowing timeout to axios', async () => {
+      // sendChatCompletion takes a raw `config`, bypassing
+      // sanitizeCustomAIConfig — that is the path the request-time clamp
+      // exists for. Without it the oversized delay reaches setTimeout/axios,
+      // which clamp it to 1 ms and abort the request immediately.
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'llama3.2',
+          temperature: 0.7,
+          timeoutMs: 3000000000,
+        },
+      });
+
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      const axiosOptions = axios.post.mock.calls[0][2] || {};
+      expect(axiosOptions.timeout).toBe(MAX_TIMEOUT_MS);
+      // Guard the premise: the raw value really would overflow.
+      expect(3000000000).toBeGreaterThan(MAX_TIMEOUT_MS);
     });
   });
 
@@ -2493,6 +2525,29 @@ describe('CustomAIClient', () => {
       expect(config.temperature).toBe(1);
       expect(config.timeoutMs).toBeUndefined();
       expect(config.maxTokens).toBeUndefined();
+
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('clamps an oversized timeout on load so setTimeout cannot overflow', () => {
+      // setTimeout (and axios, which wraps it) stores its delay in a 32-bit
+      // signed integer; beyond that the runtime clamps it to 1 ms, which
+      // aborted every request almost immediately with a "timed out" message.
+      fakeStorage.setItem(
+        'gd-custom-ai-config',
+        JSON.stringify({
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'qwen2.5-coder',
+          timeoutMs: 3000000000,
+        })
+      );
+      _resetCustomAiClientForTesting();
+      const config = getCustomEndpointConfig();
+      expect(config.timeoutMs).toBe(MAX_TIMEOUT_MS);
+      // The bound must be below the overflow threshold for this to mean anything.
+      expect(MAX_TIMEOUT_MS).toBeLessThan(3000000000);
       expect(config.customHeaders).toBeUndefined();
       fakeStorage.removeItem('gd-custom-ai-config');
       _resetCustomAiClientForTesting();

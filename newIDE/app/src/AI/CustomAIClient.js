@@ -42,6 +42,17 @@ export type CustomAIConfig = {|
   streaming?: boolean,
 |};
 
+/**
+ * Upper bound for a user-configured request timeout.
+ *
+ * `setTimeout` — and axios, which wraps it — stores its delay in a 32-bit
+ * signed integer. A delay above 2^31-1 ms overflows and is clamped to 1 ms by
+ * the runtime, so an oversized timeout in the AI preferences aborted every
+ * request almost immediately, with a misleading "timed out after N ms"
+ * message. Clamping to the platform maximum keeps the configured delay honest.
+ */
+export const MAX_TIMEOUT_MS = 2147483647;
+
 export const DEFAULT_CUSTOM_AI_CONFIG: CustomAIConfig = {
   enabled: false,
   baseUrl: 'http://localhost:11434/v1',
@@ -120,7 +131,7 @@ const sanitizeCustomAIConfig = (input: mixed): CustomAIConfig => {
       typeof parsed.timeoutMs === 'number' &&
       Number.isFinite(parsed.timeoutMs) &&
       parsed.timeoutMs > 0
-        ? parsed.timeoutMs
+        ? Math.min(parsed.timeoutMs, MAX_TIMEOUT_MS)
         : undefined,
     streaming: parsed.streaming === true,
     maxTokens:
@@ -3146,7 +3157,7 @@ export const sendChatCompletion = async ({
 
   const timeoutMs =
     typeof currentConfig.timeoutMs === 'number' && currentConfig.timeoutMs > 0
-      ? currentConfig.timeoutMs
+      ? Math.min(currentConfig.timeoutMs, MAX_TIMEOUT_MS)
       : 120000;
 
   const payload: Object = {
