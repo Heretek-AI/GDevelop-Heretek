@@ -450,6 +450,64 @@ describe('CustomAIClient', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('Connection failed');
     });
+
+    it('sends the API key as a Bearer token and the safe custom headers', async () => {
+      // $FlowFixMe
+      axios.get.mockResolvedValueOnce({ status: 200, data: { data: [] } });
+
+      await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: 'secret-key',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+        customHeaders: { 'X-Ok': 'yes', 'X-Bad': 'a\nb', Host: 'evil' },
+      });
+
+      const headers = axios.get.mock.calls[0][1].headers;
+      expect(headers.Authorization).toBe('Bearer secret-key');
+      expect(headers['X-Ok']).toBe('yes');
+      // Header-injection and hop-by-hop names must not reach the probe either.
+      expect(headers['X-Bad']).toBeUndefined();
+      expect(headers.Host).toBeUndefined();
+    });
+
+    it('sends no Authorization header when the key is blank', async () => {
+      // $FlowFixMe
+      axios.get.mockResolvedValueOnce({ status: 200, data: { data: [] } });
+
+      await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '   ',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+
+      const headers = axios.get.mock.calls[0][1].headers;
+      expect(headers.Authorization).toBeUndefined();
+    });
+
+    it('falls back to a chat completion when /models is unavailable', async () => {
+      // $FlowFixMe
+      axios.get.mockRejectedValueOnce(new Error('404 not found'));
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'OK' } }] },
+      });
+
+      const result = await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('OK');
+    });
   });
 
   describe('tool-call argument validation', () => {
