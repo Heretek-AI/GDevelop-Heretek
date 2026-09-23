@@ -3240,11 +3240,21 @@ export const sendChatCompletion = async ({
   }
 };
 
-const SIDE_EFFECT_FREE_TOOLS = new Set([
+// Names must match GDEVELOP_OPENAI_TOOLS exactly: three entries here used to
+// be `describe_*`, which is not what the registry declares (`read_events_source`,
+// `inspect_scene_properties_layers_effects`, `inspect_variables`), so the
+// embedded-JSON fallback was silently disabled for those tools — a model that
+// emitted its call as a JSON block got no tool executed at all.
+// Every name below is an inspection/read tool; none mutates the project.
+export const SIDE_EFFECT_FREE_TOOLS = new Set([
   'describe_instances',
-  'describe_events',
-  'describe_scene_layers_effects_groups',
-  'describe_variables',
+  'read_events_source',
+  'inspect_scene_properties_layers_effects',
+  'inspect_variables',
+  'inspect_object_properties_effects',
+  'inspect_behavior_properties',
+  'inspect_extension',
+  'inspect_project_properties_resources',
   'read_game_project_json',
   'read_full_docs',
   'search_docs',

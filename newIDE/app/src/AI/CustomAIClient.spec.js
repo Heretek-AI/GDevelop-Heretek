@@ -11,6 +11,7 @@ import {
   parseAssistantMessage,
   DEFAULT_CUSTOM_AI_CONFIG,
   GDEVELOP_OPENAI_TOOLS,
+  SIDE_EFFECT_FREE_TOOLS,
   LOCAL_BYOK_USER_ID,
   _resetCustomAiClientForTesting,
   customCreateAiRequest,
@@ -4023,6 +4024,37 @@ describe('CustomAIClient', () => {
       });
       expect(message.content).toHaveLength(1);
       expect(message.content[0].type).toBe('reasoning');
+    });
+  });
+
+  describe('the embedded-JSON fallback tool list', () => {
+    it('names only tools the registry actually declares', () => {
+      // Regression: three entries were `describe_*` names that the registry
+      // does not declare (it calls them read_events_source,
+      // inspect_scene_properties_layers_effects, inspect_variables), so a
+      // model that emitted one of those calls as a JSON block got no tool
+      // executed at all. Every entry must match a declared name exactly.
+      const declared = new Set(
+        GDEVELOP_OPENAI_TOOLS.map(tool => tool.function.name)
+      );
+      const missing = [...SIDE_EFFECT_FREE_TOOLS].filter(
+        name => !declared.has(name)
+      );
+      expect(missing).toEqual([]);
+    });
+
+    it('lists no tool that mutates the project', () => {
+      // The fallback is for calls the model wrote as text, so it must never
+      // reach a mutating tool.
+      for (const name of SIDE_EFFECT_FREE_TOOLS) {
+        expect(
+          name.startsWith('inspect_') ||
+            name.startsWith('read_') ||
+            name.startsWith('search_') ||
+            name === 'describe_instances' ||
+            name === 'get_game_starter_summary'
+        ).toBe(true);
+      }
     });
   });
 
