@@ -190,6 +190,7 @@ export const AskAiStandAloneForm = ({
     editorFunctionCallResultsStorage,
     getAiSettings,
     setSelectedAiRequestId,
+    suspendAiRequest,
   } = React.useContext(AiRequestContext);
   const {
     getEditorFunctionCallResults,
@@ -802,7 +803,9 @@ export const AskAiStandAloneForm = ({
         onSendFeedback={async () => {}}
         hasOpenedProject={!!project}
         onStop={async () => {
-          // Cannot stop a request on the standalone form.
+          // Provider handles optimistic status, local abort, and hosted suspend.
+          if (!aiRequestIdForForm) return;
+          await suspendAiRequest(aiRequestIdForForm);
         }}
         i18n={i18n}
         editorCallbacks={editorCallbacks}
