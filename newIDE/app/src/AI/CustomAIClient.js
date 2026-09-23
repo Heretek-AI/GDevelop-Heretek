@@ -2697,7 +2697,9 @@ const streamChatCompletion = async ({
       );
     }
 
-    const message = { role: 'assistant', content };
+    // Typed as Object (like `payload` below): the optional fields are only
+    // attached when present, so an object literal's inferred shape is wrong.
+    const message: Object = { role: 'assistant', content };
     if (reasoning) message.reasoning_content = reasoning;
     if (toolCallsArray.length > 0) message.tool_calls = toolCallsArray;
     return message;
