@@ -555,6 +555,7 @@ export const AskAiStandAloneForm = ({
       // decide to create a project, in this case, abort and clear the form.
       if (functionCallOutputs.length === 0) return false;
 
+      let aiRequest: AiRequest | void;
       try {
         setSendingAiRequest(aiRequestId, true);
 
@@ -584,7 +585,7 @@ export const AskAiStandAloneForm = ({
           eventsJson: null,
         });
 
-        const aiRequest: AiRequest = await retryIfFailed({ times: 2 }, () =>
+        aiRequest = await retryIfFailed({ times: 2 }, () =>
           addMessageToAiRequest(getAuthorizationHeader, {
             userId: activeUserId,
             aiRequestId,
@@ -611,13 +612,23 @@ export const AskAiStandAloneForm = ({
         );
         updateAiRequest(aiRequest.id, () => aiRequest);
         setSendingAiRequest(aiRequest.id, false);
-        clearEditorFunctionCallResults(aiRequest.id);
+        // Local mid-turn failures return status:'error': keep function-call
+        // results so Retry → continue can re-send them without losing work.
+        if (isFailedAiRequestStart(aiRequest)) {
+          console.warn(
+            'AI message send returned error state:',
+            aiRequest.error && aiRequest.error.message
+          );
+        } else {
+          clearEditorFunctionCallResults(aiRequest.id);
+        }
       } catch (error) {
         // TODO: update the label of the button to send again.
         setLastSendError(aiRequestId, error);
       }
 
-      if (aiRequestId === aiRequestIdForForm) {
+      const sendFailed = !!aiRequest && isFailedAiRequestStart(aiRequest);
+      if (aiRequestId === aiRequestIdForForm && !sendFailed) {
         // Clear the selected AI request, to be able to start a new one if needed.
         const aiRequestChatRefCurrent = aiRequestChatRef.current;
         if (aiRequestChatRefCurrent) {

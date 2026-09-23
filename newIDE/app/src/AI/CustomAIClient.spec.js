@@ -44,6 +44,7 @@ import {
   saveLocalAiRequests,
   _resetCustomAiClientForTesting as _resetForStreamTests,
 } from './CustomAIClient';
+import { isFailedAiRequestStart } from '../AiGeneration/AiRequestUtils';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
 
@@ -2308,6 +2309,45 @@ describe('CustomAIClient', () => {
       expect(last.role).toBe('assistant');
       // $FlowFixMe
       expect(JSON.stringify(last.content)).toContain('recovered');
+    });
+
+    it('persists function-call outputs on a failed mid-turn so continue can re-send them', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'FC mid-turn failure',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      axios.post.mockClear();
+      axios.post.mockRejectedValueOnce(new Error('ollama dropped connection'));
+      const failed = await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        functionCallOutputs: [
+          { type: 'function_call_output', call_id: 'call-1', output: '{}' },
+        ],
+      });
+
+      expect(failed.status).toBe('error');
+      // Containers must see the FC outputs still on the request so they do not
+      // clearEditorFunctionCallResults on a failed send (Retry → continue path).
+      const fco = (failed.output || []).filter(
+        message => message.type === 'function_call_output'
+      );
+      expect(fco.length).toBeGreaterThanOrEqual(1);
+      // $FlowFixMe
+      expect(fco[fco.length - 1].call_id).toBe('call-1');
+      expect(isFailedAiRequestStart(failed)).toBe(true);
+      expect(customGetAiRequest(aiRequest.id).status).toBe('error');
     });
 
     it('returns a fallback when retrying an unknown local request', async () => {

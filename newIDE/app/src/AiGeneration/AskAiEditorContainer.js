@@ -894,6 +894,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             }
           }
 
+          let aiRequest: AiRequest | void;
           try {
             setSendingAiRequest(aiRequestId, true);
             // Sending takes over the UI: drop any in-flight best-effort
@@ -939,7 +940,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
               triggerUnsavedChanges();
             }
 
-            const aiRequest: AiRequest = await retryIfFailed({ times: 2 }, () =>
+            aiRequest = await retryIfFailed({ times: 2 }, () =>
               addMessageToAiRequest(getAuthorizationHeader, {
                 userId: activeUserId,
                 aiRequestId,
@@ -970,21 +971,32 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             updateAiRequest(aiRequest.id, () => aiRequest);
             setSendingAiRequest(aiRequest.id, false);
             setIsSendingUserMessage(false);
-            clearEditorFunctionCallResults(aiRequest.id);
 
-            if (userMessage) {
-              sendAiRequestMessageSent({
-                simplifiedProjectJsonLength: simplifiedProjectJson
-                  ? simplifiedProjectJson.length
-                  : 0,
-                projectSpecificExtensionsSummaryJsonLength: projectSpecificExtensionsSummaryJson
-                  ? projectSpecificExtensionsSummaryJson.length
-                  : 0,
-                payWithCredits,
-                mode: 'orchestrator',
-                aiRequestId: aiRequest.id,
-                outputLength: aiRequest.output ? aiRequest.output.length : 0,
-              });
+            // Local mid-turn failures return status:'error' rather than
+            // throwing: keep the function-call results so Retry can continue,
+            // and do not report a successful message send / clear the draft.
+            if (isFailedAiRequestStart(aiRequest)) {
+              console.warn(
+                'AI message send returned error state:',
+                aiRequest.error && aiRequest.error.message
+              );
+            } else {
+              clearEditorFunctionCallResults(aiRequest.id);
+
+              if (userMessage) {
+                sendAiRequestMessageSent({
+                  simplifiedProjectJsonLength: simplifiedProjectJson
+                    ? simplifiedProjectJson.length
+                    : 0,
+                  projectSpecificExtensionsSummaryJsonLength: projectSpecificExtensionsSummaryJson
+                    ? projectSpecificExtensionsSummaryJson.length
+                    : 0,
+                  payWithCredits,
+                  mode: 'orchestrator',
+                  aiRequestId: aiRequest.id,
+                  outputLength: aiRequest.output ? aiRequest.output.length : 0,
+                });
+              }
             }
           } catch (error) {
             console.error('Error while sending AI request message:', error);
@@ -993,7 +1005,12 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             setIsSendingUserMessage(false);
           }
 
-          if (userMessage && aiRequestId === selectedAiRequestId) {
+          const sendFailed = !!aiRequest && isFailedAiRequestStart(aiRequest);
+          if (
+            userMessage &&
+            aiRequestId === selectedAiRequestId &&
+            !sendFailed
+          ) {
             const aiRequestChatRefCurrent = aiRequestChatRef.current;
             if (aiRequestChatRefCurrent) {
               aiRequestChatRefCurrent.resetUserInput('');
