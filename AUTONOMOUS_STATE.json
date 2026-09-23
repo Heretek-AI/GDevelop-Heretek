@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 128,
+  "last_cycle": 129,
   "completed_targets": [
     {
       "cycle": 75,
@@ -735,6 +735,12 @@
       "target": "Close out the config-boundary audit (getEndpointUrl, maxTokens)",
       "metric_delta": "No code change — verification cycle. Probed the two remaining boundaries in the same family and both are correctly safe: (1) getEndpointUrl throws on an undefined endpointPath, but both call sites (sendChatCompletion '/chat/completions', testConnection '/models') pass literal strings — the parameter is never caller- or storage-supplied, so it is not reachable; adding a guard would be dead code. (2) maxTokens has no production setter (localStorage-only) and its truthy wire guard already suppresses 0/undefined, so only a hand-edited negative could slip through. This completes the family begun in cycle 125: timeoutMs (fixed at three sites), temperature (fixed on the wire), baseUrl (fixed at the shared entry point), maxTokens and endpointPath (verified non-reachable).",
       "commit": "(no code change — verification cycle)"
+    },
+    {
+      "cycle": 129,
+      "target": "Stop sliceToTokenBudget splitting surrogate pairs",
+      "metric_delta": "sliceToTokenBudget walked UTF-16 code units and cut at a code-unit offset, so a cut between the two halves of an astral character left a lone high surrogate. Measured: on a body of repeated 'A<emoji>' (high surrogate at every odd offset) 82 of 185 budgets ended mid-pair, and the result encodes to U+FFFD — so a truncated system prompt reached the local model with a replacement character where a real scene/object name was. This is the inverse of estimateTokens (the comment requires they stay inverses) and it feeds hardCapSystemContent, compactSystemMessageToBudget and the history trim, so the corruption affected the prompt, system compaction and dropped history. Fixed by stepping the cut back one unit when it would land after a high surrogate; the full-string path still returns the original reference. +2 tests via the public compactSystemMessageToBudget, mutation-checked (without the guard hasLoneSurrogate is true). 188/188 file, eslint --max-warnings=0, prettier clean.",
+      "commit": "fix(ai): never split a surrogate pair when slicing to a token budget"
     }
   ],
   "backlog": [
@@ -879,6 +885,7 @@
     "setTimeout (and axios's `timeout`) clamps any delay above 2^31-1 ms to 1 ms rather than to the maximum — so an unbounded user-supplied timeout does not merely fail to wait, it aborts instantly. Any config value that becomes a timer delay needs an upper bound, not just a `> 0` check. Clamp at BOTH sanitizeCustomAIConfig and the sendChatCompletion resolution, because `config || getCustomEndpointConfig()` lets a caller pass a raw unsanitized config.",
     "The wire payload is the last line of defence and needs its own bounds: sendChatCompletion's `config || getCustomEndpointConfig()` and testConnection's spread-merge both let unsanitized values through, so validate numeric fields (temperature, timeoutMs) at payload construction rather than trusting only sanitizeCustomAIConfig. Also: JSON.stringify(NaN) is `null`, so a non-finite number is not ignored by the server — it becomes an explicit null argument.",
     "normalizeBaseUrl is the single entry point for every request path (sendChatCompletion, getEndpointUrl, testConnection), so it must tolerate every value a corrupted localStorage can hold. PreferencesProvider.loadPreferencesFromLocalStorage only backfills missing keys — it does NOT validate the type of a present one — so any preference value is effectively untyped at runtime despite the Flow annotation.",
-    "When auditing an input boundary, check reachability before guarding: getEndpointUrl's endpointPath and maxTokens' negative path both throw/send badly in principle, but no caller or UI can produce those values, so a guard would be dead code. The reachable ones were the storage-hydrated preference values (baseUrl, temperature, timeoutMs) because PreferencesProvider never type-checks a present key."
+    "When auditing an input boundary, check reachability before guarding: getEndpointUrl's endpointPath and maxTokens' negative path both throw/send badly in principle, but no caller or UI can produce those values, so a guard would be dead code. The reachable ones were the storage-hydrated preference values (baseUrl, temperature, timeoutMs) because PreferencesProvider never type-checks a present key.",
+    "sliceToTokenBudget and estimateTokens are an inverse pair and must stay one; sliceToTokenBudget also indexes UTF-16 code units, so any cut must not fall between a high and low surrogate (test with a body of repeated 'A<emoji>' — the emoji at an odd offset catches it, whereas emoji placed at the START of a body never hit it because truncation drops the suffix). Slicing a string is not safe on a non-BMP boundary in general."
   ]
 }

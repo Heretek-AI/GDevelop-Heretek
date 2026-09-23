@@ -727,6 +727,58 @@ describe('CustomAIClient', () => {
       expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(500);
     });
 
+    it('does not split a surrogate pair when capping the system prompt', () => {
+      // Astral characters (emoji, rare CJK) are two UTF-16 code units; cutting
+      // between them leaves a lone surrogate, which encodes to U+FFFD — the
+      // truncated prompt reached the model with a replacement character where a
+      // real scene/object name was.
+      const hasLoneSurrogate = (value: string): boolean => {
+        for (let i = 0; i < value.length; i++) {
+          const code = value.charCodeAt(i);
+          if (code >= 0xd800 && code <= 0xdbff) {
+            const next = value.charCodeAt(i + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+            i++;
+          } else if (code >= 0xdc00 && code <= 0xdfff) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // maxSystemTokens is floored at 128 and 256 tokens are reserved for the
+      // newest exchange, so the body must genuinely exceed the cap. Repeating
+      // 'A<emoji>' puts a high surrogate at every odd code-unit offset, so
+      // roughly half of all cut points fall between the halves of a pair —
+      // the sweep below lands on many of them without the fix.
+      const body = 'A\u{1F3AE}'.repeat(2000);
+      const messages = [
+        { role: 'system', content: body },
+        { role: 'user', content: 'hi' },
+      ];
+
+      let sawTruncation = false;
+      for (let budget = 300; budget <= 700; budget += 7) {
+        const [system] = compactSystemMessageToBudget(messages, budget);
+        const content = system.content;
+        if (typeof content !== 'string') continue;
+        if (content !== body) sawTruncation = true;
+        expect(hasLoneSurrogate(content)).toBe(false);
+      }
+      // Guard the premise: the sweep really did truncate.
+      expect(sawTruncation).toBe(true);
+    });
+
+    it('still returns the original system prompt when it already fits', () => {
+      const body = 'AAAA \u{1F3AE} BBBB';
+      const messages = [
+        { role: 'system', content: body },
+        { role: 'user', content: 'hi' },
+      ];
+      const [system] = compactSystemMessageToBudget(messages, 4096);
+      expect(system.content).toBe(body);
+    });
+
     it('compacts large tool outputs in place before dropping anything', () => {
       const system = { role: 'system', content: 'sys' };
       const assistantWithCalls = {

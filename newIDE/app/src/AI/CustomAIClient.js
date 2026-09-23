@@ -622,12 +622,30 @@ export const estimateTokens = (text: ?string): number => {
 const sliceToTokenBudget = (text: string, maxTokens: number): string => {
   const maxQuarters = Math.max(0, maxTokens) * 4;
   let quarters = 0;
+  let end = text.length;
   for (let i = 0; i < text.length; i++) {
     const cost = text.charCodeAt(i) > 0x7f ? 4 : 1;
-    if (quarters + cost > maxQuarters) return text.slice(0, i);
+    if (quarters + cost > maxQuarters) {
+      end = i;
+      break;
+    }
     quarters += cost;
   }
-  return text;
+  // Never cut between the halves of a surrogate pair. An astral character
+  // (emoji, rare CJK ideograph — both common in GDevelop scene/object names,
+  // and the JSON project structure embeds them) is two UTF-16 code units;
+  // slicing between them leaves a lone high surrogate that encodes to U+FFFD,
+  // so the truncated prompt reached the model with a replacement character in
+  // place of the real name.
+  if (
+    end > 0 &&
+    end < text.length &&
+    text.charCodeAt(end - 1) >= 0xd800 &&
+    text.charCodeAt(end - 1) <= 0xdbff
+  ) {
+    end -= 1;
+  }
+  return end === text.length ? text : text.slice(0, end);
 };
 
 const DEFAULT_CONTEXT_WINDOW = 128000;
