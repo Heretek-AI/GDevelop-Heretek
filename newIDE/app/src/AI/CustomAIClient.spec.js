@@ -2109,6 +2109,26 @@ describe('CustomAIClient', () => {
       expect(
         customGetAiRequests().aiRequests.some(r => r.id === failed.id)
       ).toBe(true);
+      // A failed first turn never reaches the model response, so it must not
+      // invent response tokens.
+      expect(customGetAiRequestTokenTotal(failed.id)).toBe(0);
+    });
+
+    it('records first-turn token usage on a successful create', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            { message: { role: 'assistant', content: 'First reply tokens' } },
+          ],
+        },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'Count my first turn tokens',
+      });
+      expect(created.status).toBe('ready');
+      expect(customGetAiRequestTokenTotal(created.id)).toBeGreaterThan(0);
     });
 
     it('continues the first turn after a failed create', async () => {

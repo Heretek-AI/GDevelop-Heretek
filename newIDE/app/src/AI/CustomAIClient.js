@@ -3052,6 +3052,14 @@ export const customCreateAiRequest = async ({
   );
   output.push(assistantMessage);
 
+  // Same accounting as addMessage / sub-agent turns: the chat's local cost
+  // meter must include the first turn, not only later continues.
+  addTokenUsage(
+    reqId,
+    estimateMessagesTokens(openAiMessages),
+    estimateTokens(assistantResponse.content)
+  );
+
   const now = new Date().toISOString();
   const aiRequest: AiRequest = {
     id: reqId,
