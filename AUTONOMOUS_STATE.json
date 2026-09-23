@@ -583,7 +583,8 @@
       "cycle": 98,
       "target": "Never preselect an unavailable AI configuration preset",
       "metric_delta": "431->435 tests; getDefaultAiConfigurationPresetId picked the preset with isDefault regardless of `disabled`, and its only caller (AiRequestChat/index.js:561) uses the id directly with no further check. The backend can mark the default preset disabled for a user's tier, so the chat would preselect a configuration the user cannot run. It now prefers the enabled default, then any enabled preset, and keeps the old behaviour only when every preset is disabled (so the selector still has a value). Test proven red pre-fix (Expected 'chat-basic', Received 'chat-premium'). 2 files, +102/-2",
-      "commit": "fix(ai): never preselect an unavailable AI configuration preset"
+      "commit": "fix(ai): never preselect an unavailable AI configuration preset",
+      "verification": "Impact is narrower than a hard bug: AiConfigurationPresetSelector.js (byte-identical to upstream, not in the divergence manifest) already self-corrects a disabled selection in a React effect, so the old code produced one render with an unusable preset before the effect fired. The fix makes the computed default agree with that effect's own fallback (first enabled preset), removing the inconsistency and the pre-effect frame. Upstream's getDefaultAiConfigurationPresetId is identical to the pre-fix version, so this is not fork-introduced regression — it is an upstream gap the fork now closes. File already in the `modified` bucket; no new divergence."
     }
   ],
   "backlog": [
