@@ -257,16 +257,14 @@ export const AskAiStandAloneForm = ({
   );
   const [isSendingUserMessage, setIsSendingUserMessage] = React.useState(false);
 
-  const hideAskAi =
-    !!limits &&
-    !!limits.capabilities.classrooms &&
-    limits.capabilities.classrooms.hideAskAi;
+  // `capabilities` is validated to exist by getUserLimits but nothing deeper,
+  // so `classrooms` may be absent.
+  const hideAskAi = !!limits?.capabilities?.classrooms?.hideAskAi;
 
   const availableCredits = getAvailableCredits(limits);
   const quota =
     (limits && limits.quotas && limits.quotas['consumed-ai-credits']) || null;
-  const aiRequestPrice =
-    (limits && limits.credits && limits.credits.prices['ai-request']) || null;
+  const aiRequestPrice = limits?.credits?.prices?.['ai-request'] || null;
   const aiRequestPriceInCredits = aiRequestPrice
     ? aiRequestPrice.priceInCredits
     : null;

@@ -612,9 +612,9 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
       const quota =
         (limits && limits.quotas && limits.quotas['consumed-ai-credits']) ||
         null;
-      const aiRequestPrice =
-        (limits && limits.credits && limits.credits.prices['ai-request']) ||
-        null;
+      // Deep-walked behind a partial-response guard: getUserLimits validates
+      // only the top-level `capabilities` key, so `credits.prices` is unverified.
+      const aiRequestPrice = limits?.credits?.prices?.['ai-request'] || null;
       const aiRequestPriceInCredits = aiRequestPrice
         ? aiRequestPrice.priceInCredits
         : null;
