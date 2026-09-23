@@ -32,6 +32,10 @@ export type CustomAIConfig = {|
   temperature: number,
   maxTokens?: number,
   customHeaders?: { [string]: string },
+  /** Per-request timeout in milliseconds. Defaults to 120000 (slow local
+   * models on large contexts need more than axios' generic timeout message
+   * suggests). */
+  timeoutMs?: number,
 |};
 
 export const DEFAULT_CUSTOM_AI_CONFIG: CustomAIConfig = {
@@ -1958,6 +1962,11 @@ export const sendChatCompletion = async ({
     headers['Authorization'] = `Bearer ${currentConfig.apiKey.trim()}`;
   }
 
+  const timeoutMs =
+    typeof currentConfig.timeoutMs === 'number' && currentConfig.timeoutMs > 0
+      ? currentConfig.timeoutMs
+      : 120000;
+
   const payload: Object = {
     model: currentConfig.model || 'qwen2.5-coder',
     messages,
@@ -1980,7 +1989,7 @@ export const sendChatCompletion = async ({
     const response = await axios.post(endpointUrl, payload, {
       headers,
       signal: signal || undefined,
-      timeout: 120000,
+      timeout: timeoutMs,
     });
 
     if (

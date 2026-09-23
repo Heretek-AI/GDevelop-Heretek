@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 2,
+  "last_cycle": 3,
   "completed_targets": [
     {
       "cycle": 1,
@@ -13,11 +13,17 @@
       "target": "Cancel in-flight BYOK model calls on suspend (parent + sub-agents)",
       "metric_delta": "Before: customSuspendAiRequest only flipped cache status; the in-flight axios call kept consuming BYOK credits until completion. After: each turn registers an AbortController (keyed by request id, sub-agents remember parentAiRequestId); suspend aborts the parent turn and every child turn; the main chat loop swallows user-initiated aborts and returns the suspended cache copy (no error toast, partial answer not written back). Diff +87/-16 client, +85 tests (2 new: suspend aborts in-flight turn, parent suspend aborts sub-agent).",
       "commit": "feat(ai): cancel in-flight model turns on suspend"
+    },
+    {
+      "cycle": 3,
+      "target": "Configurable per-request timeout (timeoutMs on CustomAIConfig)",
+      "metric_delta": "Before: hardcoded 120000ms timeout in sendChatCompletion hard-killed slow local models mid-agent-loop with a generic axios message. After: CustomAIConfig.timeoutMs (optional, positive-number validated, default 120000) flows to axios' timeout option; persists via existing setCustomEndpointConfig/localStorage path with zero UI change. Diff +14/-1 client, +20 tests (config honored, invalid value falls back to default).",
+      "commit": "feat(ai): configurable per-request timeout for BYOK endpoints"
     }
   ],
   "backlog": [
-    "Add configurable timeoutMs to CustomAIConfig (hardcoded 120000ms kills slow local models mid-agent-loop)",
     "Surface a hint when a 401 comes back and no API key is configured (hosted providers)",
+    "Add timeoutMs field to the custom-AI preferences dialog UI (config currently localStorage-only)",
     "Add BYOK structured JSON schema validation for Event Sheet generation",
     "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
     "Add local model token-budget calculator for GDevelop scene context",

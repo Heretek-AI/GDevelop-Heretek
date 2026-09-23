@@ -368,6 +368,30 @@ describe('CustomAIClient', () => {
       expect(postOptions.cancelToken).toBeUndefined();
     });
 
+    it('uses a configurable timeout when provided, else the 120s default', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: { ...minimalConfig, timeoutMs: 300000 },
+      });
+      expect(axios.post.mock.calls[0][2].timeout).toBe(300000);
+
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: { ...minimalConfig, timeoutMs: -5 },
+      });
+      expect(axios.post.mock.calls[1][2].timeout).toBe(120000);
+    });
+
     it('rejects with an abort message when the signal is already aborted', async () => {
       const controller = new AbortController();
       controller.abort();
