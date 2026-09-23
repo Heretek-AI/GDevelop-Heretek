@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 79,
+  "last_cycle": 80,
   "completed_targets": [
     {
       "cycle": 75,
@@ -470,6 +470,12 @@
       "target": "Pin the credential and fallback behavior of the BYOK connection test",
       "metric_delta": "386->389 tests; testConnection (the Connect button in AI preferences, and the first thing a BYOK user exercises) never asserted the headers it sends, and 'Authorization' appeared zero times in the whole 3400-line spec — the Bearer-token construction, blank-key suppression, and the rejection of CR/LF and Host headers on the probe were all unverified, as was the /models-failure -> chat-completion fallback. 3 tests added; the Bearer test is mutation-verified (fails when the construction is removed). Spec only, +58",
       "commit": "test(ai): cover the BYOK connection test's credentials and fallback"
+    },
+    {
+      "cycle": 80,
+      "target": "Carry streamed reasoning_content so streaming matches non-streaming",
+      "metric_delta": "389->391 tests; the SSE accumulator only read delta.content, so a reasoning model (DeepSeek-R1, qwq, Ollama reasoning builds — all named BYOK/local targets) lost its whole chain of thought whenever streaming was on, while the identical non-streamed request kept it via parseAssistantMessage's reasoning_content read. The assembled stream message now carries reasoning_content and is attached only when non-empty. Reproduction test proven red pre-fix (Expected 'Let me think. Use a sprite.', Received undefined); a second test pins that no field is attached when the model streams none. 2 files, +96/-0",
+      "commit": "fix(ai): carry streamed reasoning_content like the non-streamed path"
     }
   ],
   "backlog": [
@@ -565,6 +571,7 @@
     "ChatMessages.js component-level rendering is impractical in Jest (CSS-module imports aren't transformed); keep timer/decision logic in AiRequestChat/Utils.js (type-only imports are elided) and test it there.",
     "A hook that takes a callback prop as an effect dependency is reset by any parent re-render that passes it inline — ChatMessages re-renders every 8s (thinking-phrase rotation), so useLocalColdStartHint never reached its 15s threshold in the real chat even though the isolated hook tests passed. Read callbacks through a latest-ref (`ref.current = fn` during render, ref not the fn in deps) and add a reproduction test that re-renders with a fresh inline callback.",
     "customGetAiRequestPartialContent is only populated by the paths that pass onStreamDelta to sendChatCompletion — addMessage long had it, create/sub-agent did not. Any UI signal derived from that registry (the cold-start hint) is wrong for whichever turn types omit it, so keep all three turn paths publishing and clearing together.",
-    "The connection-test export is `testConnection`, not `customTestConnection` — grepping the wrong name produced a false 'zero tests' reading on a well-covered function. Verify an export's real name before claiming a coverage gap."
+    "The connection-test export is `testConnection`, not `customTestConnection` — grepping the wrong name produced a false 'zero tests' reading on a well-covered function. Verify an export's real name before claiming a coverage gap.",
+    "Streaming and non-streaming paths must produce the same message shape: the SSE accumulator read only delta.content while parseAssistantMessage also reads reasoning_content, so reasoning models silently lost their thinking under streaming. When adding a field to one path, check the other."
   ]
 }

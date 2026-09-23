@@ -1692,6 +1692,93 @@ describe('CustomAIClient', () => {
       expect(message.content).toBe('abcd');
       expect(axios.post).not.toHaveBeenCalled();
     });
+
+    it('carries streamed reasoning_content into the assembled message', async () => {
+      // Reasoning models (DeepSeek-R1, qwq, Ollama reasoning builds) stream
+      // their chain of thought on `reasoning_content`. The non-streaming path
+      // reads that field in parseAssistantMessage; the stream must produce the
+      // same shape or streaming silently drops the thinking.
+      const encoder = new TextEncoder();
+      const sse = [
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: { reasoning_content: 'Let me think. ' } }],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: { reasoning_content: 'Use a sprite.' } }],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({
+            choices: [{ delta: { content: 'Here is the answer.' } }],
+          }) +
+          '\n',
+        'data: ' +
+          JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) +
+          '\n',
+        'data: [DONE]\n',
+      ].join('');
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(sse) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('Here is the answer.');
+      expect(message.reasoning_content).toBe('Let me think. Use a sprite.');
+    });
+
+    it('omits reasoning_content when the model streams none', async () => {
+      const encoder = new TextEncoder();
+      const sse =
+        'data: ' +
+        JSON.stringify({
+          choices: [{ delta: { content: 'plain' }, finish_reason: 'stop' }],
+        }) +
+        '\n';
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(sse) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('plain');
+      expect(message.reasoning_content).toBeUndefined();
+    });
   });
 
   describe('per-request model override', () => {

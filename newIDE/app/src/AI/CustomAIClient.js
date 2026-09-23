@@ -2583,6 +2583,7 @@ const streamChatCompletion = async ({
     const decoder = new TextDecoder();
     let buffer = '';
     let content = '';
+    let reasoning = '';
     const toolCalls: { [index: number]: Object } = {};
     let finishReason = null;
 
@@ -2623,6 +2624,13 @@ const streamChatCompletion = async ({
       if (!choice) return;
       const delta = choice.delta || {};
       if (typeof delta.content === 'string') content += delta.content;
+      // Reasoning models (DeepSeek-R1, qwq, Ollama reasoning builds) stream
+      // their chain of thought on `reasoning_content`, the same field the
+      // non-streaming path reads in parseAssistantMessage. Dropping it here
+      // meant the streamed answer lost the thinking the non-streamed one kept.
+      if (typeof delta.reasoning_content === 'string') {
+        reasoning += delta.reasoning_content;
+      }
       if (Array.isArray(delta.tool_calls)) {
         for (const toolCall of delta.tool_calls) {
           const index = resolveStreamToolCallIndex(toolCall);
@@ -2690,6 +2698,7 @@ const streamChatCompletion = async ({
     }
 
     const message = { role: 'assistant', content };
+    if (reasoning) message.reasoning_content = reasoning;
     if (toolCallsArray.length > 0) message.tool_calls = toolCallsArray;
     return message;
   } catch (error) {
