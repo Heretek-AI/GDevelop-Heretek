@@ -2512,7 +2512,6 @@ const streamChatCompletion = async ({
   signal,
   timeoutMs,
   onStreamDelta,
-  apiKeyConfigured,
 }: {|
   endpointUrl: string,
   headers: { [string]: string },
@@ -2520,7 +2519,6 @@ const streamChatCompletion = async ({
   signal?: ?AbortSignal,
   timeoutMs: number,
   onStreamDelta?: (partialContent: string) => void,
-  apiKeyConfigured: boolean,
 |}): Promise<Object> => {
   const combinedController = new AbortController();
   const abortFromCaller = () => combinedController.abort();
@@ -2528,7 +2526,26 @@ const streamChatCompletion = async ({
     if (signal.aborted) combinedController.abort();
     else signal.addEventListener('abort', abortFromCaller);
   }
-  const timeoutId = setTimeout(() => combinedController.abort(), timeoutMs);
+  // The deadline bounds the connect phase (the request must start streaming
+  // within timeoutMs) and, once the body is being read, becomes a per-chunk
+  // idle watchdog: a slow local model must never be killed mid-generation
+  // while it is still producing output, but a server that goes silent (model
+  // load stall, VRAM swap, silently dropped TCP connection) must not hang the
+  // chat forever.
+  let watchdogFired = false;
+  let idleWatchdogArmed = false;
+  let timeoutId = setTimeout(() => {
+    watchdogFired = true;
+    combinedController.abort();
+  }, timeoutMs);
+  const armIdleTimeout = () => {
+    idleWatchdogArmed = true;
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      watchdogFired = true;
+      combinedController.abort();
+    }, timeoutMs);
+  };
 
   try {
     const response = await fetch(endpointUrl, {
@@ -2537,7 +2554,6 @@ const streamChatCompletion = async ({
       body: JSON.stringify({ ...payload, stream: true }),
       signal: combinedController.signal,
     });
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       let errorMessage = `HTTP error ${response.status}`;
@@ -2640,9 +2656,13 @@ const streamChatCompletion = async ({
       if (onStreamDelta) onStreamDelta(content);
     };
 
+    // The response is live: from here the deadline is measured from the last
+    // received chunk, not from the request start.
+    armIdleTimeout();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      armIdleTimeout();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || ''; // keep the trailing partial line.
@@ -2676,11 +2696,18 @@ const streamChatCompletion = async ({
     if (signal && signal.aborted) {
       throw new Error('AI request was aborted.');
     }
-    if (error && error.name === 'AbortError') {
+    if (watchdogFired || (error && error.name === 'AbortError')) {
       // Flag stream timeouts so sendChatCompletion does not immediately start
       // a second non-streaming request that would wait another full timeoutMs.
-      const timeoutError: Error & { isStreamTimeout?: boolean } = new Error(
-        `The request timed out or was aborted after ${timeoutMs} ms (streaming). Increase the timeout in the AI preferences for slow local models.`
+      // $FlowFixMe[prop-missing] optional flag read by sendChatCompletion.
+      const timeoutError: any = new Error(
+        idleWatchdogArmed
+          ? // The connection was open but the server stopped sending (model
+            // load stall, VRAM swap, silently dropped TCP connection): report
+            // the stall, which is the actionable local-server symptom, rather
+            // than blaming the endpoint URL.
+            `The model stream stalled: no data received for ${timeoutMs} ms (streaming). The local model may still be loading, or the server stopped responding — increase the timeout in the AI preferences, or retry with a smaller model.`
+          : `The request timed out or was aborted after ${timeoutMs} ms (streaming). Increase the timeout in the AI preferences for slow local models.`
       );
       timeoutError.isStreamTimeout = true;
       throw timeoutError;
@@ -2774,9 +2801,6 @@ export const sendChatCompletion = async ({
         signal,
         timeoutMs,
         onStreamDelta,
-        apiKeyConfigured: !!(
-          currentConfig.apiKey && currentConfig.apiKey.trim()
-        ),
       });
     } catch (streamError) {
       // A user abort must not trigger a retry: the caller signal is already

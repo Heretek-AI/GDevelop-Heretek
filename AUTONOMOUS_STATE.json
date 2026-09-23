@@ -1,7 +1,13 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 74,
+  "last_cycle": 75,
   "completed_targets": [
+    {
+      "cycle": 75,
+      "target": "Bound the SSE stream read loop with a per-chunk idle watchdog instead of a connect-only deadline",
+      "metric_delta": "Before: clearTimeout right after fetch() resolved left the body read loop with no deadline at all — a local server that accepted the request then went silent (Ollama model load, VRAM swap, dropped TCP) hung the chat forever; after: the deadline bounds connect and re-arms on every received chunk, so a stalled stream aborts with a distinct 'stream stalled: no data received for N ms' message flagged isStreamTimeout (so no second non-streaming wait burns another full timeout), while a slow-but-progressing stream survives arbitrarily long. Tests: 2093 (+2), both new specs proven red on the pre-fix code. Also dropped the dead apiKeyConfigured streamChatCompletion parameter. 2 files, +134/-10.",
+      "commit": "fix(ai): abort a stalled SSE stream instead of hanging the chat"
+    },
     {
       "cycle": 74,
       "target": "Sanitize wrong-shape local suggestion JSON before attach",
@@ -443,9 +449,18 @@
   ],
   "backlog": [
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
+    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps",
+    "Surface a first-byte wait/loading hint while a local model cold-starts (Ollama) so the idle watchdog is never the first user-visible signal"
   ],
   "heuristics": [
+    {
+      "cycle": 75,
+      "note": "streamChatCompletion's deadline is now idle-based (re-armed on response start and on every received chunk). Any future total-response-time guard must be separate opt-in — the 150ms/80ms-gap slow-stream spec goes red if the arming is removed."
+    },
+    {
+      "cycle": 75,
+      "note": "Stream mocks that ignore options.signal cannot detect a total-deadline regression: the reader must reject AbortError on abort, as a real fetch body does."
+    },
     {
       "cycle": 74,
       "note": "SuggestionLines has no second-guard on suggestions.suggestions — sanitize at the source in customGetAiRequestSuggestions before attach, not in the component."
@@ -508,8 +523,7 @@
     "compactSystemMessageToBudget changes the system prompt without incrementing localAiRequestTrimCounts (message-count trims only). Always pair it with noteSystemCompactedIfChanged + customGetAiRequestSystemCompacted and surface system-only compaction distinctly in ChatMessages — history-only notices hide structure loss.",
     "Local create only writes localAiRequestsCache on settle, so the UI never sees the id mid-flight: track pending create ids + an early createAbortRequested flag; Stop-before-register must arm the flag, Stop-while-hung must abortTurnsForRequest on each pending id, and finally/reset must clear both. In hang tests wait for axios.post.mock.calls.length >= 1 (not > 1) after jest.clearAllMocks().",
     "Resume-on-send must be gated on an explicit payload (userMessage or functionCallOutputs); unconditionally flipping suspended→ready at turn start races with a Stop that lands before the lock and broke the mid-turn suspension invariant.",
-    "sendAiRequestFeedback is the last Generation method that must short-circuit local-ai-* before any auth/apiClient call — every other lifecycle method already does; canSendFeedbackForSession mirrors canRetryAiRequestForSession for offline gates"
-  ,
+    "sendAiRequestFeedback is the last Generation method that must short-circuit local-ai-* before any auth/apiClient call — every other lifecycle method already does; canSendFeedbackForSession mirrors canRetryAiRequestForSession for offline gates",
     "When listing chat history, always merge the local BYOK cache with the hosted page — exclusive local-XOR-hosted routing hides one side when the endpoint toggle or profile changes",
     "Generation create paths must dual-gate isCustomEndpointEnabled() with userId.startsWith('local-') (and local-ai relatedAiRequestId for event/asset search) — endpoint toggle alone strands offline BYOK creates",
     "Session send/watch guards must be per-request (pass aiRequestId) so local-ai-* chats work logged out with the endpoint toggle off — a blanket !profile early-return freezes sub-agent retirement",

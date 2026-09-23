@@ -1442,6 +1442,108 @@ describe('CustomAIClient', () => {
       expect(axios.post).not.toHaveBeenCalled();
     });
 
+    it('aborts a stalled stream and never retries it non-streaming', async () => {
+      // A server that accepts the request but never sends a byte (Ollama model
+      // load stall / VRAM swap / silently dropped connection). The reader
+      // rejects when the watchdog aborts, exactly like a real fetch body.
+      global.fetch = (jest.fn(): any).mockImplementation((url, options) => ({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: () =>
+              new Promise((resolve, reject) => {
+                options.signal.addEventListener('abort', () => {
+                  const err = new Error('The operation was aborted.');
+                  err.name = 'AbortError';
+                  reject(err);
+                });
+              }),
+          }),
+        },
+      }));
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: { ...streamConfig, timeoutMs: 20 },
+        })
+      ).rejects.toThrow(/stream stalled: no data received for 20 ms/);
+      // Retrying non-streaming would hang another full timeout on the same
+      // unresponsive server.
+      // $FlowFixMe[method-unbinding] jest matcher on a typed axios instance.
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('does not kill a slow stream that keeps producing chunks past the timeout', async () => {
+      const encoder = new TextEncoder();
+      const chunk = (content: string) =>
+        'data: ' + JSON.stringify({ choices: [{ delta: { content } }] }) + '\n';
+      // Each chunk is delivered after ~0.53 * timeoutMs, so the total response
+      // (4 gaps) is more than twice the timeout while no single gap reaches
+      // it. The watchdog must measure idleness between chunks, not wall-clock
+      // response duration (the pre-fix code had no deadline at all after the
+      // headers arrived).
+      const sleepOrAbort = (ms: number, signal: any) =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, ms);
+          if (!signal) return;
+          const onAbort = () => {
+            clearTimeout(timer);
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          };
+          if (signal.aborted) onAbort();
+          else signal.addEventListener('abort', onAbort, { once: true });
+        });
+      let readCount = 0;
+      global.fetch = (jest.fn(): any).mockImplementation((url, options) => ({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(chunk('a')) };
+              }
+              if (readCount <= 4) {
+                await sleepOrAbort(80, options.signal);
+                return {
+                  done: false,
+                  value: encoder.encode(chunk(String(readCount))),
+                };
+              }
+              if (readCount === 5) {
+                return {
+                  done: false,
+                  value: encoder.encode(
+                    'data: ' +
+                      JSON.stringify({
+                        choices: [{ delta: {}, finish_reason: 'stop' }],
+                      }) +
+                      '\n' +
+                      'data: [DONE]\n'
+                  ),
+                };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      }));
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: { ...streamConfig, timeoutMs: 150 },
+      });
+
+      expect(message.content).toBe('a234');
+      // $FlowFixMe[method-unbinding] jest matcher on a typed axios instance.
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
     it('processes a final data line that has no trailing newline', async () => {
       const encoder = new TextEncoder();
       // One complete SSE line WITHOUT a trailing newline (connection close).
