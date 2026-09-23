@@ -428,3 +428,41 @@ describe('useLocalColdStartHint', () => {
     expect(readHasBytes.mock.calls.length).toBe(callsWhileMounted);
   });
 });
+
+describe('useLocalColdStartHint under parent re-renders', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('keeps counting while the parent re-renders with a new callback each time', () => {
+    // ChatMessages re-renders every 8s (thinking-phrase rotation) and passes
+    // `readHasBytes: () => ...` inline, so the callback identity changes on
+    // every parent render. The wait must be measured from the turn start, not
+    // restarted whenever the chat re-renders — otherwise the hint never fires.
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const renderWithFreshCallback = () =>
+      root.render(<Probe isLocalRequest readHasBytes={() => false} />);
+
+    act(() => {
+      renderWithFreshCallback();
+    });
+    // Parent re-renders every 4s, twice as often as the 8s rotation would but
+    // still well inside the delay window.
+    for (let i = 0; i < 7; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(4000);
+      });
+      act(() => {
+        renderWithFreshCallback();
+      });
+    }
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(container.textContent).toBe('SHOWING');
+  });
+});

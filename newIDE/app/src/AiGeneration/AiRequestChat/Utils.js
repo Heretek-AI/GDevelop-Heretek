@@ -242,6 +242,14 @@ export const useLocalColdStartHint = ({
   readHasBytes: () => boolean,
 |}): boolean => {
   const [showHint, setShowHint] = React.useState(false);
+  // Callers pass `readHasBytes` inline (`() => !!customGet...`), so its identity
+  // changes on every parent render — and the chat re-renders on the 8s
+  // thinking-phrase rotation. Depending on it directly would restart the
+  // measured interval each time and the wait would never reach the threshold.
+  // Hold the latest function in a ref instead: the timer measures from when the
+  // turn started, while still calling the current reader.
+  const readHasBytesRef = React.useRef(readHasBytes);
+  readHasBytesRef.current = readHasBytes;
   React.useEffect(
     () => {
       if (!isLocalRequest) {
@@ -253,14 +261,16 @@ export const useLocalColdStartHint = ({
         setShowHint(
           shouldShowLocalColdStartHint({
             isLocalRequest,
-            hasBytes: readHasBytes(),
+            hasBytes: readHasBytesRef.current(),
             elapsedMs: Date.now() - startedAt,
           })
         );
       }, 1000);
       return () => clearInterval(interval);
     },
-    [isLocalRequest, readHasBytes]
+    // `readHasBytes` is deliberately not a dependency: it is read through the
+    // ref so a new identity does not reset the elapsed measurement.
+    [isLocalRequest]
   );
   return showHint;
 };

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 76,
+  "last_cycle": 77,
   "completed_targets": [
     {
       "cycle": 75,
@@ -452,11 +452,16 @@
       "metric_delta": "380->384 tests (4 new hook/timer tests + 5 predicate tests); a cold Ollama/LM Studio load leaves the stream silent past COLD_START_HINT_DELAY_MS (15s), so the chat now says it is waiting on the first token instead of leaving an idle chat indistinguishable from a hung one; clears the moment bytes arrive; hidden for hosted requests; no network calls added; 3 files, +271/-4",
       "commit": "feat(ai): explain a silent local model cold start in the chat",
       "verification": "npm test (react-app-rewired) over src/AI + src/AiGeneration: 339/339 pass, 14 suites. NOTE: an earlier revision of this entry reported '3 pre-existing failures' — that was an artifact of running bare `npx jest`, which has transform:null and so parses the fork's .ts files with the Flow plugin. Bare npx jest is not a valid verification path here."
+    },
+    {
+      "cycle": 77,
+      "target": "Fix the cold-start hint never firing when the chat re-renders",
+      "metric_delta": "384->385 tests; useLocalColdStartHint took readHasBytes as an effect dependency, but ChatMessages passes it inline (`() => !!customGetAiRequestPartialContent(id)`) and re-renders every 8s on the thinking-phrase rotation, so every parent render reset the elapsed measurement and the 15s first-token wait was never reached — the hint shipped in cycle 76 could never appear in the real chat. Now read through a latest-ref so the timer spans the turn while still calling the current reader; reproduction test proven red on the old code; 2 files, +50/-2",
+      "commit": "fix(ai): keep the cold-start timer across chat re-renders"
     }
   ],
   "backlog": [
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps",
     "Extend the cold-start hint to sub-agent turns and the stand-alone form (LocalColdStartHint is only wired into ChatMessages' working indicator today)"
   ],
   "heuristics": [
@@ -545,6 +550,7 @@
     "Local-model UX timers belong in AiRequestChat/Utils.js as a hook (useLocalColdStartHint) driven by a readHasBytes callback — ChatMessages.js pulls CSS-module imports that Jest cannot parse, so component-level timer tests need the hook extracted, and Utils.js imports are type-only (elided) so it stays lightweight in tests",
     "Jest specs for hooks/components here use @jest-environment jsdom as the FIRST file comment, react-dom/client createRoot + act from react-dom/test-utils (React 18 removed create from test-utils)",
     "MUST run `CI=true npm test -- <pattern>` (react-app-rewired), never bare `npx jest`, in newIDE/app: bare jest reports transform:null and parses the fork's .ts files (Utils/Array|Delay|UseForceUpdate|UseIsMounted|UseTimeout) with the Flow plugin, producing bogus 'Test suite failed to run' errors and 'Unexpected token' on TS type args. It cost a full false-negative diagnosis; all 339 AI tests pass.",
-    "ChatMessages.js component-level rendering is impractical in Jest (CSS-module imports aren't transformed); keep timer/decision logic in AiRequestChat/Utils.js (type-only imports are elided) and test it there."
+    "ChatMessages.js component-level rendering is impractical in Jest (CSS-module imports aren't transformed); keep timer/decision logic in AiRequestChat/Utils.js (type-only imports are elided) and test it there.",
+    "A hook that takes a callback prop as an effect dependency is reset by any parent re-render that passes it inline — ChatMessages re-renders every 8s (thinking-phrase rotation), so useLocalColdStartHint never reached its 15s threshold in the real chat even though the isolated hook tests passed. Read callbacks through a latest-ref (`ref.current = fn` during render, ref not the fn in deps) and add a reproduction test that re-renders with a fresh inline callback."
   ]
 }
