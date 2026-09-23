@@ -49,6 +49,7 @@ import {
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
   loadLocalAiRequests,
+  loadLocalAiRequestModelOverridesForTesting,
   saveLocalAiRequests,
   _resetCustomAiClientForTesting as _resetForStreamTests,
 } from './CustomAIClient';
@@ -2112,6 +2113,71 @@ describe('CustomAIClient', () => {
       const requestPayload = axios.post.mock.calls[1][1];
       expect(requestPayload.model).toBe('llama3.2');
       customSetAiRequestModelOverride(created.id, '');
+    });
+  });
+
+  describe('per-chat model choice survives a reload', () => {
+    const memoryStorage = {};
+    const fakeStorage = {
+      getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+      setItem: (key, value) => {
+        memoryStorage[key] = String(value);
+      },
+      removeItem: key => {
+        delete memoryStorage[key];
+      },
+    };
+    beforeEach(() => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+      global.localStorage = fakeStorage;
+      _resetCustomAiClientForTesting();
+    });
+    afterEach(() => {
+      delete global.localStorage;
+    });
+
+    it('reloads the override that was set in a previous session', () => {
+      // The override lives outside the AiRequest record, so a reload used to
+      // revert the chat to the global model — often a different, sometimes
+      // unavailable model, in a BYOK setup.
+      customSetAiRequestModelOverride('local-ai-1', 'deepseek-r1:14b');
+      expect(
+        JSON.parse(memoryStorage['gd-custom-ai-model-overrides'])['local-ai-1']
+      ).toBe('deepseek-r1:14b');
+
+      // Simulate a fresh session: drop in-memory state, then re-read.
+      _resetCustomAiClientForTesting();
+      expect(customGetAiRequestModelOverride('local-ai-1')).toBe('');
+      loadLocalAiRequests();
+      loadLocalAiRequestModelOverridesForTesting();
+      expect(customGetAiRequestModelOverride('local-ai-1')).toBe(
+        'deepseek-r1:14b'
+      );
+    });
+
+    it('clears the stored override when the model is reset to empty', () => {
+      customSetAiRequestModelOverride('local-ai-2', 'qwen2.5-coder');
+      customSetAiRequestModelOverride('local-ai-2', '');
+      const persisted = JSON.parse(
+        memoryStorage['gd-custom-ai-model-overrides']
+      );
+      expect(persisted['local-ai-2']).toBeUndefined();
+    });
+
+    it('ignores a corrupt override payload without throwing', () => {
+      memoryStorage['gd-custom-ai-model-overrides'] = '{not json';
+      expect(() => loadLocalAiRequestModelOverridesForTesting()).not.toThrow();
+      expect(customGetAiRequestModelOverride('local-ai-3')).toBe('');
+      // A non-string value must not become a model name.
+      memoryStorage['gd-custom-ai-model-overrides'] = JSON.stringify({
+        'local-ai-4': 42,
+        'local-ai-5': '   ',
+        'local-ai-6': 'ok',
+      });
+      loadLocalAiRequestModelOverridesForTesting();
+      expect(customGetAiRequestModelOverride('local-ai-4')).toBe('');
+      expect(customGetAiRequestModelOverride('local-ai-5')).toBe('');
+      expect(customGetAiRequestModelOverride('local-ai-6')).toBe('ok');
     });
   });
 

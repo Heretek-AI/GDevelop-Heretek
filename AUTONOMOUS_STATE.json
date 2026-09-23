@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 95,
+  "last_cycle": 96,
   "completed_targets": [
     {
       "cycle": 75,
@@ -566,6 +566,12 @@
       "target": "Heal pre-existing chats saved with the old answer type",
       "metric_delta": "426->428 tests; cycle 94 fixed the producer, but chats already persisted carry `type: 'text'` and there is no format version, so a user upgrading would still see their old BYOK answers missing (ChatMessages returns null for that type and RenderItem's union excludes it). loadLocalAiRequests now rewrites such entries to output_text with an annotations array on read, so the stored copy heals on the next save with no migration pass; an already-correct entry is returned untouched. 2 files, +141/-1",
       "commit": "fix(ai): heal pre-existing chats saved with the old answer type"
+    },
+    {
+      "cycle": 96,
+      "target": "Persist the per-chat model choice across sessions",
+      "metric_delta": "428->431 tests; localAiRequestModelOverrides was in-memory only, so the per-chat model selector in the chat (AiRequestChat/index.js:1133) silently reverted to the global model on reload — in a BYOK setup often a different, sometimes unavailable, model. The map is now written to its own localStorage key (short strings, so the saved requests are not inflated), loaded at module init, cleared on reset-to-empty, and ignores non-string/blank values so a corrupt entry cannot become a model name. 2 files, +115/-1",
+      "commit": "fix(ai): persist the per-chat model choice across sessions"
     }
   ],
   "backlog": [
@@ -682,6 +688,7 @@
     "In this spec file, build  tags with String.fromCharCode(60) + 'think>' as the existing fixtures do — a literal angle bracket in a prompt/attachment round trip can arrive stripped, which silently changes what the test feeds the parser.",
     "Cycle-93 tests asserted type:'text' and passed — a test written from the implementation encodes the bug instead of catching it. When a value must satisfy a consumer contract, assert against the consumer's own union (RenderItem.messageContent allows only 'output_text' | 'reasoning'), not what the producer happens to emit.",
     "Fixing a producer does not fix already-persisted data: with no format version, chats saved under the old shape keep it forever. Normalize on read (rewrite the entry when loaded) so existing users are healed without a migration pass or a version bump.",
-    "An eval write corrupted CustomAIClient.js with inline `__omp_shell(\"...\")` artifacts around the multi-line conditions, breaking the file with a syntax error that 7 suites caught. After any scripted write to a large source file, grep for artifact markers (and run the suite) before trusting it."
+    "An eval write corrupted CustomAIClient.js with inline `__omp_shell(\"...\")` artifacts around the multi-line conditions, breaking the file with a syntax error that 7 suites caught. After any scripted write to a large source file, grep for artifact markers (and run the suite) before trusting it.",
+    "Per-request state kept in a module-level map is lost on reload unless persisted: the per-chat model override had a UI control and a read path but no storage, so the user's choice silently reverted. When adding a per-request registry entry that a user can set, check whether it needs its own persisted key."
   ]
 }

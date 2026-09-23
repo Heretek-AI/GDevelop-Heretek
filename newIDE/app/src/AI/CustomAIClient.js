@@ -52,6 +52,7 @@ export const DEFAULT_CUSTOM_AI_CONFIG: CustomAIConfig = {
 
 const LOCAL_STORAGE_CONFIG_KEY = 'gd-custom-ai-config';
 const LOCAL_STORAGE_REQUESTS_KEY = 'gd-custom-ai-requests';
+const LOCAL_STORAGE_MODEL_OVERRIDES_KEY = 'gd-custom-ai-model-overrides';
 const MAX_LOCAL_SAVED_REQUESTS = 20;
 
 /**
@@ -399,6 +400,52 @@ export const customSetAiRequestModelOverride = (
     localAiRequestModelOverrides[aiRequestId] = trimmedModel;
   } else {
     delete localAiRequestModelOverrides[aiRequestId];
+  }
+  saveLocalAiRequestModelOverrides();
+};
+
+/**
+ * Per-chat model choice, persisted.
+ *
+ * The override lives outside the AiRequest record, so persisting the request
+ * alone lost it: reopening the editor silently reverted a chat to the global
+ * model, which for a BYOK setup often means a different (sometimes unavailable)
+ * model than the one the user picked for that conversation. The values are
+ * short strings, so they are stored separately rather than inflating every
+ * saved request.
+ */
+const saveLocalAiRequestModelOverrides = (): void => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(
+      LOCAL_STORAGE_MODEL_OVERRIDES_KEY,
+      JSON.stringify(localAiRequestModelOverrides)
+    );
+  } catch (err) {
+    console.warn('Error saving local AI model overrides:', err);
+  }
+};
+
+/** Exposed so a test can simulate a fresh session's load. */
+export const loadLocalAiRequestModelOverridesForTesting = (): void =>
+  loadLocalAiRequestModelOverrides();
+
+const loadLocalAiRequestModelOverrides = (): void => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const persisted = localStorage.getItem(LOCAL_STORAGE_MODEL_OVERRIDES_KEY);
+    if (!persisted) return;
+    const parsed = JSON.parse(persisted);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+    for (const key of Object.keys(parsed)) {
+      const value = parsed[key];
+      // Only non-empty strings: a corrupt entry must not become a model name.
+      if (typeof value === 'string' && value.trim()) {
+        localAiRequestModelOverrides[key] = value.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading local AI model overrides:', err);
   }
 };
 
@@ -999,8 +1046,9 @@ export const saveLocalAiRequests = () => {
   }
 };
 
-// Initialize requests from localStorage
+// Initialize requests and per-chat model choices from localStorage
 loadLocalAiRequests();
+loadLocalAiRequestModelOverrides();
 
 /**
  * OpenAI Tool definitions for GDevelop Editor Functions.
