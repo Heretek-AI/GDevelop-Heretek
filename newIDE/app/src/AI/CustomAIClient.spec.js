@@ -891,6 +891,28 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('normalizeBaseUrl tolerates non-string input', () => {
+    it('falls back to the default instead of throwing', () => {
+      // Preferences hydrate each stored key without type-checking it, so a
+      // corrupted `aiCustomBaseUrl` (a number, null, an object) reached this
+      // function through testConnection and threw `trim is not a function`
+      // before any request was made.
+      for (const bad of [123, null, undefined, {}, [], true]) {
+        // $FlowFixMe deliberately passing wrong types.
+        expect(normalizeBaseUrl(bad)).toBe('http://localhost:11434/v1');
+      }
+    });
+
+    it('still normalizes real strings', () => {
+      expect(normalizeBaseUrl('localhost:11434/v1')).toBe(
+        'http://localhost:11434/v1'
+      );
+      expect(normalizeBaseUrl('  example.com/v1  ')).toBe(
+        'https://example.com/v1'
+      );
+    });
+  });
+
   describe('wire temperature bound', () => {
     it('clamps an out-of-range temperature on the bypass path', async () => {
       // sendChatCompletion accepts a raw config, and testConnection merges a

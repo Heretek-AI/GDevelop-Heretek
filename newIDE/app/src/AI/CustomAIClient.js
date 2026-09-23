@@ -226,7 +226,12 @@ export const isCustomEndpointEnabled = (): boolean => {
  * Preserves the configured path exactly without automatically appending /v1.
  */
 export const normalizeBaseUrl = (baseUrl: string): string => {
-  let url = (baseUrl || '').trim();
+  // Non-strings are treated as absent rather than coerced: this is the single
+  // entry point for every request path, and a caller-supplied or
+  // localStorage-restored value is not guaranteed to be a string (the
+  // preferences hydrate each stored key without type-checking it). Calling
+  // .trim() on a number threw a TypeError before any request was made.
+  let url = (typeof baseUrl === 'string' ? baseUrl : '').trim();
   if (!url) {
     return 'http://localhost:11434/v1';
   }

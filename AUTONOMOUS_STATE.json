@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 126,
+  "last_cycle": 127,
   "completed_targets": [
     {
       "cycle": 75,
@@ -723,6 +723,12 @@
       "target": "Clamp wire temperature on the raw-config bypass path",
       "metric_delta": "Same class as cycle 125, found by auditing its siblings. temperature was clamped in sanitizeCustomAIConfig and in the preferences input, but NOT where the payload is built — and sendChatCompletion accepts a raw `config` (`config || getCustomEndpointConfig()`), while testConnection merges a caller-supplied partial config over the stored one before calling it. So the Test Connection button sent values.aiCustomTemperature from localStorage unclamped: 42 reached the provider, and NaN serialized to `\"temperature\": null`, which strict OpenAI-compatible servers reject rather than ignore. Now clamped to [0,1] with a Number.isFinite guard at payload construction, matching what sanitizeCustomAIConfig and the dialog already agree on. +2 tests, both mutation-checked (pre-fix: 42 sent, NaN sent). 184/184 file, eslint --max-warnings=0, prettier clean.",
       "commit": "fix(ai): clamp wire temperature on the raw-config bypass path"
+    },
+    {
+      "cycle": 127,
+      "target": "Stop normalizeBaseUrl throwing on a non-string base URL",
+      "metric_delta": "normalizeBaseUrl guarded null/undefined/empty (`baseUrl || ''`) but called .trim() unconditionally, so a non-string threw `TypeError: (baseUrl || \"\").trim is not a function`. Reachable: PreferencesProvider hydrates gd-preferences from localStorage and only backfills keys that are `undefined` — it never type-checks the value — so a corrupted aiCustomBaseUrl (number/object/null) flows through the dialog into testConnection, whose config spread-merge puts it on the raw-config path into sendChatCompletion, where normalizeBaseUrl runs before any request. Fixed at the single shared entry point with a typeof guard (non-strings treated as absent, matching the existing empty-string handling). Also assessed the last sibling, maxTokens, and deliberately left it: it has no production setter (localStorage-only) and the truthy wire guard already suppresses 0/undefined, so a negative requires hand-editing storage. +2 tests, mutation-checked (pre-fix throws the TypeError). 186/186 file, eslint --max-warnings=0, prettier clean.",
+      "commit": "fix(ai): stop normalizeBaseUrl throwing on a non-string base URL"
     }
   ],
   "backlog": [
@@ -865,6 +871,7 @@
     ".circleci/config.yml is upstream-identical (absent from fork-divergence.json) — do not edit it, per MAINTENANCE.md's 'leave it' rule; it already tracks cimg/node:24.x. Only .github/workflows/** is fork-owned and sync-protected.",
     "In LOCAL_SERVER_ERROR_HINTS the order of entries is load-bearing: the VRAM pattern ends with a broad /too large/i, so any new pattern must be listed before it or genuine mismatches occur. Context overflow is a 400 whose remedy is 'start a new chat / larger window', not 'smaller quantization'.",
     "setTimeout (and axios's `timeout`) clamps any delay above 2^31-1 ms to 1 ms rather than to the maximum — so an unbounded user-supplied timeout does not merely fail to wait, it aborts instantly. Any config value that becomes a timer delay needs an upper bound, not just a `> 0` check. Clamp at BOTH sanitizeCustomAIConfig and the sendChatCompletion resolution, because `config || getCustomEndpointConfig()` lets a caller pass a raw unsanitized config.",
-    "The wire payload is the last line of defence and needs its own bounds: sendChatCompletion's `config || getCustomEndpointConfig()` and testConnection's spread-merge both let unsanitized values through, so validate numeric fields (temperature, timeoutMs) at payload construction rather than trusting only sanitizeCustomAIConfig. Also: JSON.stringify(NaN) is `null`, so a non-finite number is not ignored by the server — it becomes an explicit null argument."
+    "The wire payload is the last line of defence and needs its own bounds: sendChatCompletion's `config || getCustomEndpointConfig()` and testConnection's spread-merge both let unsanitized values through, so validate numeric fields (temperature, timeoutMs) at payload construction rather than trusting only sanitizeCustomAIConfig. Also: JSON.stringify(NaN) is `null`, so a non-finite number is not ignored by the server — it becomes an explicit null argument.",
+    "normalizeBaseUrl is the single entry point for every request path (sendChatCompletion, getEndpointUrl, testConnection), so it must tolerate every value a corrupted localStorage can hold. PreferencesProvider.loadPreferencesFromLocalStorage only backfills missing keys — it does NOT validate the type of a present one — so any preference value is effectively untyped at runtime despite the Flow annotation."
   ]
 }
