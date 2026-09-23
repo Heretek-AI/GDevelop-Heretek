@@ -61,19 +61,21 @@ export const canRetryAiRequestForSession = (
 ): boolean => !!profile || aiRequestId.startsWith('local-ai-');
 
 /**
- * Whether a createAiRequest return value is a first-turn failure that must not
- * be treated as a successful start (local BYOK returns status:'error' instead
- * of throwing so the chat can offer Retry → continue).
+ * Whether a createAiRequest return value is a first-turn failure or cancel
+ * that must not be treated as a successful start (local BYOK returns
+ * status:'error' on failure and status:'suspended' when the user aborts a hung
+ * create, instead of throwing).
  */
 export const isFailedAiRequestStart = (aiRequest: {
   status: string,
   ...
-}): boolean => aiRequest.status === 'error';
+}): boolean => aiRequest.status === 'error' || aiRequest.status === 'suspended';
 
 /**
- * Standalone create outcome: failed first-turn starts stay on the error row
- * (project left open so an offline failure does not discard the user's work);
- * only successful starts hand off to the Ask AI tab / close the project.
+ * Standalone create outcome: failed or cancelled first-turn starts stay on the
+ * error row (project left open so an offline failure or Stop does not discard
+ * the user's work); only successful starts hand off to the Ask AI tab / close
+ * the project.
  */
 export const getStandaloneCreateOutcome = (aiRequest: {
   status: string,

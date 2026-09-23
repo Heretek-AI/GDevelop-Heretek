@@ -265,6 +265,31 @@ const localAiRequestAbortControllers: {
 } = {};
 
 /**
+ * Local create is not visible to the UI until the first turn settles (the
+ * request id only lands in the cache then). Track in-flight create ids so Stop
+ * can cancel a hung Ollama/VRAM first turn before any AiRequest exists.
+ */
+const pendingCreateAiRequestIds: { [id: string]: boolean } = {};
+
+/** Set when Stop is pressed before create has registered its abort controller. */
+let createAbortRequested = false;
+
+export const customHasPendingCreateAiRequest = (): boolean =>
+  Object.keys(pendingCreateAiRequestIds).length > 0 || createAbortRequested;
+
+export const customAbortPendingCreateAiRequests = (): void => {
+  const ids = Object.keys(pendingCreateAiRequestIds);
+  if (ids.length === 0) {
+    // Stop arrived before create registered: remember so create cancels on entry.
+    createAbortRequested = true;
+    return;
+  }
+  for (let i = 0; i < ids.length; i++) {
+    abortTurnsForRequest(ids[i]);
+  }
+};
+
+/**
  * Number of history messages trimmed to fit the context budget, per request:
  * the chat UI surfaces this so users understand why the agent may have
  * "forgotten" old exchanges.
@@ -692,6 +717,10 @@ export const _resetCustomAiClientForTesting = () => {
   for (const key of Object.keys(localAiRequestAbortControllers)) {
     delete localAiRequestAbortControllers[key];
   }
+  for (const key of Object.keys(pendingCreateAiRequestIds)) {
+    delete pendingCreateAiRequestIds[key];
+  }
+  createAbortRequested = false;
   for (const key of Object.keys(localAiRequestTrimCounts)) {
     delete localAiRequestTrimCounts[key];
   }
@@ -3120,6 +3149,32 @@ export const customCreateAiRequest = async ({
     messageId: userMsgId,
   };
 
+  // Stop clicked before this create registered: cancel without a network call.
+  if (createAbortRequested) {
+    createAbortRequested = false;
+    const cancelledNow = new Date().toISOString();
+    const cancelledEarly: AiRequest = {
+      id: reqId,
+      createdAt: cancelledNow,
+      updatedAt: cancelledNow,
+      userId: LOCAL_BYOK_USER_ID,
+      gameId: gameId || null,
+      gameProjectJson: gameProjectJson || null,
+      status: 'suspended',
+      mode: mode || 'orchestrator',
+      aiConfiguration: aiConfiguration || { presetId: 'default' },
+      toolsVersion: 'v14',
+      toolOptions: null,
+      error: null,
+      output: [userMessage],
+      lastUserMessagePriceInCredits: 0,
+      totalPriceInCredits: 0,
+    };
+    localAiRequestsCache[reqId] = cancelledEarly;
+    saveLocalAiRequests();
+    return cancelledEarly;
+  }
+
   const output: Array<AiRequestMessage> = [userMessage];
 
   const systemPrompt = buildSystemPrompt({
@@ -3151,6 +3206,7 @@ export const customCreateAiRequest = async ({
   }
 
   const abortController = registerTurnAbortController(reqId);
+  pendingCreateAiRequestIds[reqId] = true;
   let assistantResponse;
   try {
     assistantResponse = await sendChatCompletion({
@@ -3192,6 +3248,7 @@ export const customCreateAiRequest = async ({
     return failed;
   } finally {
     releaseTurnAbortController(reqId);
+    delete pendingCreateAiRequestIds[reqId];
   }
 
   const assistantMessage = parseAssistantMessage(

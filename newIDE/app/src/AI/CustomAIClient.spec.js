@@ -38,6 +38,8 @@ import {
   validateToolCallArguments,
   customGetAiRequestContextTrimCount,
   customGetAiRequestSystemCompacted,
+  customHasPendingCreateAiRequest,
+  customAbortPendingCreateAiRequests,
   customGetAiRequestTokenTotal,
   customSetAiRequestModelOverride,
   customGetAiRequestModelOverride,
@@ -957,6 +959,72 @@ describe('CustomAIClient', () => {
       _resetCustomAiClientForTesting();
       expect(customGetAiRequestContextTrimCount(created.id)).toBe(0);
       expect(customGetAiRequestTokenTotal(created.id)).toBe(0);
+    });
+  });
+
+  describe('cancelable local create', () => {
+    const waitFor = condition => {
+      return new Promise((resolve, reject) => {
+        const started = Date.now();
+        const check = () => {
+          if (condition()) return resolve();
+          if (Date.now() - started > 2000)
+            return reject(new Error('Condition not met in time'));
+          setTimeout(check, 10);
+        };
+        check();
+      });
+    };
+
+    it('aborts a hung create and returns status suspended with no error', async () => {
+      axios.post.mockImplementationOnce(
+        (url, body, options) =>
+          new Promise((resolve, reject) => {
+            options.signal.addEventListener('abort', () =>
+              reject(new Error('canceled'))
+            );
+          })
+      );
+      const pending = customCreateAiRequest({
+        userRequest: 'hang forever',
+      });
+      await waitFor(() => axios.post.mock.calls.length >= 1);
+      expect(customHasPendingCreateAiRequest()).toBe(true);
+
+      customAbortPendingCreateAiRequests();
+      const result = await pending;
+      expect(result.status).toBe('suspended');
+      expect(result.error).toBe(null);
+      expect(customHasPendingCreateAiRequest()).toBe(false);
+    });
+
+    it('cancels on entry when Stop is pressed before create registers', async () => {
+      // No in-flight create: Stop arms the next create to cancel on entry.
+      customAbortPendingCreateAiRequests();
+      expect(customHasPendingCreateAiRequest()).toBe(true);
+
+      const cancelled = await customCreateAiRequest({
+        userRequest: 'never sent',
+      });
+      expect(cancelled.status).toBe('suspended');
+      expect(cancelled.error).toBe(null);
+      expect(axios.post).not.toHaveBeenCalled();
+      expect(customHasPendingCreateAiRequest()).toBe(false);
+    });
+
+    it('abort with no pending is a no-op for an already-finished create', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({ userRequest: 'quick' });
+      expect(created.status).toBe('ready');
+      expect(customHasPendingCreateAiRequest()).toBe(false);
+      // Arms the early-cancel flag only (no live create to abort).
+      customAbortPendingCreateAiRequests();
+      expect(customHasPendingCreateAiRequest()).toBe(true);
+      _resetCustomAiClientForTesting();
+      expect(customHasPendingCreateAiRequest()).toBe(false);
     });
   });
 

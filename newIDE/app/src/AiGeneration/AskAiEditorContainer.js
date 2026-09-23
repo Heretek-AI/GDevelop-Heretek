@@ -48,6 +48,7 @@ import {
 } from '../Utils/GDevelopServices/Usage';
 import {
   isCustomEndpointEnabled,
+  customAbortPendingCreateAiRequests,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
 import { retryIfFailed } from '../Utils/RetryIfFailed';
@@ -1357,7 +1358,11 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
 
       const onStop = React.useCallback(
         async () => {
-          if (!selectedAiRequest) return;
+          if (!selectedAiRequest) {
+            // New-chat form: cancel a hung local create before any AiRequest exists.
+            customAbortPendingCreateAiRequests();
+            return;
+          }
           if (!getHasWorkInProgress()) return;
           // Delegates to the provider so the suspend logic lives in a single
           // place and also works when triggered outside of this editor.

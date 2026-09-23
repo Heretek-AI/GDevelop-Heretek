@@ -46,6 +46,7 @@ import { getAiConfigurationPresetsWithAvailability } from './AiConfiguration';
 import { type CreateProjectResult } from '../Utils/UseCreateProject';
 import {
   isCustomEndpointEnabled,
+  customAbortPendingCreateAiRequests,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
 import {
@@ -837,8 +838,12 @@ export const AskAiStandAloneForm = ({
         onSendFeedback={async () => {}}
         hasOpenedProject={!!project}
         onStop={async () => {
+          // No form request yet: cancel a hung local create (pending registry).
+          if (!aiRequestIdForForm) {
+            customAbortPendingCreateAiRequests();
+            return;
+          }
           // Provider handles optimistic status, local abort, and hosted suspend.
-          if (!aiRequestIdForForm) return;
           await suspendAiRequest(aiRequestIdForForm);
         }}
         i18n={i18n}

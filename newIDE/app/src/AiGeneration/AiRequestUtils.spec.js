@@ -437,11 +437,14 @@ describe('isFailedAiRequestStart', () => {
     ).toBe(true);
   });
 
-  it('does not flag working / suspended / completed starts', () => {
-    expect(isFailedAiRequestStart({ status: 'working', error: null })).toBe(
-      false
-    );
+  it('flags status suspended (user cancelled a hung local create)', () => {
     expect(isFailedAiRequestStart({ status: 'suspended', error: null })).toBe(
+      true
+    );
+  });
+
+  it('does not flag working / completed starts', () => {
+    expect(isFailedAiRequestStart({ status: 'working', error: null })).toBe(
       false
     );
     expect(isFailedAiRequestStart({ status: 'completed', error: null })).toBe(
@@ -460,13 +463,19 @@ describe('getStandaloneCreateOutcome', () => {
     ).toBe('error-row');
   });
 
+  it('keeps the project open when the user cancels a hung create', () => {
+    expect(
+      getStandaloneCreateOutcome({ status: 'suspended', error: null })
+    ).toBe('error-row');
+  });
+
   it('hands off (and may close the project) only for successful starts', () => {
     expect(getStandaloneCreateOutcome({ status: 'working', error: null })).toBe(
       'handoff'
     );
-    expect(
-      getStandaloneCreateOutcome({ status: 'suspended', error: null })
-    ).toBe('handoff');
+    expect(getStandaloneCreateOutcome({ status: 'ready', error: null })).toBe(
+      'handoff'
+    );
   });
 });
 

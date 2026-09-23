@@ -587,7 +587,12 @@ export const AiRequestChat: React.ComponentType<{
       // but that is best-effort background work and must not block the input.
       (!!aiRequest && aiRequest.status === 'working' && !isFetchingSuggestions);
     const isWorking = isSending || hasWorkToProcess;
-    const canRequestBeStopped = isWorking && !!aiRequest;
+    // Create is not yet an AiRequest: Stop must still cancel a hung local
+    // first turn (pending-create registry in CustomAIClient).
+    const canCancelPendingCreate =
+      isCustomEndpointEnabled() && isSending && !aiRequest;
+    const canRequestBeStopped =
+      (isWorking && !!aiRequest) || canCancelPendingCreate;
 
     // When the AI finishes working, the input field gets re-enabled but has
     // lost the focus (it was disabled while working). Focus it again, unless
@@ -717,11 +722,17 @@ export const AiRequestChat: React.ComponentType<{
     const onClickNewChatButton = React.useCallback(
       () => {
         setIsButtonLoading(true);
+        if (canCancelPendingCreate) {
+          onStop()
+            .catch(err => console.error('Failed to stop AI request:', err))
+            .finally(() => setIsButtonLoading(false));
+          return;
+        }
         onSubmitForNewChat()
           .catch(err => console.error('Failed to start chat:', err))
           .finally(() => setIsButtonLoading(false));
       },
-      [onSubmitForNewChat]
+      [canCancelPendingCreate, onStop, onSubmitForNewChat]
     );
 
     // Calculate feedback banner visibility for sticky behavior
@@ -816,9 +827,20 @@ export const AiRequestChat: React.ComponentType<{
                         >
                           <RaisedButton
                             color="primary"
-                            icon={sendButtonIcon}
+                            icon={
+                              canCancelPendingCreate ? (
+                                <Stop fontSize="small" />
+                              ) : (
+                                sendButtonIcon
+                              )
+                            }
                             style={{ flexShrink: 0 }}
-                            disabled={isButtonLoading || shouldDisableButton}
+                            disabled={
+                              isButtonLoading ||
+                              (canCancelPendingCreate
+                                ? false
+                                : shouldDisableButton)
+                            }
                             onClick={onClickNewChatButton}
                           />
                         </LineStackLayout>
