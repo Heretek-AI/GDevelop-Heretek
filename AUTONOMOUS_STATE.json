@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 112,
+  "last_cycle": 114,
   "completed_targets": [
     {
       "cycle": 75,
@@ -657,6 +657,12 @@
       "target": "Name the real tools in the embedded-JSON fallback set",
       "metric_delta": "459->461 tests; SIDE_EFFECT_FREE_TOOLS listed describe_events, describe_variables and describe_scene_layers_effects_groups, but the registry declares read_events_source, inspect_variables and inspect_scene_properties_layers_effects. The three entries existed nowhere else in the codebase, so they could never match: a model that emitted its call to one of those tools as a JSON block got NO tool executed. Corrected to the declared names, added the other read-only inspect_* tools that belong, and exported the set so a test pins that every entry matches a declared tool and that none mutates the project. 2 files, +31/-4",
       "commit": "fix(ai): name the real tools in the embedded-JSON fallback set"
+    },
+    {
+      "cycle": 114,
+      "target": "Prove the corrected fallback names actually execute",
+      "metric_delta": "461->462 tests; cycle 112 fixed the name list, but its tests only asserted the NAMES were declared. The pre-existing behavioural tests all used describe_instances — the one entry that was already correct — which is exactly why the typo survived review. A behavioural test now drives read_events_source, inspect_variables and inspect_scene_properties_layers_effects through the embedded-JSON fallback and asserts each yields a call. Verified against the true pre-fix tree (HEAD~3): Received length 0 — those tools produced no call at all. 1 file, +31",
+      "commit": "test(ai): prove the corrected fallback names actually execute"
     }
   ],
   "backlog": [
@@ -786,6 +792,7 @@
     "A catch block must not assume the thrown value is an Error: `Promise.reject()` with no reason yields undefined, and `error.message` then throws inside the handler, masking the original failure. Guard with `error && typeof error.message === 'string'` — and check sibling error paths in the same function, which often already have the fallback this one lacks.",
     "A Set of tool names must be checked against the registry that declares them: three entries in SIDE_EFFECT_FREE_TOOLS were `describe_*` names that existed nowhere else, so the gate silently never matched them. Export such a set and assert every member is a declared name — a typo here disables a fallback without any error.",
     "Allowlist vs blocklist decides whether a stale name matters: SIDE_EFFECT_FREE_TOOLS is an allowlist, so three `describe_*` names that match nothing silently disabled the embedded-JSON fallback; NON_SCRIPTABLE_FUNCTION_NAMES is a blocklist, where extra entries (server-side/orchestrator tools) are harmless intent. Only allowlists need a test asserting every member exists.",
-    "Roles.js already had 'every role only names tools that exist' — the invariant existed for one name list and not the other in the same subsystem. When adding a tool-name collection, copy the existing invariant test rather than trusting the literals."
+    "Roles.js already had 'every role only names tools that exist' — the invariant existed for one name list and not the other in the same subsystem. When adding a tool-name collection, copy the existing invariant test rather than trusting the literals.",
+    "A fixed name list needs a behavioural test, not just a name-invariant: every existing embedded-JSON test used describe_instances, the single correct entry, so three dead names sat behind green tests. Drive the fixed entries through the real code path — and check each tool's declared required arguments and types first, or the test fails for the wrong reason (variable_scope is a string, not an object)."
   ]
 }

@@ -317,6 +317,33 @@ describe('CustomAIClient', () => {
       });
     });
 
+    it('extracts an embedded JSON call for a name that was previously dead', () => {
+      // The set listed describe_events/describe_variables/
+      // describe_scene_layers_effects_groups, none of which the registry
+      // declares — so these tools were silently excluded from the fallback.
+      // The existing behavioural tests only used describe_instances, the one
+      // correct entry, which is why the typo went unnoticed.
+      // Each tool's own required arguments (the fallback still validates the
+      // schema, so an empty object would be skipped for the wrong reason).
+      for (const [name, args] of [
+        ['read_events_source', { scene_name: 'Level1' }],
+        ['inspect_variables', { variable_scope: 'scene' }],
+        ['inspect_scene_properties_layers_effects', { scene_name: 'Level1' }],
+      ]) {
+        const parsed = parseAssistantMessage({
+          message: {
+            role: 'assistant',
+            content: `\`\`\`json\n${JSON.stringify({
+              name,
+              arguments: args,
+            })}\n\`\`\``,
+          },
+        });
+        expect(parsed.functionCalls).toHaveLength(1);
+        expect(parsed.functionCalls[0].name).toBe(name);
+      }
+    });
+
     it('skips markdown tool calls whose arguments are not JSON objects', () => {
       const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const choice = {
