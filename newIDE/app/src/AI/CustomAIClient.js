@@ -2772,16 +2772,37 @@ export const parseAssistantMessage = (
           const callId = `call_parsed_${Date.now()}_${Math.random()
             .toString(36)
             .substr(2, 5)}`;
-          const argsStr =
-            typeof args === 'string' ? args : JSON.stringify(args);
-          const parsedArgsObj =
-            typeof args === 'string' ? JSON.parse(args) : args;
+          // Same contract as the tool_calls path (cycle-10/11 hardening):
+          // arguments must parse to a non-array object, validated against
+          // the tool schema before execution.
+          let parsedArgsObj;
+          try {
+            parsedArgsObj = typeof args === 'string' ? JSON.parse(args) : args;
+          } catch (argsParseErr) {
+            parsedArgsObj = null;
+          }
+          const argsValid =
+            !!parsedArgsObj &&
+            typeof parsedArgsObj === 'object' &&
+            !Array.isArray(parsedArgsObj);
+          const validation = validateToolCallArguments(
+            String(name),
+            argsValid ? parsedArgsObj : {}
+          );
+          if (!argsValid || !validation.valid) {
+            console.warn(
+              `Parsed tool call '${String(
+                name
+              )}' had invalid arguments; skipping it.`
+            );
+            continue;
+          }
           contentArray.push({
             type: 'function_call',
             status: 'completed',
             call_id: callId,
             name,
-            arguments: argsStr,
+            arguments: JSON.stringify(parsedArgsObj),
           });
           functionCalls.push({
             id: callId,

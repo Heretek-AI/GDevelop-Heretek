@@ -300,6 +300,40 @@ describe('CustomAIClient', () => {
       });
     });
 
+    it('skips markdown tool calls whose arguments are not JSON objects', () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const choice = {
+        message: {
+          role: 'assistant',
+          content:
+            '```json\n{"name":"describe_instances","arguments":["not","an","object"]}\n```',
+        },
+      };
+      const parsed = parseAssistantMessage(choice);
+      expect(parsed.functionCalls).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('invalid arguments')
+      );
+      warn.mockRestore();
+    });
+
+    it('skips markdown tool calls that fail schema validation', () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const choice = {
+        message: {
+          role: 'assistant',
+          content:
+            '```json\n{"name":"describe_instances","arguments":{"wrong_arg":1}}\n```',
+        },
+      };
+      const parsed = parseAssistantMessage(choice);
+      expect(parsed.functionCalls).toHaveLength(0);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('invalid arguments')
+      );
+      warn.mockRestore();
+    });
+
     it('extracts reasoning_content if provided by model', () => {
       const choice = {
         message: {

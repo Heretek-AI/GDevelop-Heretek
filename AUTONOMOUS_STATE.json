@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 30,
+  "last_cycle": 31,
   "completed_targets": [
     {
       "cycle": 1,
@@ -175,6 +175,12 @@
       "target": "Handle unclosed think tags from truncated reasoning models",
       "metric_delta": "Before: a truncated reasoning generation (e.g. deepseek-r1 on Ollama cut mid-thought) emitted an unclosed think-open tag; extractThinkingAndContent fell through to the no-tag path and the raw reasoning leaked into cleanContent \u2014 polluting the chat UI and potentially corrupting tool-call JSON parsing. After: when an open tag exists and no close tag does, everything after the open tag is treated as thinking and stripped from content. Closed-tag behavior unchanged (pinned by a new test). 2 new tests; 68/68 green. Note: the think-tag literal is built via String.fromCharCode in tests and kept literal in source \u2014 an earlier edit actually lost the tag bytes (searched for 'region'); the new tests would have caught that.",
       "commit": "fix(ai): treat unclosed think tags as reasoning, not content"
+    },
+    {
+      "cycle": 31,
+      "target": "Harden the markdown tool-call fallback path (argument validation parity)",
+      "metric_delta": "Before: tool calls parsed from markdown JSON blocks (the fallback for models that do not emit tool_calls) bypassed the cycle-10/11 hardening \u2014 arrays/scalars executed as callArguments and schema-invalid arguments ran unvalidated. After: identical contract to the tool_calls path \u2014 arguments must parse to a non-array object and pass validateToolCallArguments against the tool schema; invalid calls are skipped with a warning instead of executing. 2 new tests (non-object args skipped, schema-invalid args skipped); 70/70 green.",
+      "commit": "fix(ai): validate markdown tool-call arguments like tool_calls"
     }
   ],
   "backlog": [
