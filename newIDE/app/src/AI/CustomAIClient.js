@@ -465,17 +465,104 @@ export const estimateMessagesTokens = (openAiMessages: Array<Object>): number =>
     return sum + contentTokens + toolCallTokens;
   }, 0);
 
+const SYSTEM_STRUCTURE_MARKER = 'Current Project Structure:\n';
+const SYSTEM_EXTENSIONS_MARKER = 'Installed Project Extensions:';
+const SYSTEM_TRUNCATION_NOTE =
+  '\n[... project structure truncated to fit the model context window ...]\n';
+
+const hardCapSystemContent = (content: string, maxTokens: number): string => {
+  const maxChars = Math.max(
+    64,
+    (maxTokens - estimateTokens(SYSTEM_TRUNCATION_NOTE)) * 4
+  );
+  if (content.length <= maxChars) return content;
+  return content.slice(0, maxChars) + SYSTEM_TRUNCATION_NOTE;
+};
+
+/**
+ * The system prompt embeds the full project structure JSON. History dropping
+ * never touches `role: 'system'`, so a create/first turn on a small local
+ * model (e.g. llama → 4096-token budget) can ship an oversized system message
+ * alone. Truncate the structure section first (keep guidelines + extensions),
+ * then hard-cap the whole prompt if still over. Returns the same array
+ * reference when nothing needed compaction.
+ */
+export const compactSystemMessageToBudget = (
+  openAiMessages: Array<Object>,
+  budget: number
+): Array<Object> => {
+  let sysIndex = -1;
+  for (let i = 0; i < openAiMessages.length; i++) {
+    const message = openAiMessages[i];
+    if (message && message.role === 'system') {
+      sysIndex = i;
+      break;
+    }
+  }
+  if (sysIndex < 0) return openAiMessages;
+  const systemMessage = openAiMessages[sysIndex];
+  if (!systemMessage || typeof systemMessage.content !== 'string') {
+    return openAiMessages;
+  }
+
+  // Leave room for the newest exchange so compaction cannot starve the
+  // user message that triggered the turn.
+  const RESERVE_FOR_EXCHANGE = 256;
+  const maxSystemTokens = Math.max(128, budget - RESERVE_FOR_EXCHANGE);
+  const content = systemMessage.content;
+  if (estimateTokens(content) <= maxSystemTokens) return openAiMessages;
+
+  const structureStart = content.indexOf(SYSTEM_STRUCTURE_MARKER);
+  let nextContent: string;
+  if (structureStart >= 0) {
+    const bodyStart = structureStart + SYSTEM_STRUCTURE_MARKER.length;
+    const extensionsStart = content.indexOf(
+      SYSTEM_EXTENSIONS_MARKER,
+      bodyStart
+    );
+    const bodyEnd = extensionsStart >= 0 ? extensionsStart : content.length;
+    const prefix = content.slice(0, bodyStart);
+    const body = content.slice(bodyStart, bodyEnd);
+    const suffix = content.slice(bodyEnd);
+    const overhead =
+      estimateTokens(prefix) +
+      estimateTokens(suffix) +
+      estimateTokens(SYSTEM_TRUNCATION_NOTE);
+    const allowedBodyTokens = Math.max(64, maxSystemTokens - overhead);
+    const allowedBodyChars = allowedBodyTokens * 4;
+    nextContent =
+      body.length > allowedBodyChars
+        ? prefix +
+          body.slice(0, allowedBodyChars) +
+          SYSTEM_TRUNCATION_NOTE +
+          suffix
+        : hardCapSystemContent(content, maxSystemTokens);
+  } else {
+    nextContent = hardCapSystemContent(content, maxSystemTokens);
+  }
+  if (estimateTokens(nextContent) > maxSystemTokens) {
+    nextContent = hardCapSystemContent(nextContent, maxSystemTokens);
+  }
+  if (nextContent === content) return openAiMessages;
+
+  const messages = openAiMessages.slice();
+  messages[sysIndex] = { ...systemMessage, content: nextContent };
+  return messages;
+};
+
 /**
  * Drop oldest non-system messages (after the system prompt) until the
  * estimated prompt fits the budget. Tool outputs follow their assistant
  * `tool_calls` message: dropping one drops its outputs too, so a server
  * never sees an orphan tool message. The last two messages are always kept.
+ * An oversized system prompt (embedded project JSON) is compacted first —
+ * history dropping never touches `role: 'system'`.
  */
 export const trimMessagesToBudget = (
   openAiMessages: Array<Object>,
   budget: number
 ): Array<Object> => {
-  let messages = openAiMessages;
+  let messages = compactSystemMessageToBudget(openAiMessages, budget);
   let estimate = estimateMessagesTokens(messages);
   if (estimate <= budget) return messages;
 
@@ -3002,13 +3089,29 @@ export const customCreateAiRequest = async ({
     systemPrompt
   );
 
+  // Same budget as later turns: a create with a large embedded project
+  // structure must fit a small local model before the first request is sent.
+  const createConfig = getEffectiveConfigForRequest(reqId);
+  const budgetedMessages = trimMessagesToBudget(
+    openAiMessages,
+    getTokenBudget(createConfig)
+  );
+  if (budgetedMessages.length < openAiMessages.length) {
+    const trimmedCount = openAiMessages.length - budgetedMessages.length;
+    localAiRequestTrimCounts[reqId] =
+      (localAiRequestTrimCounts[reqId] || 0) + trimmedCount;
+    console.warn(
+      `[CustomAIClient] Trimmed ${trimmedCount} old message(s) to fit the model context budget.`
+    );
+  }
+
   const abortController = registerTurnAbortController(reqId);
   let assistantResponse;
   try {
     assistantResponse = await sendChatCompletion({
-      messages: openAiMessages,
+      messages: budgetedMessages,
       tools: GDEVELOP_OPENAI_TOOLS,
-      config: getEffectiveConfigForRequest(reqId),
+      config: createConfig,
       signal: abortController.signal,
     });
   } catch (error) {
@@ -3056,7 +3159,7 @@ export const customCreateAiRequest = async ({
   // meter must include the first turn, not only later continues.
   addTokenUsage(
     reqId,
-    estimateMessagesTokens(openAiMessages),
+    estimateMessagesTokens(budgetedMessages),
     estimateTokens(assistantResponse.content)
   );
 

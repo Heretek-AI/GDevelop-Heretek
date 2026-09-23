@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 57,
+  "last_cycle": 58,
   "completed_targets": [
     {
       "cycle": 1,
@@ -337,12 +337,19 @@
       "target": "Clear a prior terminal error on a later successful ordinary local turn (stale error fooled status-agnostic readers)",
       "metric_delta": "customAddMessageToAiRequest success path sets error:null; AI suite 323\u2192324; fail\u2192ordinary-success test asserts ready+error null",
       "commit": "fix(ai): clear stale error when a later local turn succeeds"
+    },
+    {
+      "cycle": 58,
+      "target": "Budget the system prompt (embedded gameProjectJson) on create and all local turns so small local models (llama 4096-token budget) do not receive an oversized first payload",
+      "metric_delta": "compactSystemMessageToBudget + create path uses trimMessagesToBudget; AI suite 324\u2192327; create with huge project JSON asserts posted messages \u22644096 tokens",
+      "commit": "fix(ai): compact oversized system project JSON to the model context budget"
     }
   ],
   "backlog": [
     "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) \u2014 empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
-    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps"
+    "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps",
+    "Surface a distinct UI notice when the system project structure was compacted (trim count today only increments when message count drops)"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
@@ -397,6 +404,7 @@
     "addMessageToAiRequest returning status:'error' must not clearEditorFunctionCallResults, fire sendAiRequestMessageSent, resetUserInput, or clear standalone aiRequestIdForForm \u2014 keep FC results and draft so Retry \u2192 continue can re-send them; declare `let aiRequest: AiRequest | void` before try and gate with sendFailed = !!aiRequest && isFailedAiRequestStart(aiRequest)",
     "AskAiStandAloneForm must not closeProject before createAiRequest succeeds \u2014 getStandaloneCreateOutcome === 'handoff' only then closes the project and opens the Ask AI tab; error-row leaves the project open so offline failures do not discard work (canPay early-return also stays safe)",
     "Every local model turn that returns a response must call addTokenUsage \u2014 create, addMessage, and sub-agent paths; a missing call under-reports the chat cost meter without failing any status test",
-    "Successful local model writes must set error:null (create/retry already did; ordinary addMessage left the prior error for FinalizeSubAgents and any status-agnostic .error reader)"
+    "Successful local model writes must set error:null (create/retry already did; ordinary addMessage left the prior error for FinalizeSubAgents and any status-agnostic .error reader)",
+    "trimMessagesToBudget never drops role:system \u2014 an oversized system prompt must be compacted (truncate Current Project Structure first) before history dropping; create/first turn must call trim like addMessage"
   ]
 }

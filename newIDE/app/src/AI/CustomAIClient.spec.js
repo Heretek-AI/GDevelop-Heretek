@@ -693,6 +693,100 @@ describe('CustomAIClient', () => {
       expect(trimmed.filter(m => m.role === 'tool')).toEqual([]);
       expect(trimmed[0]).toBe(system);
     });
+
+    it('compacts an oversized system project structure so create fits a small local budget', () => {
+      const guidelines = 'You are GDevelop AI Assistant.\n';
+      const structure =
+        'Current Project Structure:\n' +
+        JSON.stringify({
+          scenes: Array.from({ length: 500 }, (_, i) => ({
+            name: 'Scene' + i,
+            events: 'x'.repeat(200),
+          })),
+        });
+      const extensions =
+        '\nInstalled Project Extensions:\n' + 'ext'.repeat(200) + '\n';
+      const system = {
+        role: 'system',
+        content: guidelines + structure + extensions,
+      };
+      const user = { role: 'user', content: 'hello' };
+      // llama budget is 4096; system alone is far larger.
+      expect(estimateTokens(system.content)).toBeGreaterThan(4096);
+
+      const trimmed = trimMessagesToBudget([system, user], 4096);
+      expect(trimmed).toHaveLength(2);
+      expect(trimmed[1]).toBe(user);
+      const sys = trimmed[0];
+      expect(sys.role).toBe('system');
+      expect(sys.content).toContain('You are GDevelop AI Assistant');
+      expect(sys.content).toContain(
+        'truncated to fit the model context window'
+      );
+      // Guidelines head preserved; structure body shortened.
+      expect(sys.content.indexOf('Current Project Structure:')).toBeGreaterThan(
+        -1
+      );
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(4096);
+      expect(estimateTokens(sys.content)).toBeLessThanOrEqual(4096 - 256);
+    });
+
+    it('leaves a system prompt that already fits the budget untouched (same reference)', () => {
+      const system = { role: 'system', content: 'short guidelines' };
+      const user = { role: 'user', content: 'hi' };
+      const messages = [system, user];
+      const trimmed = trimMessagesToBudget(messages, 4096);
+      expect(trimmed[0]).toBe(system);
+      expect(trimmed).toBe(messages);
+    });
+  });
+
+  describe('create path context budget', () => {
+    it('sends a budgeted system prompt when the project structure alone exceeds the model budget', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      const hugeProject = JSON.stringify({
+        scenes: Array.from({ length: 800 }, (_, i) => ({
+          name: 'Scene' + i,
+          events: Array.from({ length: 20 }, (_, j) => ({
+            type: 'Event' + j,
+            code: 'y'.repeat(150),
+          })),
+        })),
+      });
+      expect(estimateTokens(hugeProject)).toBeGreaterThan(4096);
+
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: hugeProject,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'chat',
+      });
+      expect(created.status).toBe('ready');
+
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      const body = axios.post.mock.calls[0][1];
+      const systemMessage = (body.messages || []).find(
+        m => m.role === 'system'
+      );
+      expect(systemMessage).toBeTruthy();
+      expect(systemMessage.content).toContain('You are GDevelop AI Assistant');
+      expect(systemMessage.content).toContain(
+        'truncated to fit the model context window'
+      );
+      // llama3.2 budget = 4096; leave exchange reserve inside compaction.
+      expect(estimateMessagesTokens(body.messages)).toBeLessThanOrEqual(4096);
+    });
   });
 
   describe('context trim count surfacing', () => {
