@@ -162,9 +162,15 @@ export const buildSubAgentReport = (
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
     if (message.type !== 'message' || message.role !== 'assistant') continue;
-    const textContent = message.content.find(
-      content => content.type === 'output_text' || content.type === 'text'
-    );
+    // A sub-agent message from the server may lack its content array; the
+    // report falls back to the message's own `text` field below.
+    const content = message.content;
+    const textContent = Array.isArray(content)
+      ? content.find(
+          entry =>
+            entry && (entry.type === 'output_text' || entry.type === 'text')
+        )
+      : null;
     const textFromContent = textContent ? (textContent: any).text : null;
     if (typeof textFromContent === 'string' && textFromContent) {
       core = textFromContent;

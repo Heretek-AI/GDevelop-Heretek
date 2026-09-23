@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 102,
+  "last_cycle": 103,
   "completed_targets": [
     {
       "cycle": 75,
@@ -603,6 +603,12 @@
       "target": "Guard the chat component's own content loops",
       "metric_delta": "447 tests (unchanged); ChatMessages itself read `message.content` in three unguarded loops — the renderItems builder (line 442), the working-status text collector (635) and the taskId→items map (795). All three run on every chat render with network-supplied data, so a response missing the array crashed the chat view rather than a helper behind it; the file already sat in the `modified` bucket, so no new divergence. Guarded with Array.isArray checks matching each loop's control flow. 1 file, +7",
       "commit": "fix(ai): guard the chat component's own content loops"
+    },
+    {
+      "cycle": 103,
+      "target": "Guard the sub-agent report builder against malformed content",
+      "metric_delta": "447 tests (unchanged); buildSubAgentReport read message.content.find(..) unguarded, so a server sub-agent message missing its content array threw while finalizing the report; it already documents falling back to the message's own `text` field, which the guard now actually reaches. Only FinalizeSubAgents.js changed (already forkOnly). A matching guard in FunctionCallRow.js was written and then REVERTED: that file is byte-identical to upstream and untracked in the manifest, and the divergence guard flagged it as new divergence — permanent merge surface for a defensive guard with no reproduction is not worth it. 1 file, +9/-3",
+      "commit": "fix(ai): guard the sub-agent report builder against malformed content"
     }
   ],
   "backlog": [
@@ -722,6 +728,7 @@
     "An eval write corrupted CustomAIClient.js with inline `__omp_shell(\"...\")` artifacts around the multi-line conditions, breaking the file with a syntax error that 7 suites caught. After any scripted write to a large source file, grep for artifact markers (and run the suite) before trusting it.",
     "Per-request state kept in a module-level map is lost on reload unless persisted: the per-chat model override had a UI control and a read path but no storage, so the user's choice silently reverted. When adding a per-request registry entry that a user can set, check whether it needs its own persisted key.",
     "A *WithAvailability helper must honour the availability it computes: getDefaultAiConfigurationPresetId ignored `disabled` while every other consumer of those presets respects it. When a module derives availability, check that the selectors it feeds also read it.",
-    "TypeScript/Flow-required fields on network payloads are assertions, not guarantees: getUserRequestText trusted Array-typed content that the server could omit, and the crash surfaced in the sidebar. When a helper reads a field straight from an API response, guard the shape even when the type declares it required."
+    "TypeScript/Flow-required fields on network payloads are assertions, not guarantees: getUserRequestText trusted Array-typed content that the server could omit, and the crash surfaced in the sidebar. When a helper reads a field straight from an API response, guard the shape even when the type declares it required.",
+    "Before hardening an unguarded read, check the file's divergence bucket: a defensive guard in an upstream-identical, untracked file creates permanent merge surface (the fork-divergence guard flags it as new divergence) for no reproduced failure. Fix upstream-owned files only for real defects; prefer files already in the modified/forkOnly buckets, or the fix belongs upstream."
   ]
 }
