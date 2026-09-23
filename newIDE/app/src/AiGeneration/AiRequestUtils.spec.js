@@ -21,6 +21,7 @@ import {
   canSendFeedbackForSession,
   isFailedAiRequestStart,
   getStandaloneCreateOutcome,
+  getLatestActivePlan,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
 
@@ -66,6 +67,55 @@ const makeFunctionCallOutput = (callId: string) => ({
   type: 'function_call_output',
   call_id: callId,
   output: '{"success":true}',
+});
+
+describe('getLatestActivePlan', () => {
+  const planMessage = (tasks: any) => ({
+    type: 'function_call_output',
+    call_id: 'c1',
+    output: JSON.stringify({ success: true, plan: { tasks } }),
+  });
+
+  it('returns the last plan that still has an active task', () => {
+    const request = makeAiRequest([
+      planMessage([
+        { id: 'a', title: 'A', description: 'a', status: 'done' },
+        { id: 'b', title: 'B', description: 'b', status: 'pending' },
+      ]),
+    ]);
+    const plan = getLatestActivePlan(request);
+    expect(plan).toBeTruthy();
+    expect(plan.tasks.length).toBe(2);
+  });
+
+  it('returns null when every task is done or voided', () => {
+    const request = makeAiRequest([
+      planMessage([
+        { id: 'a', title: 'A', description: 'a', status: 'done' },
+        { id: 'b', title: 'B', description: 'b', status: 'voided' },
+      ]),
+    ]);
+    expect(getLatestActivePlan(request)).toBe(null);
+  });
+
+  it('returns null rather than throwing when tasks is not an array', () => {
+    // `output.plan.tasks` was only checked for truthiness, then `.some` was
+    // called on it — so an object, a string or a number threw out of a function
+    // whose own try/catch covers only JSON.parse. The plan output is
+    // model-authored and a request restored from localStorage is not
+    // shape-revalidated, so neither the array nor its shape is guaranteed.
+    for (const tasks of [{ '0': { status: 'pending' } }, 'yes', 1, true]) {
+      const request = makeAiRequest([planMessage(tasks)]);
+      expect(getLatestActivePlan(request)).toBe(null);
+    }
+  });
+
+  it('ignores a malformed plan message and finds nothing', () => {
+    const request = makeAiRequest([
+      { type: 'function_call_output', call_id: 'c1', output: '{not json' },
+    ]);
+    expect(getLatestActivePlan(request)).toBe(null);
+  });
 });
 
 describe('getFunctionCallsToProcess', () => {

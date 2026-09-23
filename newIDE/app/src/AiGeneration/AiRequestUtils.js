@@ -500,7 +500,13 @@ export const getLatestActivePlan = (
     if (message.type === 'function_call_output' && message.output) {
       try {
         const output = JSON.parse(message.output);
-        if (output && output.plan && output.plan.tasks) {
+        // `tasks` must be an array, not merely truthy: a non-array (an object,
+        // a string) satisfies the truthiness test but throws on `.some` below,
+        // and the try/catch above only covers JSON.parse. A request restored
+        // from localStorage is not shape-revalidated on load, and the plan
+        // output is model-authored, so neither the array nor the shape is
+        // guaranteed by the time this runs.
+        if (output && output.plan && Array.isArray(output.plan.tasks)) {
           latestPlan = output.plan;
           break;
         }
