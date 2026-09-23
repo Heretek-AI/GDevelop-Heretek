@@ -3450,6 +3450,64 @@ export const customGetAiRequestSuggestions = async (
     ],
   };
 
+  // Attach suggestions to the last assistant/function-output message in the
+  // local cache and return THAT snapshot. The chat UI reads message.suggestions
+  // (not the top-level fields), and callers merge this return value back over
+  // the request — returning the pre-attach snapshot used to clobber the cache
+  // write, so local BYOK suggestions never reached the UI.
+  const attachSuggestions = (
+    parsed: AiRequestSuggestions
+  ): {|
+    ...AiRequest,
+    suggestions: Array<{| title: string, suggestedMessage: string |}>,
+    explanationMessage: string,
+  |} => {
+    const topSuggestions = parsed.suggestions || defaultSuggestions.suggestions;
+    const topExplanation =
+      parsed.explanationMessage || defaultSuggestions.explanationMessage;
+    // Re-read the cache: a model turn may have written the request back while
+    // the suggestion model was answering.
+    const latest = localAiRequestsCache[aiRequestId] || req;
+    const output = latest.output || [];
+    if (output.length === 0) {
+      return {
+        ...latest,
+        suggestions: topSuggestions,
+        explanationMessage: topExplanation,
+      };
+    }
+    const lastMsgIndex = output.length - 1;
+    const lastMsg = output[lastMsgIndex];
+    const canAttach =
+      (lastMsg.type === 'message' && lastMsg.role === 'assistant') ||
+      lastMsg.type === 'function_call_output';
+    if (!canAttach) {
+      return {
+        ...latest,
+        suggestions: topSuggestions,
+        explanationMessage: topExplanation,
+      };
+    }
+    // Replace the message and the request rather than mutating in place: a
+    // model turn holding this request will write its own copy back, and an
+    // in-place edit would be silently discarded by that write.
+    const updatedOutput = [...output];
+    // $FlowFixMe[incompatible-type] - canAttach narrows to a type that accepts suggestions.
+    updatedOutput[lastMsgIndex] = { ...lastMsg, suggestions: parsed };
+    const updated: AiRequest = {
+      ...latest,
+      output: updatedOutput,
+      updatedAt: new Date().toISOString(),
+    };
+    localAiRequestsCache[aiRequestId] = updated;
+    saveLocalAiRequests();
+    return {
+      ...updated,
+      suggestions: topSuggestions,
+      explanationMessage: topExplanation,
+    };
+  };
+
   try {
     const prompt = `Based on the current GDevelop game project and conversation, provide 2 to 3 concise, helpful next step suggestions for the game creator.
 Return your response STRICTLY as a JSON object with this format:
@@ -3473,39 +3531,14 @@ Return your response STRICTLY as a JSON object with this format:
       .replace(/```/gi, '')
       .trim();
     const parsed: AiRequestSuggestions = JSON.parse(clean);
-
-    // Re-read the cache: a model turn may have written the request back while
-    // the suggestion model was answering.
-    const latest = localAiRequestsCache[aiRequestId] || req;
-    if (latest.output && latest.output.length > 0) {
-      const lastMsgIndex = latest.output.length - 1;
-      const lastMsg = latest.output[lastMsgIndex];
-      if (lastMsg.type === 'message' && lastMsg.role === 'assistant') {
-        // Replace the message and the request rather than mutating in place: a
-        // model turn holding this request will write its own copy back, and an
-        // in-place edit would be silently discarded by that write.
-        const updatedOutput = [...latest.output];
-        updatedOutput[lastMsgIndex] = { ...lastMsg, suggestions: parsed };
-        localAiRequestsCache[aiRequestId] = {
-          ...latest,
-          output: updatedOutput,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-    }
-    saveLocalAiRequests();
-    return {
-      ...req,
-      suggestions: parsed.suggestions || defaultSuggestions.suggestions,
-      explanationMessage:
-        parsed.explanationMessage || defaultSuggestions.explanationMessage,
-    };
+    return attachSuggestions(parsed);
   } catch (err) {
-    return {
-      ...req,
-      suggestions: defaultSuggestions.suggestions,
+    // Malformed JSON or a dropped connection: still surface defaults on the
+    // last message so the chat is not stuck without next-step actions.
+    return attachSuggestions({
       explanationMessage: defaultSuggestions.explanationMessage,
-    };
+      suggestions: defaultSuggestions.suggestions,
+    });
   }
 };
 

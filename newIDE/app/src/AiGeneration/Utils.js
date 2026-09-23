@@ -45,6 +45,7 @@ import {
   getLastMessagesFromAiRequestOutput,
   getLatestActivePlan,
   getSubAgentKind,
+  shouldFetchAiRequestSuggestions,
 } from './AiRequestUtils';
 import { useEnsureExtensionInstalled } from './UseEnsureExtensionInstalled';
 import { useGenerateEvents } from './UseGenerateEvents';
@@ -61,7 +62,10 @@ import { retryIfFailed } from '../Utils/RetryIfFailed';
 import { makeSimplifiedProjectBuilder } from '../EditorFunctions/SimplifiedProject/SimplifiedProject';
 import { prepareAiUserContent } from './PrepareAiUserContent';
 import { extractGDevelopApiErrorStatusAndCode } from '../Utils/GDevelopServices/Errors';
-import { isCustomEndpointEnabled } from '../AI/CustomAIClient';
+import {
+  isCustomEndpointEnabled,
+  LOCAL_BYOK_USER_ID,
+} from '../AI/CustomAIClient';
 import {
   isSpawnAgentCall,
   spawnSubAgent,
@@ -1386,20 +1390,19 @@ export const useAiRequestState = ({
         // Then ask for some.
         if (
           !selectedAiRequest ||
-          (selectedAiRequest.mode !== 'agent' &&
-            selectedAiRequest.mode !== 'orchestrator') ||
-          isSendingAiRequest(selectedAiRequest.id) ||
-          !selectedAiRequest.output ||
-          selectedAiRequest.output.length === 0 ||
-          selectedAiRequest.status !== 'ready' ||
-          !profile ||
-          isFetchingSuggestions
-        )
+          !shouldFetchAiRequestSuggestions({
+            selectedAiRequest,
+            isSending: isSendingAiRequest(selectedAiRequest.id),
+            isFetchingSuggestions,
+            profile,
+            customEndpointEnabled: isCustomEndpointEnabled(),
+            hasProject: !!project,
+          })
+        ) {
           return;
+        }
 
-        // No suggestions until there is an actual project: before that, the AI
-        // is still discussing the game idea or making a plan with the user.
-        if (!project) return;
+        const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;
 
         // Check if there are tools being run. If so, no suggestions at this time.
         const hasFunctionsCallsToProcess =
@@ -1489,7 +1492,7 @@ export const useAiRequestState = ({
           : null;
         const preparedAiUserContent = await prepareAiUserContent({
           getAuthorizationHeader,
-          userId: profile.id,
+          userId: activeUserId,
           simplifiedProjectJson,
           projectSpecificExtensionsSummaryJson,
           eventsJson: null,
@@ -1503,7 +1506,7 @@ export const useAiRequestState = ({
           const aiRequestWorkingForSuggestions = await getAiRequestSuggestions(
             getAuthorizationHeader,
             {
-              userId: profile.id,
+              userId: activeUserId,
               aiRequestId: selectedAiRequest.id,
               suggestionsType: isLastMessageFunctionCallOutputProjectInitialization
                 ? 'list-with-explanations'

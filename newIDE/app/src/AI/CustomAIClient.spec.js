@@ -1547,10 +1547,97 @@ describe('CustomAIClient', () => {
       expect(fallback.status).toBe('ready');
     });
 
-    it('returns suggestions for an AI request', async () => {
+    it('returns top-level suggestions for an unknown local request', async () => {
       const suggestions = await customGetAiRequestSuggestions('local-ai-123');
       expect(suggestions.suggestions).toHaveLength(3);
       expect(suggestions.suggestions[0].suggestedMessage).toBeDefined();
+      // Nothing to attach to — must not invent a cache entry.
+      expect(
+        customGetAiRequests().aiRequests.some(r => r.id === 'local-ai-123')
+      ).toBe(false);
+    });
+
+    it('attaches model suggestions onto the last assistant message and returns that snapshot', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Seed for suggestions',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'agent',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  explanationMessage: 'Try this next:',
+                  suggestions: [
+                    { title: 'Jump', suggestedMessage: 'Add a jump action' },
+                  ],
+                }),
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customGetAiRequestSuggestions(aiRequest.id);
+
+      // Return value must carry the updated output (callers merge it back).
+      const lastFromResult = result.output[result.output.length - 1];
+      expect(lastFromResult.suggestions).toBeTruthy();
+      expect(lastFromResult.suggestions.suggestions[0].title).toBe('Jump');
+
+      // Cache must match the return value so a subsequent merge cannot clobber.
+      const cached = customGetAiRequest(aiRequest.id);
+      const lastFromCache = cached.output[cached.output.length - 1];
+      expect(lastFromCache.suggestions).toBeTruthy();
+      expect(lastFromCache.suggestions.suggestions[0].title).toBe('Jump');
+    });
+
+    it('falls back to default suggestions on the last message when the model returns malformed JSON', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Seed for fallback suggestions',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'agent',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'not-json{{{' } }],
+        },
+      });
+
+      const result = await customGetAiRequestSuggestions(aiRequest.id);
+      expect(result.suggestions).toHaveLength(3);
+      const lastFromResult = result.output[result.output.length - 1];
+      expect(lastFromResult.suggestions).toBeTruthy();
+      expect(lastFromResult.suggestions.suggestions).toHaveLength(3);
+
+      const cached = customGetAiRequest(aiRequest.id);
+      const lastFromCache = cached.output[cached.output.length - 1];
+      expect(lastFromCache.suggestions).toBeTruthy();
     });
 
     it('generates event changes with customCreateAiGeneratedEvent', async () => {

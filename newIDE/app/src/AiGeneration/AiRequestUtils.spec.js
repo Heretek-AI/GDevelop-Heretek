@@ -6,6 +6,7 @@ import {
   aiRequestPollSawActivity,
   canRetryAiRequest,
   canSendAiRequestForSession,
+  shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -272,5 +273,97 @@ describe('canSendAiRequestForSession', () => {
   it('refuses hosted sends without a profile and without a custom endpoint', () => {
     expect(canSendAiRequestForSession(null, false)).toBe(false);
     expect(canSendAiRequestForSession(undefined, false)).toBe(false);
+  });
+});
+
+describe('shouldFetchAiRequestSuggestions', () => {
+  const readyAgentRequest = (
+    output: Array<any> = [makeAssistantMessage([])]
+  ): AiRequest => ({
+    ...makeAiRequest(output),
+    status: 'ready',
+    mode: 'agent',
+  });
+
+  const baseOptions = (overrides: Object = {}) => ({
+    selectedAiRequest: readyAgentRequest(),
+    isSending: false,
+    isFetchingSuggestions: false,
+    profile: null,
+    customEndpointEnabled: true,
+    hasProject: true,
+    ...overrides,
+  });
+
+  it('allows offline BYOK (custom endpoint, no profile) to fetch suggestions', () => {
+    expect(shouldFetchAiRequestSuggestions(baseOptions())).toBe(true);
+  });
+
+  it('allows a logged-in profile even without a custom endpoint', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({ profile: { id: 'user-1' }, customEndpointEnabled: false })
+      )
+    ).toBe(true);
+  });
+
+  it('refuses hosted sessions without a profile', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({ profile: null, customEndpointEnabled: false })
+      )
+    ).toBe(false);
+  });
+
+  it('refuses while a send or another suggestions fetch is in flight', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(baseOptions({ isSending: true }))
+    ).toBe(false);
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({ isFetchingSuggestions: true })
+      )
+    ).toBe(false);
+  });
+
+  it('refuses when the request is not ready, empty, or not an agent mode', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({
+          selectedAiRequest: { ...readyAgentRequest(), status: 'working' },
+        })
+      )
+    ).toBe(false);
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({ selectedAiRequest: readyAgentRequest([]) })
+      )
+    ).toBe(false);
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({
+          selectedAiRequest: { ...readyAgentRequest(), mode: 'chat' },
+        })
+      )
+    ).toBe(false);
+    expect(
+      shouldFetchAiRequestSuggestions(baseOptions({ selectedAiRequest: null }))
+    ).toBe(false);
+  });
+
+  it('refuses until a project is loaded', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(baseOptions({ hasProject: false }))
+    ).toBe(false);
+  });
+
+  it('allows orchestrator mode once ready', () => {
+    expect(
+      shouldFetchAiRequestSuggestions(
+        baseOptions({
+          selectedAiRequest: { ...readyAgentRequest(), mode: 'orchestrator' },
+        })
+      )
+    ).toBe(true);
   });
 });

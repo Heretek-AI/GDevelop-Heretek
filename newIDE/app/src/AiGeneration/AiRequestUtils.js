@@ -65,6 +65,51 @@ export const canSendAiRequestForSession = (
   customEndpointEnabled: boolean
 ): boolean => !!profile || customEndpointEnabled;
 
+/**
+ * Whether the suggestions side-fetch should run for this session and request
+ * state: an agent/orchestrator request that is ready with a project loaded,
+ * not mid-send, and allowed for this session (profile or custom endpoint).
+ *
+ * Offline BYOK without a profile used to be refused by a bare `!profile`
+ * guard in Utils, so local chats never received next-step suggestions even
+ * though the local client can generate them without the hosted API.
+ */
+export const shouldFetchAiRequestSuggestions = (options: {|
+  selectedAiRequest: ?AiRequest,
+  isSending: boolean,
+  isFetchingSuggestions: boolean,
+  profile: ?{ id: string },
+  customEndpointEnabled: boolean,
+  hasProject: boolean,
+|}): boolean => {
+  const {
+    selectedAiRequest,
+    isSending,
+    isFetchingSuggestions,
+    profile,
+    customEndpointEnabled,
+    hasProject,
+  } = options;
+  if (!selectedAiRequest) return false;
+  if (
+    selectedAiRequest.mode !== 'agent' &&
+    selectedAiRequest.mode !== 'orchestrator'
+  ) {
+    return false;
+  }
+  if (isSending) return false;
+  if (!selectedAiRequest.output || selectedAiRequest.output.length === 0) {
+    return false;
+  }
+  if (selectedAiRequest.status !== 'ready') return false;
+  if (!canSendAiRequestForSession(profile, customEndpointEnabled)) {
+    return false;
+  }
+  if (isFetchingSuggestions) return false;
+  if (!hasProject) return false;
+  return true;
+};
+
 export const getFunctionCallToFunctionCallOutputMap = ({
   aiRequest,
 }: {|

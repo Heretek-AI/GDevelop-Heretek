@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 36,
+  "last_cycle": 37,
   "completed_targets": [
     {
       "cycle": 1,
@@ -211,6 +211,12 @@
       "target": "Standalone Ask AI form: allow function-call result sends for local/BYOK without a profile",
       "metric_delta": "Before: AskAiStandAloneForm.onSendMessage required a logged-in profile (if (!profile) return) even when isCustomEndpointEnabled() \u2014 the form could START a custom-endpoint request without a profile (line 284) but silently dropped function-call outputs afterward, stalling the agent loop for offline BYOK sessions. The editor container already used the correct guard (profile || custom endpoint). After: shared pure helper canSendAiRequestForSession(profile, customEndpointEnabled) in AiRequestUtils; both containers use it so they cannot drift. 3 new tests (profile always allowed, custom endpoint without profile allowed, hosted without profile refused). Gates: ESLint 0, prettier clean, 275/275 AI+AiGeneration+GDevelopServices tests (was 272), divergence updated for AiRequestUtils.js/.spec.js fork divergence, lockfile guard green. Diff: 4 files, +43/-2.",
       "commit": "fix(ai): allow standalone form to return function-call outputs without a profile"
+    },
+    {
+      "cycle": 37,
+      "target": "Fetch and surface next-step suggestions for offline BYOK without a profile",
+      "metric_delta": "Before: fetchSuggestionsIfNeeded required a profile (Utils.js !profile) so local BYOK chats never requested suggestions; even when the local path ran, customGetAiRequestSuggestions wrote message.suggestions into the cache but returned the pre-attach snapshot, and the caller's merge + customUpdateAiRequest clobbered that write \u2014 the UI (message.suggestions) stayed empty; the catch path only set top-level defaults. After: shouldFetchAiRequestSuggestions uses canSendAiRequestForSession (profile || custom endpoint) with a LOCAL_BYOK_USER_ID userId fallback; attachSuggestions writes message.suggestions (assistant or function_call_output) into the cache and returns THAT snapshot; malformed JSON still attaches defaults on the last message. 9 new tests (7 shouldFetch cases + attach/fallback/unknown-request in CustomAIClient); gates: ESLint 0, prettier clean, 284/284 AI+AiGeneration+GDevelopServices (was 275), divergence 124/55/7 green, lockfile guard green. Diff: 5 files, +308/-47.",
+      "commit": "fix(ai): fetch suggestions for offline BYOK without a profile"
     }
   ],
   "backlog": [
@@ -238,6 +244,8 @@
     "eslint --fix resolves import/first ordering automatically \u2014 prefer it over manual import relocation when inserting components mid-file",
     "axios.create() is automocked to undefined under jest.mock('axios'); Generation hosted paths need a factory mock that returns {get,post,patch,delete} from create()",
     "seedLocalRequest in Generation.spec uses axios.post once \u2014 clear the post mock before asserting hosted API was not called",
-    "Profile guards on send/continue paths must use canSendAiRequestForSession (profile || custom endpoint) \u2014 the stand-alone form and editor container drifted once and silently stalled BYOK agent loops"
+    "Profile guards on send/continue paths must use canSendAiRequestForSession (profile || custom endpoint) \u2014 the stand-alone form and editor container drifted once and silently stalled BYOK agent loops",
+    "Local suggestions must attach to message.suggestions (UI contract) and the return value must be the post-attach snapshot \u2014 updateAiRequest merges the return over state and customUpdateAiRequest writes it back to the cache, so a stale return clobbers the attach",
+    "shouldFetchAiRequestSuggestions / canSendAiRequestForSession are the session gates for AI side-effects \u2014 any new side-fetch (limits, summaries, suggestions) must allow customEndpointEnabled without profile"
   ]
 }
