@@ -78,6 +78,7 @@
     "newIDE/app/src/EditorFunctions/index.js",
     "newIDE/app/src/ExportAndShare/LocalExporters/LocalPreviewLauncher/index.js",
     "newIDE/app/src/InstancesEditor/InstancesList/index.js",
+    "newIDE/app/src/InstancesEditor/index.js",
     "newIDE/app/src/MainFrame/AboutDialog.js",
     "newIDE/app/src/MainFrame/Changelog/ChangelogDialog.js",
     "newIDE/app/src/MainFrame/Changelog/ChangelogRenderer.js",
