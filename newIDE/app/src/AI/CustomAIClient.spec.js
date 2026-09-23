@@ -28,6 +28,10 @@ import {
   customCreateResourceSearch,
   testConnection,
   sendChatCompletion,
+  estimateTokens,
+  getTokenBudget,
+  estimateMessagesTokens,
+  trimMessagesToBudget,
 } from './CustomAIClient';
 
 import { getToolsForRole } from '../AiGeneration/Studio/Roles';
@@ -336,6 +340,73 @@ describe('CustomAIClient', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Connection failed');
+    });
+  });
+
+  describe('token budget helpers', () => {
+    it('estimates tokens at ~4 characters per token', () => {
+      expect(estimateTokens(null)).toBe(0);
+      expect(estimateTokens(undefined)).toBe(0);
+      expect(estimateTokens('')).toBe(0);
+      expect(estimateTokens('abcd')).toBe(1);
+      expect(estimateTokens('abcde')).toBe(2);
+      expect(estimateTokens('a'.repeat(400))).toBe(100);
+    });
+
+    it('scales the budget by model family and reserves output room', () => {
+      expect(getTokenBudget({ model: 'gpt-4o' })).toBe(64000);
+      expect(getTokenBudget({ model: 'claude-3-5-sonnet' })).toBe(64000);
+      expect(getTokenBudget({ model: 'llama3.2' })).toBe(4096);
+      expect(getTokenBudget({ model: 'mistral-7b' })).toBe(16384);
+      expect(getTokenBudget({ model: 'unknown-model' })).toBe(64000);
+      expect(getTokenBudget(null)).toBe(64000);
+    });
+
+    it('trims oldest history but keeps system prompt and latest exchange', () => {
+      const system = { role: 'system', content: 'x'.repeat(400) }; // 100 tokens
+      const old = Array.from({ length: 10 }, (_, i) => ({
+        role: 'user',
+        content: 'y'.repeat(400), // 100 tokens each
+      }));
+      const last = [
+        { role: 'user', content: 'z'.repeat(400) },
+        { role: 'assistant', content: 'w'.repeat(400) },
+      ];
+      const messages = [system, ...old, ...last];
+
+      // Budget fits system(100) + last2(200) + 2 old(200): 500 tokens.
+      const trimmed = trimMessagesToBudget(messages, 500);
+      expect(trimmed[0]).toBe(system);
+      expect(trimmed).toContain(last[0]);
+      expect(trimmed).toContain(last[1]);
+      expect(trimmed.length).toBeLessThan(messages.length);
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(500);
+    });
+
+    it('drops tool outputs together with their tool_calls assistant', () => {
+      const system = { role: 'system', content: 'sys' };
+      const assistantWithCalls = {
+        role: 'assistant',
+        content: 'a'.repeat(4000),
+        tool_calls: [{ id: 'c1', function: { name: 'f', arguments: '{}' } }],
+      };
+      const toolOutput = {
+        role: 'tool',
+        tool_call_id: 'c1',
+        content: 't'.repeat(4000),
+      };
+      const last = [
+        { role: 'user', content: 'u'.repeat(400) },
+        { role: 'assistant', content: 'w'.repeat(400) },
+      ];
+      const messages = [system, assistantWithCalls, toolOutput, ...last];
+
+      const trimmed = trimMessagesToBudget(messages, 300);
+      expect(trimmed).not.toContain(assistantWithCalls);
+      expect(trimmed).not.toContain(toolOutput);
+      // No orphan tool messages remain.
+      expect(trimmed.filter(m => m.role === 'tool')).toEqual([]);
+      expect(trimmed[0]).toBe(system);
     });
   });
 

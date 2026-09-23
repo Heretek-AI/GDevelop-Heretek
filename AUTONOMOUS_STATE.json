@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 8,
+  "last_cycle": 9,
   "completed_targets": [
     {
       "cycle": 1,
@@ -43,13 +43,19 @@
       "target": "Verify offline mock test coverage for the local AI client (backlog audit)",
       "metric_delta": "CustomAIClient.spec.js (37 tests) runs fully offline: axios is jest-mocked, only URL strings appear, zero network calls \u2014 satisfying the 'offline mock test runner' backlog item. testConnection audited: /models fallback benefits from the cycle-4 401 hint via sendChatCompletion; no change needed.",
       "commit": "(no code change \u2014 verification cycle)"
+    },
+    {
+      "cycle": 9,
+      "target": "Local-model token-budget calculator + history trimmer for scene context",
+      "metric_delta": "Before: gameProjectJson + unbounded conversation history were embedded verbatim with no size management \u2014 big projects silently exceeded local models' context windows (8k-128k) and got truncated or errored. After: dependency-free chars/4 estimator (estimateTokens), model-family budget (getTokenBudget: llama 4k, mistral/qwen 16k, gpt/claude/deepseek 64k input \u2014 half the window reserved for output), and trimMessagesToBudget which drops oldest history (never system prompt or newest exchange; tool outputs dropped with their tool_calls assistant so servers never see orphans) in both chat-turn and sub-agent paths. 4 new test blocks; 41/41 green.",
+      "commit": "feat(ai): token-budget estimation and history trimming for local models"
     }
   ],
   "backlog": [
     "Add timeoutMs field to the custom-AI preferences dialog UI (config currently localStorage-only)",
     "Add BYOK structured JSON schema validation for Event Sheet generation",
     "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
-    "Add local model token-budget calculator for GDevelop scene context"
+    "Surface trimmed-message count in the AI chat UI instead of console.warn only"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",

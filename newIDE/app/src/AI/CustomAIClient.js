@@ -245,6 +245,111 @@ export const withLocalAiTurnLock = async <T>(
   }
 };
 
+/**
+ * Rough token estimate for prompt-budget purposes: ~4 characters per token.
+ * Deliberately dependency-free and local-only — good enough to decide whether
+ * the context window is in danger, not to bill anyone.
+ */
+export const estimateTokens = (text: ?string): number =>
+  text && typeof text === 'string' ? Math.ceil(text.length / 4) : 0;
+
+const DEFAULT_CONTEXT_WINDOW = 128000;
+// Conservative context windows per model family (local models are small).
+const FAMILY_CONTEXT_WINDOWS = {
+  llama: 8192,
+  mistral: 32768,
+  qwen: 32768,
+  gpt: 128000,
+  claude: 128000,
+  deepseek: 128000,
+};
+
+/**
+ * Input-token budget for a request: half the model family's context window,
+ * so output and tool definitions always have room.
+ */
+export const getTokenBudget = (config?: ?CustomAIConfig): number => {
+  const model = String((config && config.model) || '').toLowerCase();
+  const window = Object.keys(FAMILY_CONTEXT_WINDOWS).reduce(
+    (found, family) =>
+      found || (model.includes(family) ? FAMILY_CONTEXT_WINDOWS[family] : 0),
+    0
+  );
+  return ((window || DEFAULT_CONTEXT_WINDOW) * 1) / 2;
+};
+
+/**
+ * Estimate the prompt size of a full OpenAI-style message list.
+ */
+export const estimateMessagesTokens = (openAiMessages: Array<Object>): number =>
+  openAiMessages.reduce((sum, message) => {
+    if (!message) return sum;
+    const content = message.content;
+    const contentTokens =
+      typeof content === 'string'
+        ? estimateTokens(content)
+        : estimateTokens(content ? JSON.stringify(content) : '');
+    const toolCallTokens = (message.tool_calls || []).reduce(
+      (toolSum, toolCall) =>
+        toolSum +
+        estimateTokens(
+          toolCall && toolCall.function && toolCall.function.arguments
+        ),
+      0
+    );
+    return sum + contentTokens + toolCallTokens;
+  }, 0);
+
+/**
+ * Drop oldest non-system messages (after the system prompt) until the
+ * estimated prompt fits the budget. Tool outputs follow their assistant
+ * `tool_calls` message: dropping one drops its outputs too, so a server
+ * never sees an orphan tool message. The last two messages are always kept.
+ */
+export const trimMessagesToBudget = (
+  openAiMessages: Array<Object>,
+  budget: number
+): Array<Object> => {
+  let messages = openAiMessages;
+  let estimate = estimateMessagesTokens(messages);
+  if (estimate <= budget) return messages;
+  const kept = [];
+  let dropToolOutputs = false;
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    const isProtected =
+      i === 0 ||
+      i >= messages.length - 2 ||
+      (message && message.role === 'system');
+    if (isProtected) {
+      kept.push(message);
+      continue;
+    }
+    if (estimate > budget && !dropToolOutputs) {
+      const toolCalls =
+        message && message.role === 'assistant' && message.tool_calls;
+      if (toolCalls && toolCalls.length > 0) {
+        dropToolOutputs = true;
+      }
+      estimate -=
+        estimateTokens(
+          typeof message.content === 'string'
+            ? message.content
+            : JSON.stringify(message.content || '')
+        ) + 4;
+      continue;
+    }
+    if (dropToolOutputs) {
+      if (message.role === 'tool') {
+        continue; // outputs of a dropped tool_calls assistant
+      }
+      dropToolOutputs = false;
+    }
+    kept.push(message);
+  }
+  return kept;
+};
+
 /** Reset CustomAIClient state (for testing). */
 export const _resetCustomAiClientForTesting = () => {
   cachedConfig = null;
@@ -2329,11 +2434,24 @@ export const customAddMessageToAiRequest = async ({
       systemPrompt
     );
 
+    // Local models have small context windows: trim replayed history (never
+    // the system prompt or the newest exchange) before burning the request.
+    const budgetedMessages = trimMessagesToBudget(
+      openAiMessages,
+      getTokenBudget(getCustomEndpointConfig())
+    );
+    if (budgetedMessages.length < openAiMessages.length) {
+      console.warn(
+        `[CustomAIClient] Trimmed ${openAiMessages.length -
+          budgetedMessages.length} old message(s) to fit the model context budget.`
+      );
+    }
+
     const abortController = registerTurnAbortController(aiRequestId);
     let assistantResponse;
     try {
       assistantResponse = await sendChatCompletion({
-        messages: openAiMessages,
+        messages: budgetedMessages,
         tools: studioRoleId
           ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
           : GDEVELOP_OPENAI_TOOLS,
@@ -2452,6 +2570,11 @@ export const customCreateSubAgentAiRequest = async ({
       systemPrompt
     );
 
+    const budgetedMessages = trimMessagesToBudget(
+      openAiMessages,
+      getTokenBudget(getCustomEndpointConfig())
+    );
+
     const abortController = registerTurnAbortController(
       reqId,
       parentAiRequestId
@@ -2459,7 +2582,7 @@ export const customCreateSubAgentAiRequest = async ({
     let assistantResponse;
     try {
       assistantResponse = await sendChatCompletion({
-        messages: openAiMessages,
+        messages: budgetedMessages,
         tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
         signal: abortController.signal,
       });
