@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 23,
+  "last_cycle": 24,
   "completed_targets": [
     {
       "cycle": 1,
@@ -133,12 +133,17 @@
       "target": "Token/cost meter: cumulative estimated tokens per request, surfaced in chat",
       "metric_delta": "Before: no visibility into how much context a local/BYOK session consumed. After: each turn records estimateMessagesTokens(prompt) + estimateTokens(response) against the parent chat id (sub-agent usage attributed to the parent); customGetAiRequestTokenTotal exposes the running total and ChatMessages renders '\u2248N tokens used locally' alongside the trim note. Reset with client state. Audit note: src Flow errors (48, all pre-existing in CustomAIClient.js/spec) are identical with and without this diff \u2014 earlier per-cycle greps used a '^src/' anchor that never matches 'Error --- src/...' lines, so those '0 errors' readings were a measurement bug; correct baseline confirmed via clean-HEAD stash run.",
       "commit": "feat(ai): per-request token meter for local AI chats"
+    },
+    {
+      "cycle": 24,
+      "target": "Benchmark-driven fix: exact token accounting in the history trimmer",
+      "metric_delta": "Benchmarked trimMessagesToBudget on a synthetic 5003-message / 5.4M-token history: the benchmark exposed that tool outputs dropped via the pairing flag never had their tokens subtracted from the internal estimate, and the arbitrary +4-per-message fudge made bookkeeping drift from the real estimate \u2014 the trimmer over-dropped history and could exit over budget. Fixed: paired tool outputs now decrement the estimate, and the fudge is removed so bookkeeping is exact (verified: internal estimate == estimateMessagesTokens after trim within the budget). Regression test added (30 tool pairs, budget fits exactly 3 pairs \u2014 asserts kept >= 2 pairs, last-2 preserved, real estimate <= budget); 59/59 green. Roadmap A.3 also verified already satisfied: the fork README carries the full BYOK comparison section.",
+      "commit": "fix(ai): exact token accounting in history trimmer"
     }
   ],
   "backlog": [
     "Per-request model picker in the AI toolbar (roadmap A.2)",
-    "Token/cost meter: persist estimated prompt tokens per request and show a running total (roadmap A.2)",
-    "Heretek README comparison section pointing BYOK seekers at the fork (roadmap A.3)"
+    "Stream responses from local endpoints behind a config flag (SSE) to reduce time-to-first-token in the agent loop"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
@@ -155,6 +160,7 @@
     "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement",
     "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors",
     "normalizeBaseUrl coerces all inputs to http(s) \u2014 non-HTTP schemes (file:, data:) cannot reach sendChatCompletion; do not add raw fetch paths that bypass it",
-    "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD \u2014 compare counts, not grep positions"
+    "Flow error lines are formatted 'Error --- src/...'; anchoring greps at ^src/ silently returns 0. Baseline: 48 src errors in CustomAIClient.js/spec on clean HEAD \u2014 compare counts, not grep positions",
+    "Benchmark loops with synthetic worst-case data before accepting trimmer/compaction changes \u2014 the 5003-message benchmark caught a bookkeeping bug the unit tests missed"
   ]
 }

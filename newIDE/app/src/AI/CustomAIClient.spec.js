@@ -534,6 +534,39 @@ describe('CustomAIClient', () => {
       expect(longAssistant.content.length).toBe(20000);
     });
 
+    it('respects the budget exactly once tool outputs are accounted for', () => {
+      // Regression: tokens of tool outputs dropped via the pairing flag were
+      // not subtracted from the estimate, inflating it and over-dropping
+      // subsequent history.
+      const system = { role: 'system', content: 'x'.repeat(400) }; // 100 tokens
+      const messages = [system];
+      for (let i = 0; i < 30; i++) {
+        messages.push({
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: `c${i}`, function: { name: 't', arguments: '{}' } },
+          ],
+        });
+        messages.push({
+          role: 'tool',
+          tool_call_id: `c${i}`,
+          content: 'o'.repeat(4000), // 1000 tokens each
+        });
+      }
+      messages.push({ role: 'user', content: 'u'.repeat(400) }); // 100
+      messages.push({ role: 'assistant', content: 'w'.repeat(400) }); // 100
+
+      // Budget fits system(100) + last2(200) + 3 tool pairs (3×~1001) ≈ 3300.
+      const trimmed = trimMessagesToBudget(messages, 3303);
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(3303);
+      // Nothing beyond the tool pairs was over-dropped.
+      const keptPairs = trimmed.filter(m => m.role === 'tool').length;
+      expect(keptPairs).toBeGreaterThanOrEqual(2);
+      expect(trimmed[trimmed.length - 2].content.length).toBe(400);
+      expect(trimmed[trimmed.length - 1].content.length).toBe(400);
+    });
+
     it('drops tool outputs together with their tool_calls assistant', () => {
       const system = { role: 'system', content: 'sys' };
       const assistantWithCalls = {

@@ -427,17 +427,24 @@ export const trimMessagesToBudget = (
       if (toolCalls && toolCalls.length > 0) {
         dropToolOutputs = true;
       }
-      estimate -=
-        estimateTokens(
-          typeof message.content === 'string'
-            ? message.content
-            : JSON.stringify(message.content || '')
-        ) + 4;
+      estimate -= estimateTokens(
+        typeof message.content === 'string'
+          ? message.content
+          : JSON.stringify(message.content || '')
+      );
       continue;
     }
     if (dropToolOutputs) {
       if (message.role === 'tool') {
-        continue; // outputs of a dropped tool_calls assistant
+        // Output of a dropped tool_calls assistant: also dropped — its
+        // tokens must still be accounted for, or the estimate stays
+        // inflated and later messages are over-dropped.
+        estimate -= estimateTokens(
+          typeof message.content === 'string'
+            ? message.content
+            : JSON.stringify(message.content || '')
+        );
+        continue;
       }
       dropToolOutputs = false;
     }
