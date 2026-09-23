@@ -221,8 +221,24 @@ export const normalizeBaseUrl = (baseUrl: string): string => {
   }
   // Remove trailing slashes
   url = url.replace(/\/+$/, '');
-  // If user entered a schemeless URL, default to http:// for loopback and https:// otherwise
+
   if (!/^https?:\/\//i.test(url)) {
+    // A malformed scheme must not be "repaired" by prefixing https:// — that
+    // turns a one-character typo (`htpp://localhost:11434`) into the host
+    // `htpp` and fails later with a confusing DNS error. Any `scheme://`
+    // prefix that is not http(s) is reported as-is so the message names the
+    // real problem.
+    const anyScheme = url.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+    if (anyScheme) return url;
+
+    // A bare `scheme:path` with no slashes (a mangled paste) is equally wrong —
+    // but `host:port` is also `word:digits`, so only treat it as a scheme when
+    // what follows the colon is NOT a port.
+    const bareScheme = url.match(/^([a-z][a-z0-9+.-]*):(?!\d+(?:\/|$))/i);
+    if (bareScheme) return url;
+
+    // Genuinely schemeless: default to http:// for loopback and https://
+    // otherwise.
     if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/.*)?$/i.test(url)) {
       url = `http://${url}`;
     } else {

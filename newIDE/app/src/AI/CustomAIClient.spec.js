@@ -134,6 +134,31 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('normalizeBaseUrl does not mask a malformed scheme', () => {
+    it('leaves a mistyped scheme alone so the error names the real problem', () => {
+      // Prefixing https:// to `htpp://localhost:11434` produced the host
+      // `htpp`, which fails later as a confusing DNS error. Returning it means
+      // the request fails with the "check the base URL" guidance instead.
+      expect(normalizeBaseUrl('htpp://localhost:11434/v1')).toBe(
+        'htpp://localhost:11434/v1'
+      );
+      expect(normalizeBaseUrl('ftp://host/v1')).toBe('ftp://host/v1');
+      expect(normalizeBaseUrl('http:/localhost:11434')).toBe(
+        'http:/localhost:11434'
+      );
+    });
+
+    it('still repairs genuinely schemeless input', () => {
+      // The cases the fallback exists for must keep working.
+      expect(normalizeBaseUrl('localhost:11434/v1')).toBe(
+        'http://localhost:11434/v1'
+      );
+      expect(normalizeBaseUrl('localhost')).toBe('http://localhost');
+      expect(normalizeBaseUrl('example.com/v1')).toBe('https://example.com/v1');
+      expect(normalizeBaseUrl('')).toBe('http://localhost:11434/v1');
+    });
+  });
+
   describe('extractThinkingAndContent', () => {
     it('extracts <think> tags from text', () => {
       const input =
