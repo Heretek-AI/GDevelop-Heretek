@@ -71,6 +71,17 @@ export const isFailedAiRequestStart = (aiRequest: {
 }): boolean => aiRequest.status === 'error';
 
 /**
+ * Standalone create outcome: failed first-turn starts stay on the error row
+ * (project left open so an offline failure does not discard the user's work);
+ * only successful starts hand off to the Ask AI tab / close the project.
+ */
+export const getStandaloneCreateOutcome = (aiRequest: {
+  status: string,
+  ...
+}): 'error-row' | 'handoff' =>
+  isFailedAiRequestStart(aiRequest) ? 'error-row' : 'handoff';
+
+/**
  * Whether a send/continue of an AI request may proceed for this session:
  * any logged-in profile, or a local/BYOK session with a custom endpoint
  * enabled (the hosted API is never involved for those). Hosted non-local

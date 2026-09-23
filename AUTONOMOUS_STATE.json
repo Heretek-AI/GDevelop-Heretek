@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 54,
+  "last_cycle": 55,
   "completed_targets": [
     {
       "cycle": 1,
@@ -319,6 +319,12 @@
       "target": "failed mid-turn addMessage returns still cleared editor FC results, fired sendAiRequestMessageSent, and (standalone) cleared the form selection",
       "metric_delta": "isFailedAiRequestStart gates clearEditorFunctionCallResults / analytics / form clear; 1 new test (FC outputs preserved on failed mid-turn); AI suite 320/320",
       "commit": "fix(ai): keep function-call results and drafts when a local mid-turn send fails"
+    },
+    {
+      "cycle": 55,
+      "target": "stand-alone create closed the open project before the request \u2014 offline/BYOK first-turn failure left the user projectless (and canPay early-return also closed first)",
+      "metric_delta": "closeProject deferred into getStandaloneCreateOutcome handoff branch; 2 new tests; AI suite 322/322",
+      "commit": "fix(ai): keep the open project when a stand-alone AI create fails"
     }
   ],
   "backlog": [
@@ -376,6 +382,7 @@
     "customCreateAiRequest must cache+return the request on non-abort first-turn failure (status:'error' + user message in output) \u2014 throwing left no chat transcript and no canRetryAiRequest surface for Ollama cold-start / offline first sends",
     "customForkAiRequest must set error:null and copy localAiRequestModelOverrides[from]\u2192[to] \u2014 spreading a status:ready copy of an errored source left a non-null error field and silently reset the model override",
     "createAiRequest returning status:'error' must not run success-only handoff (sendAiRequestStarted, onCloseDialog, resetUserInput, onOpenAskAi) \u2014 use isFailedAiRequestStart so the form/chat stays on the failed request with Retry \u2192 continue; prefer if/else over early return so post-try refreshLimits still runs",
-    "addMessageToAiRequest returning status:'error' must not clearEditorFunctionCallResults, fire sendAiRequestMessageSent, resetUserInput, or clear standalone aiRequestIdForForm \u2014 keep FC results and draft so Retry \u2192 continue can re-send them; declare `let aiRequest: AiRequest | void` before try and gate with sendFailed = !!aiRequest && isFailedAiRequestStart(aiRequest)"
+    "addMessageToAiRequest returning status:'error' must not clearEditorFunctionCallResults, fire sendAiRequestMessageSent, resetUserInput, or clear standalone aiRequestIdForForm \u2014 keep FC results and draft so Retry \u2192 continue can re-send them; declare `let aiRequest: AiRequest | void` before try and gate with sendFailed = !!aiRequest && isFailedAiRequestStart(aiRequest)",
+    "AskAiStandAloneForm must not closeProject before createAiRequest succeeds \u2014 getStandaloneCreateOutcome === 'handoff' only then closes the project and opens the Ask AI tab; error-row leaves the project open so offline failures do not discard work (canPay early-return also stays safe)"
   ]
 }

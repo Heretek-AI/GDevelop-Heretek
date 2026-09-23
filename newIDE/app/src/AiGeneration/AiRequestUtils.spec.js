@@ -11,6 +11,7 @@ import {
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
   canRetryAiRequestForSession,
   isFailedAiRequestStart,
+  getStandaloneCreateOutcome,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
 
@@ -446,6 +447,26 @@ describe('isFailedAiRequestStart', () => {
     expect(isFailedAiRequestStart({ status: 'completed', error: null })).toBe(
       false
     );
+  });
+});
+
+describe('getStandaloneCreateOutcome', () => {
+  it('keeps the form on the error row when create returns status error', () => {
+    expect(
+      getStandaloneCreateOutcome({
+        status: 'error',
+        error: { code: 'server_error', message: 'offline' },
+      })
+    ).toBe('error-row');
+  });
+
+  it('hands off (and may close the project) only for successful starts', () => {
+    expect(getStandaloneCreateOutcome({ status: 'working', error: null })).toBe(
+      'handoff'
+    );
+    expect(
+      getStandaloneCreateOutcome({ status: 'suspended', error: null })
+    ).toBe('handoff');
   });
 });
 

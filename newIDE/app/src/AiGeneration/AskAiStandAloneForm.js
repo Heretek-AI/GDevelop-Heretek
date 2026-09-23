@@ -22,6 +22,7 @@ import { CreditsPackageStoreContext } from '../AssetStore/CreditsPackages/Credit
 import { type EditorCallbacks } from '../EditorFunctions';
 import {
   isFailedAiRequestStart,
+  getStandaloneCreateOutcome,
   canRetryAiRequestForSession,
   canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
@@ -302,12 +303,9 @@ export const AskAiStandAloneForm = ({
 
         // Ensure the Ask AI pane is closed, to avoid multiple requests being sent
         // at the same time from the editor and the standalone form.
+        // The open project is closed only after a successful create so an
+        // offline/BYOK first-turn failure leaves the user's project open.
         onCloseAskAi();
-
-        // Close any open project since the AI will create a new one.
-        if (project && closeProject) {
-          await closeProject();
-        }
 
         // Ensure the user has enough credits to pay for the request, or ask them
         // to buy some more.
@@ -379,7 +377,7 @@ export const AskAiStandAloneForm = ({
           // throw): keep the form open on that request so the error row (and
           // Retry → continue) is reachable. Handing off to the Ask AI tab and
           // closing the dialog would hide the failure and fire a false "started".
-          if (isFailedAiRequestStart(aiRequest)) {
+          if (getStandaloneCreateOutcome(aiRequest) === 'error-row') {
             console.warn(
               'AI request created in error state:',
               aiRequest.error && aiRequest.error.message
@@ -389,6 +387,12 @@ export const AskAiStandAloneForm = ({
               setSelectedAiRequestId(aiRequest.id);
             }
           } else {
+            // Success handoff: the AI will create a new project, so close the
+            // current one only now (offline failures leave it open).
+            if (project && closeProject) {
+              await closeProject();
+            }
+
             console.info('Successfully created a new AI request:', aiRequest);
 
             // Select the new AI request just created - unless the user switched to another one
