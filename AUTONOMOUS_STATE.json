@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 16,
+  "last_cycle": 17,
   "completed_targets": [
     {
       "cycle": 1,
@@ -91,13 +91,17 @@
       "target": "Drag & drop image files from the OS onto the scene canvas (upstream #8297)",
       "metric_delta": "Before: the scene canvas handled only react-dnd object drops; no OS file-drop handling existed anywhere in the IDE. After: native HTML5 onDragOver/onDrop on the InstancesEditor canvas filters image files (png/jpg/jpeg/gif/svg/webp), converts the drop position to scene coordinates via the existing viewPosition pattern, and SceneEditor._onDropImageFiles creates a gd.ImageResource (copied into the project folder if outside, relative path set like LocalResourceSources), a uniquely-named Sprite object with one animation using the resource, and an instance at the drop position via the existing _addInstance path. Browser build no-ops with a warning (no local paths). Also fixed 2 pre-existing Flow errors from cycle 12 (Object.entries widening) \u2014 src Flow errors now 0 vs baseline ~2; total 50 (48 node_modules parse noise).",
       "commit": "feat(editor): create Sprite objects by dropping image files on the scene"
+    },
+    {
+      "cycle": 17,
+      "target": "Compaction before dropping: large tool outputs truncated in place by the context trimmer",
+      "metric_delta": "Before: trimMessagesToBudget dropped oversized tool outputs entirely \u2014 the model lost the fact the tool ran and its summary. After: a first pass compacts the biggest tool output (>4000 chars) in place to its first 500 chars plus a '[... output trimmed: N characters removed ...]' marker, preserving the tool_calls/tool-output pairing; the existing drop path remains as fallback for non-tool-heavy overflows. Original message objects are never mutated. 1 new test (compaction keeps pairing, meets budget, no mutation); 54/54 green.",
+      "commit": "perf(ai): compact large tool outputs before dropping history"
     }
   ],
   "backlog": [
-    "Delete key deletes selected instances in the Instances list (upstream #8291)",
-    "Drag&drop image files into the scene editor (upstream #8297)",
-    "Integer/pixel-art scaling option (upstream #7495)",
-    "Prompt-compaction: summarize trimmed tool outputs instead of dropping them"
+    "Prompt-compaction: summarize trimmed assistant messages (currently only tool outputs are compacted)",
+    "Editor UX quick wins from docs/HERETEK-ROADMAP.md as they surface in upstream demand"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
@@ -110,6 +114,7 @@
     "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)",
     "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields",
     "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers",
-    "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source"
+    "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source",
+    "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement"
   ]
 }

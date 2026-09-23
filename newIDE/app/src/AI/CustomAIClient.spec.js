@@ -475,6 +475,42 @@ describe('CustomAIClient', () => {
       expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(500);
     });
 
+    it('compacts large tool outputs in place before dropping anything', () => {
+      const system = { role: 'system', content: 'sys' };
+      const assistantWithCalls = {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          { id: 'c1', function: { name: 'test_tool', arguments: '{}' } },
+        ],
+      };
+      const toolOutput = {
+        role: 'tool',
+        tool_call_id: 'c1',
+        content: 'o'.repeat(20000), // ~5000 tokens
+      };
+      const last = [
+        { role: 'user', content: 'u'.repeat(400) },
+        { role: 'assistant', content: 'w'.repeat(400) },
+      ];
+      const messages = [system, assistantWithCalls, toolOutput, ...last];
+
+      // Budget forces compaction but not dropping: compacted output
+      // (~500 chars + marker ≈ 140 tokens) + system + last2 < 600.
+      const trimmed = trimMessagesToBudget(messages, 600);
+      const compactedTool = trimmed.find(m => m.role === 'tool');
+      expect(compactedTool).toBeDefined();
+      expect(compactedTool.content).toContain('output trimmed');
+      expect(compactedTool.content.length).toBeLessThan(700);
+      // The tool_calls assistant stays paired with its output.
+      expect(
+        trimmed.find(m => m.role === 'assistant' && m.tool_calls)
+      ).toBeDefined();
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(600);
+      // The original message objects are not mutated.
+      expect(toolOutput.content.length).toBe(20000);
+    });
+
     it('drops tool outputs together with their tool_calls assistant', () => {
       const system = { role: 'system', content: 'sys' };
       const assistantWithCalls = {
