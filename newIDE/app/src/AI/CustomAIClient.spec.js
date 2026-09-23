@@ -2331,6 +2331,47 @@ describe('CustomAIClient', () => {
       expect(JSON.stringify(last.content)).toContain('recovered');
     });
 
+    it('clears a prior terminal error on a later successful ordinary turn', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed reply' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Stale error clear',
+      });
+
+      axios.post.mockClear();
+      axios.post.mockRejectedValueOnce(new Error('endpoint down'));
+      const failed = await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: 'hit the model',
+      });
+      expect(failed.status).toBe('error');
+      expect(failed.error && failed.error.message).toMatch(/endpoint down/);
+
+      // A later ordinary send (not /action/retry) must drop the terminal
+      // error: status-agnostic readers (e.g. buildSubAgentReport) must not
+      // see a false failure after the chat recovered.
+      axios.post.mockClear();
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'recovered' } }],
+        },
+      });
+      const recovered = await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: 'try again',
+      });
+      expect(recovered.status).toBe('ready');
+      expect(recovered.error).toBeNull();
+      expect(customGetAiRequest(aiRequest.id).error).toBeNull();
+      expect(customGetAiRequest(aiRequest.id).status).toBe('ready');
+    });
+
     it('persists function-call outputs on a failed mid-turn so continue can re-send them', async () => {
       // $FlowFixMe
       axios.post.mockResolvedValueOnce({

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 56,
+  "last_cycle": 57,
   "completed_targets": [
     {
       "cycle": 1,
@@ -331,6 +331,12 @@
       "target": "Record first-turn token usage on successful local create (cost meter omitted the opening turn)",
       "metric_delta": "customCreateAiRequest now calls addTokenUsage after a successful first turn; AI suite 322\u2192323; failed first turn still records 0 response tokens",
       "commit": "fix(ai): count first-turn tokens in the local cost meter"
+    },
+    {
+      "cycle": 57,
+      "target": "Clear a prior terminal error on a later successful ordinary local turn (stale error fooled status-agnostic readers)",
+      "metric_delta": "customAddMessageToAiRequest success path sets error:null; AI suite 323\u2192324; fail\u2192ordinary-success test asserts ready+error null",
+      "commit": "fix(ai): clear stale error when a later local turn succeeds"
     }
   ],
   "backlog": [
@@ -390,6 +396,7 @@
     "createAiRequest returning status:'error' must not run success-only handoff (sendAiRequestStarted, onCloseDialog, resetUserInput, onOpenAskAi) \u2014 use isFailedAiRequestStart so the form/chat stays on the failed request with Retry \u2192 continue; prefer if/else over early return so post-try refreshLimits still runs",
     "addMessageToAiRequest returning status:'error' must not clearEditorFunctionCallResults, fire sendAiRequestMessageSent, resetUserInput, or clear standalone aiRequestIdForForm \u2014 keep FC results and draft so Retry \u2192 continue can re-send them; declare `let aiRequest: AiRequest | void` before try and gate with sendFailed = !!aiRequest && isFailedAiRequestStart(aiRequest)",
     "AskAiStandAloneForm must not closeProject before createAiRequest succeeds \u2014 getStandaloneCreateOutcome === 'handoff' only then closes the project and opens the Ask AI tab; error-row leaves the project open so offline failures do not discard work (canPay early-return also stays safe)",
-    "Every local model turn that returns a response must call addTokenUsage \u2014 create, addMessage, and sub-agent paths; a missing call under-reports the chat cost meter without failing any status test"
+    "Every local model turn that returns a response must call addTokenUsage \u2014 create, addMessage, and sub-agent paths; a missing call under-reports the chat cost meter without failing any status test",
+    "Successful local model writes must set error:null (create/retry already did; ordinary addMessage left the prior error for FinalizeSubAgents and any status-agnostic .error reader)"
   ]
 }

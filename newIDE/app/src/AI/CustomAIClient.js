@@ -3270,6 +3270,9 @@ export const customAddMessageToAiRequest = async ({
       // can read what the agent produced before it was stopped.
       status:
         currentCachedRequest.status === 'suspended' ? 'suspended' : 'ready',
+      // A successful turn clears any prior terminal error: leave it set and
+      // FinalizeSubAgents / any status-agnostic reader sees a false failure.
+      error: null,
       output: merged,
     };
 
