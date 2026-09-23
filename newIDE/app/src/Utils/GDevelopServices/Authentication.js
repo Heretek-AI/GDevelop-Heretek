@@ -1,10 +1,10 @@
 // @flow
 import { initializeApp } from 'firebase/app';
 import {
-  Auth,
+  type Auth,
   getAuth,
   onAuthStateChanged,
-  User as FirebaseUser,
+  type User as FirebaseUser,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,

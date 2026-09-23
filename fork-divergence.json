@@ -1,7 +1,7 @@
 {
   "$comment": "Checked-in allowlist of every path this fork intentionally diverges from 4ian/GDevelop on. Regenerate with `node scripts/check-fork-divergence.js --update`. Enforced by `node scripts/check-fork-divergence.js` in CI. See MAINTENANCE.md.",
-  "updatedAt": "2026-09-22",
-  "upstreamSource": "api:4ian/GDevelop@master",
+  "updatedAt": "2026-09-23",
+  "upstreamSource": "refs/remotes/upstream/master",
   "modified": [
     ".github/workflows/build-storybook.yml",
     ".github/workflows/extract-translations.yml",
@@ -84,7 +84,10 @@
     "newIDE/app/src/MainFrame/Preferences/PreferencesContext.js",
     "newIDE/app/src/MainFrame/Preferences/PreferencesDialog.js",
     "newIDE/app/src/MainFrame/Preferences/PreferencesProvider.js",
+    "newIDE/app/src/ObjectsRendering/PixiResourcesLoader.js",
     "newIDE/app/src/Profile/AuthenticatedUserContext.js",
+    "newIDE/app/src/Profile/AuthenticatedUserProvider.js",
+    "newIDE/app/src/Profile/ChangeEmailDialog.js",
     "newIDE/app/src/Profile/EditProfileDialog.js",
     "newIDE/app/src/Profile/Subscription/SubscriptionChecker.js",
     "newIDE/app/src/Profile/Subscription/SubscriptionContext.js",
@@ -98,6 +101,7 @@
     "newIDE/app/src/UI/List.js",
     "newIDE/app/src/UI/SortableVirtualizedItemList/ItemRow.js",
     "newIDE/app/src/UI/SortableVirtualizedItemList/index.js",
+    "newIDE/app/src/Utils/Analytics/EventSender.js",
     "newIDE/app/src/Utils/GDevelopServices/ApiConfigs.js",
     "newIDE/app/src/Utils/GDevelopServices/Authentication.js",
     "newIDE/app/src/Utils/GDevelopServices/Generation.js",

@@ -2,7 +2,7 @@
 import posthog from 'posthog-js';
 import { getUserUUID, resetUserUUID } from './UserUUID';
 import { type AuthenticatedUser } from '../../Profile/AuthenticatedUserContext';
-import { User as FirebaseUser } from 'firebase/auth';
+import { type User as FirebaseUser } from 'firebase/auth';
 import {
   getProgramOpeningCount,
   incrementProgramOpeningCount,

@@ -25,7 +25,7 @@ import Authentication, {
   type ForgotPasswordForm,
   type IdentityProvider,
 } from '../Utils/GDevelopServices/Authentication';
-import { User as FirebaseUser } from 'firebase/auth';
+import { type User as FirebaseUser } from 'firebase/auth';
 import LoginDialog from './LoginDialog';
 import {
   onUserLogoutForAnalytics,
