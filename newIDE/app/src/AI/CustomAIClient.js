@@ -481,8 +481,28 @@ export const withLocalAiTurnLock = async <T>(
  * Deliberately dependency-free and local-only — good enough to decide whether
  * the context window is in danger, not to bill anyone.
  */
-export const estimateTokens = (text: ?string): number =>
-  text && typeof text === 'string' ? Math.ceil(text.length / 4) : 0;
+// Non-Latin scripts tokenize far denser than English: CJK is roughly one
+// token per character, not one per four. A project whose object and scene
+// names are Chinese (GDevelop ships zh_CN/ja_JP/ko_KR) is mostly non-ASCII, so
+// a flat chars/4 count under-reports it by ~4x and the "budget" then permits
+// an over-window request. Count those code units separately, at 1 token each,
+// and the ASCII remainder at the usual 1-per-4.
+const NON_LATIN_TOKEN_RATIO = 1;
+
+const countNonAsciiChars = (text: string): number => {
+  let count = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) > 0x7f) count += 1;
+  }
+  return count;
+};
+
+export const estimateTokens = (text: ?string): number => {
+  if (!text || typeof text !== 'string') return 0;
+  const nonAscii = countNonAsciiChars(text);
+  const ascii = text.length - nonAscii;
+  return Math.ceil(ascii / 4) + Math.ceil(nonAscii * NON_LATIN_TOKEN_RATIO);
+};
 
 const DEFAULT_CONTEXT_WINDOW = 128000;
 // Conservative context windows per model family (local models are small).

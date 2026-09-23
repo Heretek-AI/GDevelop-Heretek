@@ -603,13 +603,41 @@ describe('CustomAIClient', () => {
   });
 
   describe('token budget helpers', () => {
-    it('estimates tokens at ~4 characters per token', () => {
+    it('estimates ASCII tokens at ~4 characters per token', () => {
       expect(estimateTokens(null)).toBe(0);
       expect(estimateTokens(undefined)).toBe(0);
       expect(estimateTokens('')).toBe(0);
       expect(estimateTokens('abcd')).toBe(1);
       expect(estimateTokens('abcde')).toBe(2);
       expect(estimateTokens('a'.repeat(400))).toBe(100);
+    });
+
+    it('counts non-Latin characters far more densely than ASCII', () => {
+      // CJK is roughly one token per character. Counting it at 1-per-4 (the
+      // old flat rule) under-reported a Chinese project structure by ~4x, so
+      // the trimmed prompt still exceeded the window it was trimmed for.
+      const cjk = '创建一个名为英雄的精灵对象并设置生命值'; // 18 chars
+      expect(estimateTokens(cjk)).toBe(cjk.length);
+      // Much denser than the ASCII rule would have produced.
+      expect(estimateTokens(cjk)).toBeGreaterThan(
+        Math.ceil(cjk.length / 4) * 3
+      );
+    });
+
+    it('counts the non-Latin part densely and the ASCII part at 1-per-4', () => {
+      // Mixed content: the ASCII names in a project JSON stay cheap while the
+      // translated labels cost their real weight.
+      const mixed = 'abcd英雄'; // 4 ascii + 2 cjk
+      expect(estimateTokens(mixed)).toBe(1 + 2);
+    });
+
+    it('keeps accented Latin text cheap (they are single-byte-ish letters)', () => {
+      // Guard against over-counting: é is non-ASCII but still ~1 token per
+      // few characters, far from CJK density.
+      const accented = 'Café'.repeat(20); // 80 chars, 20 non-ascii
+      const estimate = estimateTokens(accented);
+      expect(estimate).toBeLessThan(accented.length);
+      expect(estimate).toBeGreaterThanOrEqual(Math.ceil(accented.length / 4));
     });
 
     it('scales the budget by model family and reserves output room', () => {
