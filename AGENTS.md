@@ -350,10 +350,12 @@ clang-tidy, ASan/UBSan, visual tests).
 
 ## Fork Divergence
 
-**This fork differs from upstream in 164 paths out of ~6,700.** Expect merge conflicts there.
+**This fork differs from upstream in 180 paths out of ~6,700.** Expect merge conflicts there.
 
 **`fork-divergence.json` is the authoritative allowlist** of every path the fork intentionally diverges
-on, in three buckets (`modified` 110, `forkOnly` 54, `upstreamMissing` 7). It is generated and enforced by
+on, in three buckets (`modified` 116, `forkOnly` 57, `upstreamMissing` 7), measured against the
+`baselineCommit` the manifest records — not against live `upstream/master`, so upstream's own pushes do
+not read as fork divergence. It is generated and enforced by
 `scripts/check-fork-divergence.js`: the `fork-divergence` job in `.github/workflows/ci.yml` fails when a
 path diverges that is not listed, or when a listed path stops diverging. Run
 `node scripts/check-fork-divergence.js` after any change that touches upstream-owned files, and

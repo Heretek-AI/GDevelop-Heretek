@@ -53,8 +53,12 @@ jobs:
     # listed path no longer diverges (stale entry). Without it, divergence only
     # surfaces as a merge conflict on the next upstream sync.
     #
-    # The upstream tree is read through the GitHub trees API rather than a
-    # clone: 4ian/GDevelop is ~1.7 GB and this job runs on every PR.
+    # The comparison is against the manifest's `baselineCommit`, not live
+    # `upstream/master` — otherwise every upstream push that touched a shared
+    # file turned this job red with no fork change to review.
+    #
+    # The baseline tree is read through the GitHub trees API by commit SHA
+    # rather than a clone: 4ian/GDevelop is ~1.7 GB and this job runs on every PR.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

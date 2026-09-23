@@ -16,7 +16,7 @@ each phase below cites them.
 | **Engine (culling / instancing)** | Scene-level 3D frustum culling, `Model3DInstancePool` + `useInstancing`, TileMap culling for non-Simple maps (nested maps fail safe to full draw) |
 | **Unlocked client features** | No watermark/splash clamp, network preview, debugger, Heretek release feed |
 | **Editor UX landed** | Delete key in Instances list, drag-drop image → Sprite on canvas |
-| **Divergence hygiene** | 164 intentional paths allowlisted; `fork-divergence.json` + CI guard + daily PR-only upstream sync |
+| **Divergence hygiene** | 180 intentional paths allowlisted against a pinned baseline; `fork-divergence.json` + CI guard + daily PR-only upstream sync |
 
 Direction A (own AI/BYOK) is substantially delivered as of cycle 34 / `ae815f489`. The work
 below is what remains to make it *trustworthy* and *maintained*.

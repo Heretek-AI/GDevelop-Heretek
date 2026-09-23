@@ -8,12 +8,15 @@ Repository-wide tooling. Per-package scripts live in each package's own
 See [MAINTENANCE.md](../MAINTENANCE.md) for how these fit together.
 
 -   **check-fork-divergence.js**: keeps the fork's divergence from upstream
-    `4ian/GDevelop` bounded. Compares this tree against upstream and checks the
-    result against the checked-in `fork-divergence.json` allowlist; exits 1 on a
-    path that diverges without being listed or a listed path that no longer
-    diverges. `--update` rewrites the allowlist, `--list` prints the divergence
-    set. Runs in `ci.yml` (`fork-divergence` job) and, informationally, in
-    `upstream-sync.yml`.
+    `4ian/GDevelop` bounded. Compares this tree against the **baseline commit**
+    recorded in `fork-divergence.json` (falling back to
+    `git merge-base HEAD upstream/master`) and checks the result against the
+    checked-in allowlist; exits 1 on a path that diverges without being listed
+    or a listed path that no longer diverges. Measuring against a fixed baseline
+    rather than live `upstream/master` is what keeps upstream's own pushes from
+    reading as fork divergence. `--update` rewrites the allowlist and records the
+    baseline, `--list` prints the divergence set. Runs in `ci.yml`
+    (`fork-divergence` job) and, informationally, in `upstream-sync.yml`.
 -   **sonarcloud-drift.js**: compares the project's open SonarCloud issue count
     against `.sonarcloud-drift-baseline` and fails when growth exceeds the
     threshold. Self-seeds the baseline when it is missing and writes `count` /

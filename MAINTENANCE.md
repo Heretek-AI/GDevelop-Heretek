@@ -14,14 +14,15 @@ rather than trusting them if the tree has moved.
 
 ### What diverges
 
-The fork diverges on **164 paths** out of ~6,700. `fork-divergence.json` is the
-checked-in allowlist, in three buckets:
+The fork diverges on **180 paths** out of ~6,700. `fork-divergence.json` is the
+checked-in allowlist, in three buckets, measured against the baseline commit the
+manifest records:
 
 | Bucket | Count | Meaning |
 |---|---:|---|
-| `modified` | 110 | Path exists upstream but the fork's content differs |
-| `forkOnly` | 54 | Path does not exist upstream at all |
-| `upstreamMissing` | 7 | Path exists upstream but the fork deliberately does not carry it |
+| `modified` | 116 | Existed upstream at the baseline and the fork's content differs |
+| `forkOnly` | 57 | The fork created it; upstream had no such path at the baseline |
+| `upstreamMissing` | 7 | Existed upstream at the baseline and the fork deliberately does not carry it |
 
 `upstreamMissing` is the dangerous bucket: an upstream merge re-introduces those
 files, and nothing else notices. The 7 are:
@@ -59,6 +60,36 @@ git fetch --depth=1 upstream master
 The comparison includes uncommitted work, so `--update` describes the tree you
 actually have, not just the last commit.
 
+### The baseline commit
+
+The guard measures against **the baseline commit recorded in the manifest**
+(`baselineCommit`), not against live `upstream/master`. That distinction is what
+makes it usable:
+
+- Measured against live upstream, every upstream push that touched a file the
+  fork also carries read as "new divergence" — a locale file upstream
+  regenerates, a platformer behavior upstream edits. On 2026-09-23 upstream
+  pushed 70 such files in one afternoon and the guard went red without the fork
+  having changed anything. A guard that fires on upstream's own activity gets
+  ignored, which is exactly when real divergence slips through.
+- Measured against a fixed baseline, the reported set only moves when **the
+  fork's own content** moves. The 66 files above produced zero actionable
+  signal; they are upstream movement, not fork divergence.
+
+`baselineCommit` is the last upstream point the fork reconciled with — normally
+the merge base of the upstream sync, so it advances when a sync PR merges and the
+reported set re-derives from the newly-merged tree. Resolution order when the
+field is absent: `git merge-base HEAD upstream/master`. Both paths are stable
+across upstream pushing between syncs, which is the property the guard needs.
+
+`--update` records the resolved baseline, and additionally drops entries that
+have *converged*: a path the fork once modified but which now matches the
+baseline (an upstream fix adopted by the merge, say) is no longer divergence and
+must leave the manifest, or the next `--update` keeps re-listing it. If the
+guard reports the manifest baseline differing from the comparison baseline, a
+bucket may look stale because the two describe different upstream points — run
+`--update` to re-anchor.
+
 ### Why the manifest excludes itself
 
 `fork-divergence.json` and `.sonarcloud-drift-baseline` are filtered out of the
@@ -73,7 +104,8 @@ game, including files the fork added.
    commit message. A future sync reviewer reads that manifest, not the PR.
 
 Do not add an entry to silence the guard for something accidental. Revert it
-instead — that is the entire point.
+instead — that is the entire point. Note that `--update` regenerates the whole
+manifest: review the diff for entries it *removed*, not just those it added.
 
 ---
 

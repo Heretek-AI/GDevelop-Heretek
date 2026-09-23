@@ -25,12 +25,26 @@
  *   node scripts/check-fork-divergence.js --update   # rewrite the allowlist
  *   node scripts/check-fork-divergence.js --list     # print the diff, exit 0
  *
- * Upstream tree lookup, in order of preference:
- *   1. `git ls-tree` of a local upstream ref (`upstream/master`, then the
- *      `origin/upstream-sync-*` branches the sync workflow pushes), when one
- *      exists and is reachable;
- *   2. the GitHub trees API (`GH_TOKEN` / `GITHUB_TOKEN`), which needs no
- *      clone of the ~1.7 GB upstream repository.
+ * The comparison is against the *baseline commit* recorded in the manifest,
+ * not against live `upstream/master`. Comparing against a moving ref made the
+ * guard fire on every upstream push that touched a shared file — upstream
+ * advancing a file the fork had never modified reads as "new divergence",
+ * which is not something a reviewer can act on. The baseline is the point the
+ * fork last reconciled with upstream, so the reported set only changes when
+ * the fork's own content does.
+ *
+ * Baseline resolution, in order of preference:
+ *   1. the manifest's `baselineCommit`, when set (the normal case);
+ *   2. `git merge-base HEAD upstream/master` — the fork merges upstream
+ *      rather than rebasing, so this is the last reconciled point. Used once
+ *      to seed a manifest that predates the field.
+ * When the baseline cannot be resolved, the guard falls back to live upstream
+ * and says so, rather than failing.
+ *
+ * Baseline tree lookup, in order of preference:
+ *   1. `git ls-tree` of the local commit, when it is available locally;
+ *   2. the GitHub trees API by commit SHA (`GH_TOKEN` / `GITHUB_TOKEN`), which
+ *      needs no clone of the ~1.7 GB upstream repository.
  *
  * Exit codes: 0 clean, 1 divergence mismatch, 2 fatal error.
  */
@@ -106,38 +120,58 @@ function localTree() {
   return map;
 }
 
-/** Upstream tree as { path: blobSha }, via a local ref when possible. */
-function upstreamTree() {
-  const candidates = ['refs/remotes/upstream/master', 'refs/heads/upstream/master'];
-  for (const ref of candidates) {
-    try {
-      git('rev-parse', '--verify', '--quiet', ref);
-    } catch (_) {
-      continue;
-    }
-    const out = git('ls-tree', '-r', '-z', ref);
-    const map = new Map();
-    for (const entry of out.split('\0')) {
-      if (!entry) continue;
-      const tab = entry.indexOf('\t');
-      if (tab === -1) continue;
-      const meta = entry.slice(0, tab).split(' ');
-      if (meta[1] === 'blob') map.set(entry.slice(tab + 1), meta[2]);
-    }
-    return { source: ref, tree: map };
+function revParse(ref) {
+  try {
+    return git('rev-parse', '--verify', '--quiet', `${ref}^{commit}`).trim();
+  } catch (_) {
+    return null;
   }
+}
 
-  // Fall back to the GitHub trees API. No upstream clone required.
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new Error(
-      'No local upstream ref and no GH_TOKEN/GITHUB_TOKEN. Either run\n' +
-        '  git remote add upstream https://github.com/4ian/GDevelop.git\n' +
-        '  git fetch --depth=1 upstream master\n' +
-        'or export GH_TOKEN.'
-    );
+/** Local tree of a commit-ish as { path: blobSha }, or null when absent. */
+function treeOfCommit(ref) {
+  // Probe first: `git ls-tree` on a missing object writes "fatal: not a tree
+  // object" to stderr, which is noise in CI where the baseline is expected to
+  // be absent and the API is the intended path.
+  if (!revParse(ref)) return null;
+  let out;
+  try {
+    out = git('ls-tree', '-r', '-z', ref);
+  } catch (_) {
+    return null;
   }
-  const url = `https://api.github.com/repos/${UPSTREAM_REPO}/git/trees/${UPSTREAM_REF}?recursive=1`;
+  const map = new Map();
+  for (const entry of out.split('\0')) {
+    if (!entry) continue;
+    const tab = entry.indexOf('\t');
+    if (tab === -1) continue;
+    const meta = entry.slice(0, tab).split(' ');
+    if (meta[1] === 'blob') map.set(entry.slice(tab + 1), meta[2]);
+  }
+  return map;
+}
+
+/** The upstream commit the fork is being compared against. */
+function mergeBaseCommit() {
+  for (const ref of ['refs/remotes/upstream/master', 'refs/heads/upstream/master']) {
+    const refSha = revParse(ref);
+    if (!refSha) continue;
+    try {
+      const base = git('merge-base', 'HEAD', refSha).trim();
+      if (base) return base;
+    } catch (_) {
+      // No shared history locally (shallow clone) — a baselineCommit in the
+      // manifest is the way out.
+    }
+  }
+  return null;
+}
+
+/** GitHub trees API by commit SHA. No upstream clone required. */
+function apiTree(ref) {
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  if (!token) return null;
+  const url = `https://api.github.com/repos/${UPSTREAM_REPO}/git/trees/${ref}?recursive=1`;
   const body = execFileSync(
     'curl',
     ['-fsSL', '-H', `Authorization: Bearer ${token}`, '-H', 'Accept: application/vnd.github+json', url],
@@ -146,19 +180,100 @@ function upstreamTree() {
   const json = JSON.parse(body);
   if (json.truncated) {
     throw new Error(
-      `Upstream tree listing was truncated by the GitHub API; use a local upstream ref instead.`
+      `Upstream tree listing was truncated by the GitHub API; use a local upstream commit instead.`
     );
   }
   const map = new Map();
   for (const entry of json.tree) {
     if (entry.type === 'blob') map.set(entry.path, entry.sha);
   }
-  return { source: `api:${UPSTREAM_REPO}@${UPSTREAM_REF}`, tree: map };
+  return map;
 }
 
+/**
+ * Resolve the baseline commit and its tree.
+ *
+ * `manifest` may be null while seeding (`--update` on a manifest that has no
+ * baseline yet). The returned `source` is for reporting, and `note` carries
+ * any caveat worth surfacing (fallback to live upstream, missing baseline).
+ */
+function baselineTree(manifest) {
+  const wanted = (manifest && manifest.baselineCommit) || null;
+
+  const commit = wanted || mergeBaseCommit();
+  if (!commit) {
+    // Nothing to anchor on. Compare against live upstream so the guard still
+    // reports something, but be explicit that the number is upstream churn.
+    const refSha = revParse('refs/remotes/upstream/master');
+    if (!refSha) {
+      throw new Error(
+        'Cannot resolve an upstream baseline. Either set `baselineCommit` in\n' +
+          `${MANIFEST_NAME}, or provide upstream locally:\n` +
+          '  git remote add upstream https://github.com/4ian/GDevelop.git\n' +
+          '  git fetch --depth=1 upstream master\n' +
+          'or export GH_TOKEN.'
+      );
+    }
+    return {
+      source: `live:${UPSTREAM_REPO}@${UPSTREAM_REF}`,
+      commit: refSha,
+      tree: treeOfCommit(refSha),
+      note:
+        'no baseline commit — compared against live upstream/master, so upstream\n' +
+        'pushes that touch shared files appear below',
+    };
+  }
+
+  const local = treeOfCommit(commit);
+  if (local) return { source: commit, commit, tree: local };
+
+  const viaApi = apiTree(commit);
+  if (viaApi) return { source: `api:${commit}`, commit, tree: viaApi };
+
+  // Baseline recorded but unreachable. Falling back to live upstream would
+  // silently reintroduce the false-positive churn this baseline exists to
+  // avoid, so a recorded baseline that cannot be read is a hard error.
+  if (wanted) {
+    throw new Error(
+      `Baseline commit ${wanted} from ${MANIFEST_NAME} is not available locally\n` +
+        'and the GitHub API could not be read. Fetch it or set GH_TOKEN.'
+    );
+  }
+  return {
+    source: `live:${UPSTREAM_REPO}@${UPSTREAM_REF}`,
+    commit,
+    tree: treeOfCommit(revParse('refs/remotes/upstream/master')),
+    note: `baseline ${commit} unreachable — compared against live upstream/master`,
+  };
+}
+/**
+ * Fork divergence, measured against the baseline commit.
+ *
+ * For each path, three trees matter: the baseline `B`, the fork `L`, and the
+ * current upstream `U`.
+ *
+ *   L == U        converged: the fork and upstream agree. Nothing to reconcile,
+ *                 and reporting it is what broke the guard (upstream moving a
+ *                 file the fork never touched).
+ *   path absent from B  the fork created it                          -> forkOnly
+ *   path in B, absent from L  the fork deleted it, still upstream   -> upstreamMissing
+ *   otherwise     the fork changed an upstream-owned file            -> modified
+ */
 function computeDivergence() {
   const local = localTree();
-  const { source, tree: upstream } = upstreamTree();
+  let manifest = null;
+  try {
+    manifest = readManifest();
+  } catch (_) {
+    // A malformed manifest should not stop `--list`; verification reports it
+    // through the normal unexpected/stale diff.
+  }
+  const {
+    source,
+    commit: baseline,
+    tree: upstream,
+    note,
+  } = baselineTree(manifest);
 
   const modified = [];
   const forkOnly = [];
@@ -172,8 +287,12 @@ function computeDivergence() {
 
   for (const [filePath, sha] of local) {
     if (selfReferential.has(filePath)) continue;
-    if (!upstream.has(filePath)) forkOnly.push(filePath);
-    else if (upstream.get(filePath) !== sha) modified.push(filePath);
+    if (upstream.get(filePath) === sha) continue; // converged; nothing to reconcile
+    if (!upstream.has(filePath)) {
+      forkOnly.push(filePath);
+    } else if (sha !== upstream.get(filePath)) {
+      modified.push(filePath);
+    }
   }
   for (const filePath of upstream.keys()) {
     if (selfReferential.has(filePath)) continue;
@@ -183,7 +302,7 @@ function computeDivergence() {
   modified.sort();
   forkOnly.sort();
   upstreamMissing.sort();
-  return { source, modified, forkOnly, upstreamMissing };
+  return { source, baseline, note, modified, forkOnly, upstreamMissing };
 }
 
 function readManifest() {
@@ -209,9 +328,13 @@ function main() {
   const list = argv.includes('--list');
 
   const actual = computeDivergence();
+  const baselineLine = `Baseline commit: ${actual.baseline}`;
+  const noteLine = actual.note ? `Note:            ${actual.note}` : null;
 
   if (list) {
     console.log(`Upstream source: ${actual.source}`);
+    console.log(baselineLine);
+    if (noteLine) console.log(noteLine);
     console.log(`modified:        ${actual.modified.length}`);
     console.log(`forkOnly:        ${actual.forkOnly.length}`);
     console.log(`upstreamMissing: ${actual.upstreamMissing.length}`);
@@ -229,6 +352,7 @@ function main() {
         '4ian/GDevelop on. Regenerate with `node scripts/check-fork-divergence.js --update`. ' +
         'Enforced by `node scripts/check-fork-divergence.js` in CI. See MAINTENANCE.md.',
       updatedAt: new Date().toISOString().slice(0, 10),
+      baselineCommit: actual.baseline,
       upstreamSource: actual.source,
       modified: actual.modified,
       forkOnly: actual.forkOnly,
@@ -244,12 +368,15 @@ function main() {
       }
       console.log(
         `Wrote ${path.relative(REPO_ROOT, MANIFEST_PATH)} ` +
-          `(${actual.modified.length} modified, ${actual.forkOnly.length} fork-only, ` +
+          `(baseline ${actual.baseline}, ${actual.modified.length} modified, ` +
+          `${actual.forkOnly.length} fork-only, ` +
           `${actual.upstreamMissing.length} upstream-missing)` +
           (Object.keys(counts).length ? ` delta vs previous: ${JSON.stringify(counts)}` : '')
       );
     } else {
-      console.log(`Wrote ${path.relative(REPO_ROOT, MANIFEST_PATH)}`);
+      console.log(
+        `Wrote ${path.relative(REPO_ROOT, MANIFEST_PATH)} (baseline ${actual.baseline})`
+      );
     }
     return;
   }
@@ -264,6 +391,16 @@ function main() {
   }
 
   console.log(`Upstream source: ${actual.source}`);
+  console.log(baselineLine);
+  if (noteLine) console.log(noteLine);
+  if (manifest.baselineCommit && manifest.baselineCommit !== actual.baseline) {
+    console.error(
+      `  NOTE: manifest baseline ${manifest.baselineCommit} differs from the ` +
+        `comparison baseline ${actual.baseline}.\n` +
+        `        A bucket may look stale because the two describe different ` +
+        `upstream points.`
+    );
+  }
   const buckets = ['modified', 'forkOnly', 'upstreamMissing'];
   let failed = false;
 
@@ -298,7 +435,11 @@ function main() {
       '\nDivergence from upstream changed. Two acceptable resolutions:\n' +
         '  1. The new divergence is intended -> record it:\n' +
         '       node scripts/check-fork-divergence.js --update && git add fork-divergence.json\n' +
-        '  2. It was accidental -> revert it, so the file stays in sync with upstream.'
+        '  2. It was accidental -> revert it, so the file stays in sync with upstream.\n' +
+        '\n' +
+        '`--update` also re-anchors the baseline and drops allowlist entries that\n' +
+        'have converged with upstream; review the paths it removes, not just those\n' +
+        'it adds.'
     );
     process.exit(1);
   }
