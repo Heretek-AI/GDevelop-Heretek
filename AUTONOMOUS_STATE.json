@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 31,
+  "last_cycle": 32,
   "completed_targets": [
     {
       "cycle": 1,
@@ -181,6 +181,12 @@
       "target": "Harden the markdown tool-call fallback path (argument validation parity)",
       "metric_delta": "Before: tool calls parsed from markdown JSON blocks (the fallback for models that do not emit tool_calls) bypassed the cycle-10/11 hardening \u2014 arrays/scalars executed as callArguments and schema-invalid arguments ran unvalidated. After: identical contract to the tool_calls path \u2014 arguments must parse to a non-array object and pass validateToolCallArguments against the tool schema; invalid calls are skipped with a warning instead of executing. 2 new tests (non-object args skipped, schema-invalid args skipped); 70/70 green.",
       "commit": "fix(ai): validate markdown tool-call arguments like tool_calls"
+    },
+    {
+      "cycle": 32,
+      "target": "Warn on configured-model mismatch in Test Connection",
+      "metric_delta": "Before: Test Connection reported success even when the configured model identifier was not served by the endpoint \u2014 a typo only surfaced as a failed generation later. After: when /models returns a list that does not contain the configured model, the success message appends a typo-check warning (per-model-family tags like ollama:tag still match by prefix). 2 new tests (mismatch warned, match not warned); 72/72 green.",
+      "commit": "feat(ai): warn on model mismatch in test connection"
     }
   ],
   "backlog": [

@@ -384,6 +384,44 @@ describe('CustomAIClient', () => {
       expect(result.models).toContain('qwen2.5-coder');
     });
 
+    it('warns when the configured model is not in the endpoint list', async () => {
+      // $FlowFixMe
+      axios.get.mockResolvedValueOnce({
+        status: 200,
+        data: { data: [{ id: 'qwen2.5-coder' }, { id: 'llama3.2' }] },
+      });
+
+      const result = await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.6-coder-typo',
+        temperature: 0.7,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('was not found in the endpoint');
+    });
+
+    it('does not warn when the configured model exists', async () => {
+      // $FlowFixMe
+      axios.get.mockResolvedValueOnce({
+        status: 200,
+        data: { data: [{ id: 'qwen2.5-coder' }] },
+      });
+
+      const result = await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.message).not.toContain('was not found');
+    });
+
     it('handles endpoint error gracefully', async () => {
       // $FlowFixMe
       axios.get.mockRejectedValueOnce(new Error('Connection refused'));

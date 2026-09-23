@@ -3619,11 +3619,21 @@ export const testConnection = async (
       const models = Array.isArray(data)
         ? data.map(item => item.id || item.name || String(item)).filter(Boolean)
         : [];
+      const configuredModel = (config.model || '').trim();
+      const modelWarning =
+        configuredModel &&
+        models.length > 0 &&
+        !models.some(
+          model =>
+            model === configuredModel || model.startsWith(`${configuredModel}:`)
+        )
+          ? ` Warning: the configured model '${configuredModel}' was not found in the endpoint's model list — check for a typo in the AI preferences.`
+          : '';
       return {
         success: true,
         message: `Successfully connected to endpoint. Found ${
           models.length
-        } model(s).`,
+        } model(s).${modelWarning}`,
         models,
       };
     }
