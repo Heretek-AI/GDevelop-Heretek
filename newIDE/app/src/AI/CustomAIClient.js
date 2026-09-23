@@ -159,6 +159,46 @@ export const getEndpointUrl = (
 const localAiRequestsCache: { [id: string]: AiRequest } = {};
 
 /**
+ * In-flight turn cancellation: one AbortController per running model turn,
+ * keyed by request id (sub-agents remember their parent so a parent Stop can
+ * cancel them). `customSuspendAiRequest` aborts them; each turn releases its
+ * entry when the model call settles.
+ */
+const localAiRequestAbortControllers: {
+  [id: string]: {|
+    controller: AbortController,
+    parentAiRequestId: string | null,
+  |},
+} = {};
+
+const registerTurnAbortController = (
+  aiRequestId: string,
+  parentAiRequestId?: string | null
+): AbortController => {
+  const controller = new AbortController();
+  localAiRequestAbortControllers[aiRequestId] = {
+    controller,
+    parentAiRequestId: parentAiRequestId || null,
+  };
+  return controller;
+};
+
+const releaseTurnAbortController = (aiRequestId: string): void => {
+  delete localAiRequestAbortControllers[aiRequestId];
+};
+
+const abortTurnsForRequest = (aiRequestId: string): void => {
+  const entry = localAiRequestAbortControllers[aiRequestId];
+  if (entry) entry.controller.abort();
+  for (const key of Object.keys(localAiRequestAbortControllers)) {
+    const other = localAiRequestAbortControllers[key];
+    if (other && other.parentAiRequestId === aiRequestId) {
+      other.controller.abort();
+    }
+  }
+};
+
+/**
  * One in-flight model turn per request id.
  *
  * A turn reads `localAiRequestsCache[id]`, awaits a full model call, then writes
@@ -206,6 +246,9 @@ export const _resetCustomAiClientForTesting = () => {
   cachedConfig = null;
   for (const key of Object.keys(localAiRequestsCache)) {
     delete localAiRequestsCache[key];
+  }
+  for (const key of Object.keys(localAiRequestAbortControllers)) {
+    delete localAiRequestAbortControllers[key];
   }
   for (const key of Object.keys(localAiTurnTails)) {
     delete localAiTurnTails[key];
@@ -2153,10 +2196,17 @@ export const customCreateAiRequest = async ({
     systemPrompt
   );
 
-  const assistantResponse = await sendChatCompletion({
-    messages: openAiMessages,
-    tools: GDEVELOP_OPENAI_TOOLS,
-  });
+  const abortController = registerTurnAbortController(reqId);
+  let assistantResponse;
+  try {
+    assistantResponse = await sendChatCompletion({
+      messages: openAiMessages,
+      tools: GDEVELOP_OPENAI_TOOLS,
+      signal: abortController.signal,
+    });
+  } finally {
+    releaseTurnAbortController(reqId);
+  }
 
   const assistantMessage = parseAssistantMessage(
     assistantResponse,
@@ -2265,12 +2315,27 @@ export const customAddMessageToAiRequest = async ({
       systemPrompt
     );
 
-    const assistantResponse = await sendChatCompletion({
-      messages: openAiMessages,
-      tools: studioRoleId
-        ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
-        : GDEVELOP_OPENAI_TOOLS,
-    });
+    const abortController = registerTurnAbortController(aiRequestId);
+    let assistantResponse;
+    try {
+      assistantResponse = await sendChatCompletion({
+        messages: openAiMessages,
+        tools: studioRoleId
+          ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
+          : GDEVELOP_OPENAI_TOOLS,
+        signal: abortController.signal,
+      });
+    } catch (error) {
+      releaseTurnAbortController(aiRequestId);
+      if (abortController.signal.aborted) {
+        // The turn was stopped by the user (suspended): keep the suspended
+        // cache copy — the turn's answer (if any arrived) is not written back
+        // and no error surfaces for a stop the user asked for.
+        return localAiRequestsCache[aiRequestId] || existing;
+      }
+      throw error;
+    }
+    releaseTurnAbortController(aiRequestId);
 
     const assistantMsgId = `msg-asst-${Date.now()}`;
     const assistantMessage = parseAssistantMessage(
@@ -2373,10 +2438,20 @@ export const customCreateSubAgentAiRequest = async ({
       systemPrompt
     );
 
-    const assistantResponse = await sendChatCompletion({
-      messages: openAiMessages,
-      tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
-    });
+    const abortController = registerTurnAbortController(
+      reqId,
+      parentAiRequestId
+    );
+    let assistantResponse;
+    try {
+      assistantResponse = await sendChatCompletion({
+        messages: openAiMessages,
+        tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
+        signal: abortController.signal,
+      });
+    } finally {
+      releaseTurnAbortController(reqId);
+    }
 
     const assistantMessage = parseAssistantMessage(
       assistantResponse,
@@ -2480,8 +2555,10 @@ export const customSuspendAiRequest = (aiRequestId: string): AiRequest => {
       updatedAt: now,
     };
     localAiRequestsCache[aiRequestId] = suspended;
-    // A parent Stop must not leave BYOK-burning children running: suspend every
-    // sub-agent of this request too.
+    // A parent Stop must not leave BYOK-burning children running: cancel any
+    // in-flight model turn (the aborted turn keeps the suspended cache copy)
+    // and suspend every sub-agent of this request too.
+    abortTurnsForRequest(aiRequestId);
     for (const key of Object.keys(localAiRequestsCache)) {
       const child = localAiRequestsCache[key];
       if (child && child.parentAiRequestId === aiRequestId) {

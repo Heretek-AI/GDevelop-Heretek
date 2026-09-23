@@ -406,6 +406,91 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('suspend-time turn cancellation', () => {
+    const waitFor = condition => {
+      return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const check = () => {
+          if (condition()) return resolve();
+          if (++attempts > 100) return reject(new Error('timeout'));
+          setTimeout(check, 10);
+        };
+        check();
+      });
+    };
+
+    it('aborts the in-flight model call when a request is suspended', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'build a scene',
+      });
+      const aiRequestId = created.id;
+
+      // Suspend while the "model" answer is in flight: the turn's post hangs
+      // until the signal aborts.
+      axios.post.mockImplementationOnce(
+        (url, body, options) =>
+          new Promise((resolve, reject) => {
+            options.signal.addEventListener('abort', () =>
+              reject(new Error('canceled'))
+            );
+          })
+      );
+      const pending = customAddMessageToAiRequest({
+        aiRequestId,
+        userMessage: 'continue',
+      });
+      await waitFor(() => axios.post.mock.calls.length > 1);
+
+      const signal = axios.post.mock.calls[1][2].signal;
+      expect(signal.aborted).toBe(false);
+
+      customSuspendAiRequest(aiRequestId);
+      expect(signal.aborted).toBe(true);
+
+      // The stopped turn resolves without throwing and without an error.
+      const result = await pending;
+      expect(result.status).toBe('suspended');
+      expect(result.error).toBe(null);
+    });
+
+    it('a parent suspend cancels an in-flight sub-agent model call', async () => {
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const parent = await customCreateAiRequest({
+        userRequest: 'orchestrate',
+      });
+
+      // The sub-agent turn's post hangs until its signal aborts.
+      axios.post.mockImplementationOnce(
+        (url, body, options) =>
+          new Promise((resolve, reject) => {
+            options.signal.addEventListener('abort', () =>
+              reject(new Error('canceled'))
+            );
+          })
+      );
+      const subAgentPending = customCreateSubAgentAiRequest({
+        parentAiRequestId: parent.id,
+        roleId: 'developer',
+        userRequest: 'do the work',
+      });
+      await waitFor(() => axios.post.mock.calls.length > 1);
+
+      const subAgentSignal = axios.post.mock.calls[1][2].signal;
+      customSuspendAiRequest(parent.id);
+      expect(subAgentSignal.aborted).toBe(true);
+      await expect(subAgentPending).rejects.toThrow('AI request was aborted.');
+    });
+  });
+
   describe('Request Store & Lifecycle Methods', () => {
     it('creates, retrieves, and updates local AI requests', async () => {
       // $FlowFixMe
