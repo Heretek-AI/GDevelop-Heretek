@@ -2852,6 +2852,12 @@ const streamChatCompletion = async ({
     let buffer = '';
     let content = '';
     let reasoning = '';
+    // The server signals the end of an SSE completion with `data: [DONE]`.
+    // Many OpenAI-compatible servers and proxies keep the connection open
+    // afterwards (chunked keep-alive), so waiting for the socket to close
+    // means a finished answer sits idle until the watchdog aborts it — the
+    // user's answer appears, but only after the full idle timeout.
+    let sawDone = false;
     const toolCalls: { [index: number]: Object } = {};
     let finishReason = null;
 
@@ -2881,7 +2887,11 @@ const streamChatCompletion = async ({
       const trimmed = rawLine.trim();
       if (!trimmed.startsWith('data:')) return;
       const data = trimmed.slice(5).trim();
-      if (!data || data === '[DONE]') return;
+      if (!data) return;
+      if (data === '[DONE]') {
+        sawDone = true;
+        return;
+      }
       let chunk;
       try {
         chunk = JSON.parse(data);
@@ -2943,6 +2953,9 @@ const streamChatCompletion = async ({
       const lines = buffer.split('\n');
       buffer = lines.pop() || ''; // keep the trailing partial line.
       for (const line of lines) processSseLine(line);
+      // Stop as soon as the server says the completion is over, rather than
+      // waiting for a socket close the server may never send.
+      if (sawDone) break;
     }
     // Connection close leaves a partial line in `buffer` and undecoded
     // multi-byte state in `decoder` — process both so a final data: event

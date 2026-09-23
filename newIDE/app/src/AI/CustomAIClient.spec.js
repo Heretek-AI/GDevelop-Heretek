@@ -4473,20 +4473,78 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('the stream ends at [DONE]', () => {
+    it('returns as soon as the server sends [DONE], without waiting for close', async () => {
+      // Many OpenAI-compatible servers and proxies keep the socket open after
+      // the terminator. Waiting for a close means a finished answer sits idle
+      // until the watchdog aborts it, so the loop must stop on [DONE].
+      const encoder = new TextEncoder();
+      const body =
+        'data: ' +
+        JSON.stringify({
+          choices: [{ delta: { content: 'finished' }, finish_reason: 'stop' }],
+        }) +
+        '\n' +
+        'data: [DONE]\n';
+      let readCount = 0;
+      // A read that never resolves models the held-open socket.
+      const neverResolvingRead = () => new Promise(() => {});
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'text/event-stream' },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(body) };
+              }
+              return neverResolvingRead();
+            },
+          }),
+        },
+      });
+
+      // If the loop waited for close this promise would never settle.
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'qwen2.5-coder',
+          temperature: 0.7,
+          streaming: true,
+        },
+      });
+
+      expect(message.content).toBe('finished');
+      // Exactly one chunk plus the terminator: no further read was needed.
+      expect(readCount).toBe(1);
+      // $FlowFixMe[method-unbinding] jest matcher on a typed axios instance.
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+  });
+
   describe('partial content while the first turn streams', () => {
     // The chat's cold-start hint reads customGetAiRequestPartialContent to tell
     // "no bytes yet" apart from "already streaming". Only addMessage used to
     // publish it, so a first turn showed "waiting for the first token" while
     // its text was visibly arriving.
-    const streamBody = [
+    // Two reads: the delta, then the terminator. Sampling at the top of the
+    // second read observes the registry as the turn left it after processing
+    // the delta, which is mid-turn — the `[DONE]` line then ends the loop.
+    const deltaBody =
       'data: ' +
-        JSON.stringify({ choices: [{ delta: { content: 'Hel' } }] }) +
-        '\n',
-      'data: [DONE]\n',
-    ].join('');
+      JSON.stringify({ choices: [{ delta: { content: 'Hel' } }] }) +
+      '\n';
+    const doneBody = 'data: [DONE]\n';
 
-    // Sampling hook invoked synchronously from the reader after the SDK has
-    // processed the first chunk, so it observes the registry mid-turn.
+    // Sampling hook that observes the registry from inside the turn. It runs
+    // as a microtask queued after the chunk is handed to the reader, because
+    // the `data: [DONE]` line now ends the read loop and there is no second
+    // `read()` to hang the observation off.
     let samplePartialContent = () => null;
 
     const mockStreamResponse = () => {
@@ -4497,14 +4555,19 @@ describe('CustomAIClient', () => {
         body: {
           getReader: () => ({
             read: (() => {
-              let done = false;
+              let readCount = 0;
               return async () => {
-                if (done) {
-                  samplePartialContent();
-                  return { done: true, value: undefined };
+                readCount += 1;
+                if (readCount === 1) {
+                  return { done: false, value: encoder.encode(deltaBody) };
                 }
-                done = true;
-                return { done: false, value: encoder.encode(streamBody) };
+                // Observing here catches the registry after the delta was
+                // processed and before the turn settles.
+                samplePartialContent();
+                if (readCount === 2) {
+                  return { done: false, value: encoder.encode(doneBody) };
+                }
+                return { done: true, value: undefined };
               };
             })(),
           }),

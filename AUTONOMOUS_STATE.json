@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 103,
+  "last_cycle": 104,
   "completed_targets": [
     {
       "cycle": 75,
@@ -609,6 +609,12 @@
       "target": "Guard the sub-agent report builder against malformed content",
       "metric_delta": "447 tests (unchanged); buildSubAgentReport read message.content.find(..) unguarded, so a server sub-agent message missing its content array threw while finalizing the report; it already documents falling back to the message's own `text` field, which the guard now actually reaches. Only FinalizeSubAgents.js changed (already forkOnly). A matching guard in FunctionCallRow.js was written and then REVERTED: that file is byte-identical to upstream and untracked in the manifest, and the divergence guard flagged it as new divergence — permanent merge surface for a defensive guard with no reproduction is not worth it. 1 file, +9/-3",
       "commit": "fix(ai): guard the sub-agent report builder against malformed content"
+    },
+    {
+      "cycle": 104,
+      "target": "End the SSE read loop at [DONE] instead of waiting for close",
+      "metric_delta": "447->448 tests; the parser recognised `data: [DONE]` but only returned from that one line handler, so the read loop kept awaiting reader.read() until the server closed the socket. OpenAI-compatible servers and proxies commonly hold the connection open after the terminator (chunked keep-alive), so a COMPLETE answer sat idle until the idle watchdog aborted it. The loop now tracks [DONE] and breaks on it. Proven red pre-fix by a test whose second read never resolves: it times out after 10s before the change and returns in 5ms after. 2 files, +14/-1",
+      "commit": "fix(ai): end the SSE read loop at [DONE] instead of waiting for close"
     }
   ],
   "backlog": [
@@ -729,6 +735,7 @@
     "Per-request state kept in a module-level map is lost on reload unless persisted: the per-chat model override had a UI control and a read path but no storage, so the user's choice silently reverted. When adding a per-request registry entry that a user can set, check whether it needs its own persisted key.",
     "A *WithAvailability helper must honour the availability it computes: getDefaultAiConfigurationPresetId ignored `disabled` while every other consumer of those presets respects it. When a module derives availability, check that the selectors it feeds also read it.",
     "TypeScript/Flow-required fields on network payloads are assertions, not guarantees: getUserRequestText trusted Array-typed content that the server could omit, and the crash surfaced in the sidebar. When a helper reads a field straight from an API response, guard the shape even when the type declares it required.",
-    "Before hardening an unguarded read, check the file's divergence bucket: a defensive guard in an upstream-identical, untracked file creates permanent merge surface (the fork-divergence guard flags it as new divergence) for no reproduced failure. Fix upstream-owned files only for real defects; prefer files already in the modified/forkOnly buckets, or the fix belongs upstream."
+    "Before hardening an unguarded read, check the file's divergence bucket: a defensive guard in an upstream-identical, untracked file creates permanent merge surface (the fork-divergence guard flags it as new divergence) for no reproduced failure. Fix upstream-owned files only for real defects; prefer files already in the modified/forkOnly buckets, or the fix belongs upstream.",
+    "Recognising a protocol terminator is not acting on it: the SSE parser saw `data: [DONE]` and returned from the line handler, leaving the read loop waiting for a socket close the server need not send. When code special-cases a terminator, check whether the surrounding loop actually stops."
   ]
 }
