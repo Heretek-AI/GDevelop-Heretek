@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { type I18n as I18nType } from '@lingui/core';
 import { AiRequestChat, type AiRequestChatInterface } from './AiRequestChat';
-import { canPayForAiRequest } from './AiRequestChat/Utils';
+import { canAffordAiRequest } from './AiRequestChat/Utils';
 import {
   addMessageToAiRequest,
   createAiRequest,
@@ -319,9 +319,11 @@ export const AskAiStandAloneForm = ({
           payWithCredits = true;
         }
         // The same rule as the one enabling the send button, so the button
-        // can't offer to send a request this would silently drop.
+        // can't offer to send a request this would silently drop. Local/BYOK
+        // (custom endpoint) never depends on hosted credits/quota.
         if (
-          !canPayForAiRequest({
+          !canAffordAiRequest({
+            isCustomEndpointEnabled: isCustomEndpointEnabled(),
             quota,
             price: aiRequestPrice,
             availableCredits,

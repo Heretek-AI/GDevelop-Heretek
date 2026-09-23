@@ -64,7 +64,7 @@ import Stop from '../../UI/CustomSvgIcons/Stop';
 import AutoEditButton from './AutoEditButton';
 import { EditApprovalRow } from './EditApprovalRow';
 import { type EditApprovalRequest } from '../Utils';
-import { canPayForAiRequest } from './Utils';
+import { canAffordAiRequest } from './Utils';
 import { AiUsageIndicator } from './AiUsageIndicator';
 import {
   isCustomEndpointEnabled,
@@ -609,14 +609,13 @@ export const AiRequestChat: React.ComponentType<{
       [isWorking]
     );
 
-    const cannotContinue =
-      !isCustomEndpointEnabled() &&
-      !canPayForAiRequest({
-        quota,
-        price,
-        availableCredits,
-        automaticallyUseCreditsForAiRequests,
-      });
+    const cannotContinue = !canAffordAiRequest({
+      isCustomEndpointEnabled: isCustomEndpointEnabled(),
+      quota,
+      price,
+      availableCredits,
+      automaticallyUseCreditsForAiRequests,
+    });
     // Derived, never stored: buying credits, subscribing, switching to GDevelop
     // credits or the allowance resetting all unblock the chat as soon as the
     // limits say so - the user doesn't have to close and reopen it.

@@ -20,7 +20,7 @@ import {
 import { type ObjectWithContext } from '../ObjectsList/EnumerateObjects';
 import Paper from '../UI/Paper';
 import { AiRequestChat, type AiRequestChatInterface } from './AiRequestChat';
-import { canPayForAiRequest } from './AiRequestChat/Utils';
+import { canAffordAiRequest } from './AiRequestChat/Utils';
 import { registerAskAiPrefillListener } from './AskAiPrefill';
 import {
   addMessageToAiRequest,
@@ -664,9 +664,11 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
               payWithCredits = true;
             }
             // The same rule as the one enabling the send button, so the button
-            // can't offer to send a request this would silently drop.
+            // can't offer to send a request this would silently drop. Local/BYOK
+            // (custom endpoint) never depends on hosted credits/quota.
             if (
-              !canPayForAiRequest({
+              !canAffordAiRequest({
+                isCustomEndpointEnabled: isCustomEndpointEnabled(),
                 quota,
                 price: aiRequestPrice,
                 availableCredits,
@@ -883,7 +885,8 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             // The same rule as the one enabling the send button, so the button
             // can't offer to send a message this would silently drop.
             if (
-              !canPayForAiRequest({
+              !canAffordAiRequest({
+                isCustomEndpointEnabled: isCustomEndpointEnabled(),
                 quota,
                 price: aiRequestPrice,
                 availableCredits,

@@ -1,5 +1,5 @@
 // @flow
-import { canPayForAiRequest } from './Utils';
+import { canPayForAiRequest, canAffordAiRequest } from './Utils';
 import {
   type Quota,
   type UsagePrice,
@@ -110,6 +110,53 @@ describe('canPayForAiRequest', () => {
         price: { priceInCredits: 0 },
         availableCredits: 0,
         automaticallyUseCreditsForAiRequests: true,
+      })
+    ).toBe(true);
+  });
+});
+
+describe('canAffordAiRequest', () => {
+  it('allows local/BYOK (custom endpoint) even when the hosted quota is exhausted', () => {
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: true,
+        quota: exhaustedQuota,
+        price,
+        availableCredits: 0,
+        automaticallyUseCreditsForAiRequests: false,
+      })
+    ).toBe(true);
+  });
+
+  it('still blocks hosted sends when the allowance is exhausted and credits cannot pay', () => {
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: false,
+        quota: exhaustedQuota,
+        price,
+        availableCredits: 0,
+        automaticallyUseCreditsForAiRequests: false,
+      })
+    ).toBe(false);
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: false,
+        quota: exhaustedQuota,
+        price,
+        availableCredits: 4,
+        automaticallyUseCreditsForAiRequests: true,
+      })
+    ).toBe(false);
+  });
+
+  it('allows hosted sends when the allowance is not exhausted', () => {
+    expect(
+      canAffordAiRequest({
+        isCustomEndpointEnabled: false,
+        quota: remainingQuota,
+        price,
+        availableCredits: 0,
+        automaticallyUseCreditsForAiRequests: false,
       })
     ).toBe(true);
   });

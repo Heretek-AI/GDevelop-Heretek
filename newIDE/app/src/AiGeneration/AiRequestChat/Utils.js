@@ -111,3 +111,32 @@ export const canPayForAiRequest = ({
   if (!price) return true;
   return availableCredits >= price.priceInCredits;
 };
+
+/**
+ * Whether a send may proceed for this endpoint mode. Local/BYOK (custom
+ * endpoint) never depends on GDevelop credits or hosted quotas — the send
+ * button already short-circuits on `!isCustomEndpointEnabled() && !canPay`;
+ * create/continue paths must use the same rule so an exhausted hosted quota
+ * cannot silently drop a local request.
+ */
+export const canAffordAiRequest = ({
+  isCustomEndpointEnabled,
+  quota,
+  price,
+  availableCredits,
+  automaticallyUseCreditsForAiRequests,
+}: {|
+  isCustomEndpointEnabled: boolean,
+  quota: Quota | null,
+  price: UsagePrice | null,
+  availableCredits: number,
+  automaticallyUseCreditsForAiRequests: boolean,
+|}): boolean => {
+  if (isCustomEndpointEnabled) return true;
+  return canPayForAiRequest({
+    quota,
+    price,
+    availableCredits,
+    automaticallyUseCreditsForAiRequests,
+  });
+};
