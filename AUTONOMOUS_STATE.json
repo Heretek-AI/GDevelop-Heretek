@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 68,
+  "last_cycle": 69,
   "completed_targets": [
     {
       "cycle": 1,
@@ -403,6 +403,12 @@
       "target": "Allow new local AI creates without a profile or endpoint toggle",
       "metric_delta": "358->361 tests; shared canStartAiRequestCreate replaces the account-dialog gate in AskAiStandAloneForm / AskAiEditorContainer so LOCAL_BYOK create works offline after logout; 4 files, +45/-2",
       "commit": "fix(ai): start local chats offline without the account dialog"
+    },
+    {
+      "cycle": 69,
+      "target": "Serve local AI presets offline without CDN settings fetches",
+      "metric_delta": "361->368 tests; fetchAiSettings short-circuits to DEFAULT when custom endpoint on; AiConfiguration falls back to DEFAULT when settings null (no empty preset list); 4 files, +66/-2 + new AiConfiguration.spec.js; fork-divergence --update for forkOnly spec",
+      "commit": "fix(ai): serve local AI presets offline without CDN settings"
     }
   ],
   "backlog": [
@@ -475,5 +481,6 @@
     "Generation create paths must dual-gate isCustomEndpointEnabled() with userId.startsWith('local-') (and local-ai relatedAiRequestId for event/asset search) — endpoint toggle alone strands offline BYOK creates",
     "Session send/watch guards must be per-request (pass aiRequestId) so local-ai-* chats work logged out with the endpoint toggle off — a blanket !profile early-return freezes sub-agent retirement",
     "Editor-tool hooks must share canUseEditorAiTools with the send/watch guards — a stale !profile && !endpoint auth throw after logout freezes agent function-calls for local-ai-* chats even though Generation dual-gates them offline",
-    "Create-form account dialogs must share canStartAiRequestCreate with Generation local-* dual-gates — a stale !profile && !endpoint abort opens the account dialog and blocks new local chats while send/watch already work offline"]
+    "Create-form account dialogs must share canStartAiRequestCreate with Generation local-* dual-gates — a stale !profile && !endpoint abort opens the account dialog and blocks new local chats while send/watch already work offline",
+    "fetchAiSettings and getAiConfigurationPresetsWithAvailability must share DEFAULT_LOCAL_AI_SETTINGS as the offline catalog — CDN short-circuit on custom endpoint plus null-settings fallback, never an empty preset list"]
 }

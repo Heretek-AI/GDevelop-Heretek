@@ -11,6 +11,7 @@ import {
   createAssetSearch,
   createResourceSearch,
   createAiGeneratedEvent,
+  fetchAiSettings,
 } from './Generation';
 import {
   setCustomEndpointConfig,
@@ -465,5 +466,59 @@ describe('Generation local-ai lifecycle routing', () => {
       expect(post).toHaveBeenCalledTimes(1);
       expect(post.mock.calls[0][0]).toBe('/asset-search');
     }
+  });
+});
+
+describe('fetchAiSettings local-first routing', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    _resetCustomAiClientForTesting();
+    // $FlowFixMe
+    const client: any = apiClient;
+    if (client && typeof client.get === 'function') client.get.mockReset();
+    setCustomEndpointConfig({
+      enabled: false,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+  });
+
+  afterEach(() => {
+    setCustomEndpointConfig({
+      enabled: false,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+  });
+
+  it('returns local defaults without hitting the CDN when the custom endpoint is on', async () => {
+    setCustomEndpointConfig({
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+
+    const settings = await fetchAiSettings({ environment: 'live' });
+
+    expect(settings.aiRequest.presets.length).toBeGreaterThan(0);
+    // $FlowFixMe
+    expect(axios.get).not.toHaveBeenCalled();
+  });
+
+  it('falls back to local defaults when the CDN request fails', async () => {
+    // $FlowFixMe
+    axios.get.mockRejectedValueOnce(new Error('network down'));
+
+    const settings = await fetchAiSettings({ environment: 'live' });
+
+    expect(settings.aiRequest.presets.length).toBeGreaterThan(0);
+    // $FlowFixMe
+    expect(axios.get).toHaveBeenCalled();
   });
 });

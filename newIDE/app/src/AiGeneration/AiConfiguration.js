@@ -33,8 +33,10 @@ export const getAiConfigurationPresetsWithAvailability = ({
     }));
   }
 
-  const aiSettings = getAiSettings();
-  if (!aiSettings) return [];
+  // Settings may still be loading (or the CDN returned a bad shape after
+  // retries). An empty preset list hides the selector and blocks mode
+  // defaults — fall back to the offline BYOK catalog instead.
+  const aiSettings = getAiSettings() || DEFAULT_LOCAL_AI_SETTINGS;
 
   if (!limits) {
     return aiSettings.aiRequest.presets.map(preset => ({

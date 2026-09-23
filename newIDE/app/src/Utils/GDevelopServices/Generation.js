@@ -1389,6 +1389,13 @@ export const fetchAiSettings = async ({
 }: {|
   environment: Environment,
 |}): Promise<AiSettings> => {
+  // Local/BYOK sessions never need the hosted preset catalog: plan gating is
+  // unused (all presets available) and DEFAULT_LOCAL_AI_SETTINGS already has
+  // the orchestrator/chat/agent defaults. Skip the CDN so offline custom
+  // endpoint users do not wait on axios timeouts every editor open.
+  if (isCustomEndpointEnabled()) {
+    return DEFAULT_LOCAL_AI_SETTINGS;
+  }
   try {
     // $FlowFixMe[underconstrained-implicit-instantiation]
     const response = await axios.get(
