@@ -1724,6 +1724,110 @@ describe('CustomAIClient', () => {
       expect(axios.post).not.toHaveBeenCalled();
     });
 
+    it('uses a JSON body when the server ignores stream:true', async () => {
+      // A proxy that ignores `stream: true` answers with an ordinary
+      // completion. Reading it as SSE finds no data: lines, so the turn looked
+      // empty and was retried without streaming — a second full wait for an
+      // answer that had already arrived.
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: name =>
+            name.toLowerCase() === 'content-type'
+              ? 'application/json; charset=utf-8'
+              : null,
+        },
+        text: async () =>
+          JSON.stringify({
+            choices: [
+              { message: { role: 'assistant', content: 'direct json' } },
+            ],
+          }),
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('direct json');
+      // No retry: the body already held the answer.
+      // $FlowFixMe[method-unbinding] jest matcher on a typed axios instance.
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('still reads a real event stream', async () => {
+      // Guard the detection itself: a correct SSE response must keep taking
+      // the streaming path even though it now inspects the content type.
+      const encoder = new TextEncoder();
+      const sse =
+        'data: ' +
+        JSON.stringify({
+          choices: [{ delta: { content: 'via sse' }, finish_reason: 'stop' }],
+        }) +
+        '\n';
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: name =>
+            name.toLowerCase() === 'content-type' ? 'text/event-stream' : null,
+        },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return { done: false, value: encoder.encode(sse) };
+              }
+              return { done: true, value: undefined };
+            },
+          }),
+        },
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('via sse');
+    });
+
+    it('falls back to a non-streaming request when the body is neither SSE nor JSON', async () => {
+      // A proxy error page (HTML) is a stream failure like any other: the
+      // stream path reports it and the normal single non-streaming retry
+      // still runs, which is what recovers the turn when only streaming is
+      // broken.
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: {
+          get: name =>
+            name.toLowerCase() === 'content-type' ? 'text/html' : null,
+        },
+        text: async () => '<html>proxy error</html>',
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'recovered' } }],
+        },
+      });
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.content).toBe('recovered');
+      // $FlowFixMe[method-unbinding] jest matcher on a typed axios instance.
+      expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+
     it('blames the output budget, not the network, when reasoning was truncated', async () => {
       const encoder = new TextEncoder();
       const sse = [

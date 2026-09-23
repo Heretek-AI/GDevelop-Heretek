@@ -2679,6 +2679,36 @@ const streamChatCompletion = async ({
       };
       throw error;
     }
+    // Some proxies and a few local servers ignore `stream: true` and answer
+    // with an ordinary JSON completion. Reading that as SSE yields no `data:`
+    // lines, so the stream looks empty and the turn is retried without
+    // streaming — a second full wait for an answer that already arrived.
+    // Detect a non-SSE content type and treat the body as the reply.
+    const contentType =
+      (response.headers && response.headers.get
+        ? response.headers.get('content-type')
+        : '') || '';
+    if (contentType && !/text\/event-stream/i.test(contentType)) {
+      let parsed;
+      try {
+        parsed = JSON.parse(await response.text());
+      } catch (ignored) {
+        throw new Error(
+          `The endpoint answered with '${contentType}' instead of an event stream, and the body was not JSON.`
+        );
+      }
+      const message =
+        parsed &&
+        parsed.choices &&
+        parsed.choices[0] &&
+        parsed.choices[0].message;
+      if (!message) {
+        throw new Error(
+          `The endpoint answered with '${contentType}' instead of an event stream, and the body carried no completion.`
+        );
+      }
+      return message;
+    }
     if (!response.body) {
       throw new Error('The endpoint returned an empty stream.');
     }
