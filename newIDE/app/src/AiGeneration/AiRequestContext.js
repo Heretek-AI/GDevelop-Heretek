@@ -30,6 +30,7 @@ import {
   aiRequestShouldBeWatched,
   aiRequestHasWorkInProgress,
   aiRequestPollSawActivity,
+  canSendAiRequestForSession,
   getUserRequestText,
 } from './AiRequestUtils';
 import { type EditApprovalRequest } from './Utils';
@@ -1191,7 +1192,16 @@ export const AiRequestProvider = ({
   // All the status-only checks for a given tick are batched
   // into a single request instead of one request per entity.
   const onWatch = async () => {
-    if (!profile) return;
+    // Hosted watches need a profile; local BYOK watches do not — offline
+    // studio must still retire finished sub-agents (otherwise hasActiveSubAgents
+    // stays true and the chat input never re-enables).
+    if (!canSendAiRequestForSession(profile, isCustomEndpointEnabled())) {
+      return;
+    }
+    const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;
+    // Without a profile only local-ai-* ids are addressable (never the hosted API).
+    const isAddressable = (aiRequestId: string) =>
+      !!profile || aiRequestId.startsWith('local-ai-');
     const now = Date.now();
 
     // Set to true whenever this tick observes activity (a status change or new
@@ -1235,7 +1245,7 @@ export const AiRequestProvider = ({
         (lastMessage && lastMessage.messageId) || undefined;
       const fetchedAiRequest = await retryIfFailed({ times: 2 }, () =>
         getAiRequest(getAuthorizationHeader, {
-          userId: profile.id,
+          userId: activeUserId,
           aiRequestId,
           outputFromMessageId,
         })
@@ -1271,6 +1281,7 @@ export const AiRequestProvider = ({
     const watchParent =
       !!selectedAiRequestId &&
       !!selectedAiRequest &&
+      isAddressable(selectedAiRequestId) &&
       aiRequestShouldBeWatched(selectedAiRequest);
     if (watchParent && selectedAiRequestId) {
       if (now - lastFullFetchTimeRef.current >= fullFetchIntervalInMs) {
@@ -1280,6 +1291,7 @@ export const AiRequestProvider = ({
       }
     }
     for (const subAgentId of subAgentIds) {
+      if (!isAddressable(subAgentId)) continue;
       const lastFullFetch =
         subAgentLastFullFetchTimeRef.current[subAgentId] || 0;
       if (now - lastFullFetch >= fullFetchIntervalInMs) {
@@ -1294,7 +1306,7 @@ export const AiRequestProvider = ({
     const statusOnlyPromise = (async () => {
       if (statusOnlyIds.length === 0) return;
       const statuses = await getAiRequestStatuses(getAuthorizationHeader, {
-        userId: profile.id,
+        userId: activeUserId,
         aiRequestIds: statusOnlyIds,
       });
       const statusById: Map<string, GenerationStatus> = new Map(

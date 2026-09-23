@@ -14,7 +14,10 @@ import {
   type AiRequestSummary,
   type AiRequestUserMessage,
 } from '../Utils/GDevelopServices/Generation';
-import { customGetAiRequest } from '../AI/CustomAIClient';
+import {
+  customGetAiRequest,
+  setCustomEndpointConfig,
+} from '../AI/CustomAIClient';
 import { type AuthenticatedUser } from '../Profile/AuthenticatedUserContext';
 import AuthenticatedUserContext, {
   initialAuthenticatedUser,
@@ -87,6 +90,14 @@ const makeAuthenticatedUser = (): AuthenticatedUser => ({
   getAuthorizationHeader: () => Promise.resolve('fake-auth-header'),
 });
 
+const makeLoggedOutUser = (): AuthenticatedUser => ({
+  ...initialAuthenticatedUser,
+  authenticated: false,
+  profile: null,
+  loginState: 'done',
+  getAuthorizationHeader: () => Promise.resolve(''),
+});
+
 const ContextCapture = ({
   contextRef,
 }: {|
@@ -106,15 +117,15 @@ const flushPromises = async () => {
   }
 };
 
-const renderProvider = () => {
+const renderProvider = (authenticatedUser?: AuthenticatedUser) => {
   const contextRef: { current: AiRequestContextState | null } = {
     current: null,
   };
-  const authenticatedUser = makeAuthenticatedUser();
+  const user = authenticatedUser || makeAuthenticatedUser();
   let renderer;
   act(() => {
     renderer = TestRenderer.create(
-      <AuthenticatedUserContext.Provider value={authenticatedUser}>
+      <AuthenticatedUserContext.Provider value={user}>
         <AiRequestProvider>
           <ContextCapture contextRef={contextRef} />
         </AiRequestProvider>
@@ -518,6 +529,146 @@ describe('AiRequestProvider sub-agent cleanup on navigation', () => {
 
     // $FlowFixMe[incompatible-use]
     expect(Object.keys(contextRef.current.activeSubAgents)).toEqual(['sub-2']);
+  });
+});
+
+describe('AiRequestProvider offline BYOK watch (no profile)', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockFn(getAiRequest).mockReset();
+    mockFn(getAiRequestStatuses).mockReset();
+    mockFn(getAiRequestStatuses).mockResolvedValue([]);
+    mockFn(fetchAiSettings).mockReset();
+    mockFn(fetchAiSettings).mockResolvedValue(null);
+    mockFn(getAiRequestSummaries).mockReset();
+    mockFn(getAiRequestSummaries).mockResolvedValue({
+      aiRequestSummaries: [],
+      nextPageUri: null,
+    });
+    setCustomEndpointConfig({
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+  });
+
+  afterEach(() => {
+    setCustomEndpointConfig({
+      enabled: false,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+    jest.useRealTimers();
+  });
+
+  // Offline studio: onWatch used to early-return on !profile, so finished
+  // sub-agents were never retired and hasActiveSubAgents kept the chat input
+  // disabled forever. Local BYOK watches must run without a profile.
+  it('retires a finished sub-agent when logged out with the custom endpoint enabled', async () => {
+    const { contextRef } = renderProvider(makeLoggedOutUser());
+    if (!contextRef.current) throw new Error('Context not captured');
+
+    const parentWithOutput = {
+      ...makeAiRequest('parent-1', 'ready'),
+      output: [
+        {
+          type: 'function_call_output',
+          call_id: 'call-1',
+          output: 'done',
+        },
+      ],
+    };
+    const subReady = makeAiRequest('local-ai-sub-1', 'ready');
+    mockFn(getAiRequest).mockResolvedValue(subReady);
+
+    await act(async () => {
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.aiRequestStorage.updateAiRequest(
+        'parent-1',
+        () => parentWithOutput
+      );
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.aiRequestStorage.updateAiRequest(
+        'local-ai-sub-1',
+        () => subReady
+      );
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.setSelectedAiRequestId('parent-1');
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.activateSubAgent(
+        'local-ai-sub-1',
+        'parent-1',
+        'call-1'
+      );
+    });
+
+    // Selection is cleared by the !profile effect only when profile *changes*;
+    // re-assert selection after that effect has already run on mount.
+    await act(async () => {
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.setSelectedAiRequestId('parent-1');
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+      await flushPromises();
+    });
+
+    // Watch ran (full fetch of the finished local sub-agent)…
+    expect(mockFn(getAiRequest)).toHaveBeenCalled();
+    const fetchCall = mockFn(getAiRequest).mock.calls.find(
+      call => call[1] && call[1].aiRequestId === 'local-ai-sub-1'
+    );
+    expect(fetchCall).toBeTruthy();
+    if (fetchCall) {
+      expect(fetchCall[1].userId).toBe('local-byok-user');
+    }
+    // …and the finished child was retired because the parent already carries
+    // its function_call_output.
+    // $FlowFixMe[incompatible-use]
+    expect(contextRef.current.activeSubAgents).toEqual({});
+  });
+
+  it('does not call the watch API when logged out and the custom endpoint is disabled', async () => {
+    setCustomEndpointConfig({
+      enabled: false,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    });
+    const { contextRef } = renderProvider(makeLoggedOutUser());
+    if (!contextRef.current) throw new Error('Context not captured');
+
+    await act(async () => {
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.aiRequestStorage.updateAiRequest(
+        'local-ai-sub-1',
+        () => makeAiRequest('local-ai-sub-1', 'ready')
+      );
+      // $FlowFixMe[incompatible-use]
+      contextRef.current.activateSubAgent(
+        'local-ai-sub-1',
+        'parent-1',
+        'call-1'
+      );
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(POLLING_INTERVAL_IN_MS);
+      await flushPromises();
+    });
+
+    expect(mockFn(getAiRequest)).not.toHaveBeenCalled();
+    expect(mockFn(getAiRequestStatuses)).not.toHaveBeenCalled();
+    // $FlowFixMe[incompatible-use]
+    expect(Object.keys(contextRef.current.activeSubAgents)).toEqual([
+      'local-ai-sub-1',
+    ]);
   });
 });
 
