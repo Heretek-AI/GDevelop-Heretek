@@ -2117,6 +2117,51 @@ Guidelines:
 };
 
 /**
+ * Actionable hints for the failure modes of local servers (Ollama, llama.cpp,
+ * LM Studio) and BYOK providers, matched on the error payload/code. Local-first:
+ * the hints point at the local machine or the endpoint config, never at a
+ * GDevelop service.
+ */
+const LOCAL_SERVER_ERROR_HINTS = [
+  {
+    pattern: /out of memory|vram|more (system )?memory|memory required|cuda|insufficient memory|too large/i,
+    hint:
+      'The model likely does not fit in the available GPU/VRAM. Try a smaller quantization, reduce the context length, or close other GPU applications.',
+  },
+  {
+    pattern: /model .*not found|no such model|unknown model|not loaded/i,
+    hint:
+      'The model may not be loaded on the server. Check the model identifier in the AI preferences, or pull/load the model first.',
+  },
+];
+
+const getErrorHint = (error: any): string => {
+  const haystacks: Array<string> = [];
+  const data = error && error.response && error.response.data;
+  if (data && data.error) {
+    haystacks.push(
+      typeof data.error === 'string'
+        ? data.error
+        : data.error.message || JSON.stringify(data.error)
+    );
+  }
+  if (error && error.code) haystacks.push(String(error.code));
+  if (error && error.message) haystacks.push(String(error.message));
+
+  for (const { pattern, hint } of LOCAL_SERVER_ERROR_HINTS) {
+    if (haystacks.some(haystack => pattern.test(haystack))) return ` (${hint})`;
+  }
+  if (
+    error &&
+    (error.code === 'ECONNREFUSED' ||
+      /econnrefused|network error/i.test(String(error.message || '')))
+  ) {
+    return ' (The endpoint is not reachable: check the base URL and make sure the local AI server is running.)';
+  }
+  return '';
+};
+
+/**
  * Send a chat completion request to the OpenAI-compatible endpoint.
  */
 export const sendChatCompletion = async ({
@@ -2201,9 +2246,18 @@ export const sendChatCompletion = async ({
         status === 401 && !hasApiKey
           ? ' (No API key is configured for this endpoint — set one in the AI preferences if the provider requires it.)'
           : '';
-      throw new Error(`AI Provider Error (${status}): ${errorMsg}${authHint}`);
+      throw new Error(
+        `AI Provider Error (${status}): ${errorMsg}${authHint}${getErrorHint(
+          error
+        )}`
+      );
     }
-    throw error;
+    // No response at all (server down, network split, DNS): add the local
+    // reachability/model hints when they match.
+    const networkHint = getErrorHint(error);
+    throw networkHint
+      ? new Error(`${error.message || 'AI request failed.'}${networkHint}`)
+      : error;
   }
 };
 

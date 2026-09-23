@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 18,
+  "last_cycle": 19,
   "completed_targets": [
     {
       "cycle": 1,
@@ -103,6 +103,12 @@
       "target": "Generalize prompt compaction to all oversized message contents",
       "metric_delta": "Before: only tool outputs were compacted in place; long assistant/user messages were dropped wholesale by the fallback path. After: the compaction pass considers every non-system message in the trim region with a string content over 4000 chars, truncating to 500 chars + a '[... trimmed: N characters removed ...]' marker; the drop path survives only as a fallback for compaction-exhausted overflow (e.g. many medium messages). Drop-path coverage test still green (drops when compaction cannot close the gap); 55/55 green.",
       "commit": "perf(ai): compact any oversized message before dropping history"
+    },
+    {
+      "cycle": 19,
+      "target": "Actionable error hints for local-server failure modes (VRAM exhaustion, model-not-loaded, unreachable endpoint)",
+      "metric_delta": "Before: local server failures surfaced raw payloads ('model requires more system memory than is available') or bare 'connect ECONNREFUSED' with no guidance. After: getErrorHint matches known local failure payloads (out of memory / VRAM / more system memory / CUDA, model not found / not loaded) and network-level failures (ECONNREFUSED, network error), appending concrete hints (smaller quantization, check model identifier / load model, ensure the local AI server is running). Unmatched provider errors pass through byte-identical. 3 new tests; 58/58 green.",
+      "commit": "feat(ai): actionable hints for local server errors"
     }
   ],
   "backlog": [
@@ -120,6 +126,7 @@
     "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields",
     "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers",
     "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source",
-    "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement"
+    "scaleMode (nearest) and pixelsRounding already exist as project properties \u2014 upstream #7495's core ask is satisfied; do not re-implement",
+    "Local-server failure payloads vary by server (Ollama: 'requires more system memory'; llama.cpp: 'failed to allocate'); error hints must match broadly but never alter the original message for unmatched errors"
   ]
 }

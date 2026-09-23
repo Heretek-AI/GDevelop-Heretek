@@ -610,6 +610,71 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('local-server error hints', () => {
+    const minimalConfig = {
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      model: 'qwen2.5-coder',
+      temperature: 0.7,
+    };
+
+    it('hints at VRAM pressure on out-of-memory 500s', async () => {
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 500,
+          data: {
+            error: {
+              message: 'model requires more system memory than is available',
+            },
+          },
+        },
+      });
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig,
+        })
+      ).rejects.toThrow(/GPU\/VRAM/);
+    });
+
+    it('hints at server reachability on connection refused', async () => {
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        code: 'ECONNREFUSED',
+        message: 'connect ECONNREFUSED 127.0.0.1:11434',
+      });
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig,
+        })
+      ).rejects.toThrow(/make sure the local AI server is running/);
+    });
+
+    it('leaves unmatched provider errors untouched', async () => {
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 500,
+          data: { error: { message: 'internal shuffle failure' } },
+        },
+      });
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig,
+        })
+      ).rejects.toThrow(
+        /^AI Provider Error \(500\): internal shuffle failure$/
+      );
+    });
+  });
+
   describe('persisted config sanitization', () => {
     // The suite runs in the Node jest environment: no localStorage.
     const memoryStorage = {};
