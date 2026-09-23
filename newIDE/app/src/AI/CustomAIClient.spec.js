@@ -501,6 +501,90 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('persisted config sanitization', () => {
+    // The suite runs in the Node jest environment: no localStorage.
+    const memoryStorage = {};
+    const fakeStorage = {
+      getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+      setItem: (key, value) => {
+        memoryStorage[key] = String(value);
+      },
+      removeItem: key => {
+        delete memoryStorage[key];
+      },
+    };
+    beforeEach(() => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+      global.localStorage = fakeStorage;
+    });
+    afterEach(() => {
+      delete global.localStorage;
+    });
+
+    it('falls back to defaults when localStorage holds a corrupt config', () => {
+      fakeStorage.setItem('gd-custom-ai-config', '{not json');
+      _resetCustomAiClientForTesting();
+      const config = getCustomEndpointConfig();
+      expect(config.baseUrl).toBe('http://localhost:11434/v1');
+      expect(config.temperature).toBe(0.7);
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('coerces mistyped fields and clamps temperature on load', () => {
+      fakeStorage.setItem(
+        'gd-custom-ai-config',
+        JSON.stringify({
+          enabled: 'yes',
+          baseUrl: 1234,
+          model: null,
+          temperature: 42,
+          timeoutMs: 'fast',
+          maxTokens: -3,
+          customHeaders: ['nope'],
+        })
+      );
+      _resetCustomAiClientForTesting();
+      const config = getCustomEndpointConfig();
+      expect(config.enabled).toBe(false);
+      expect(config.baseUrl).toBe('');
+      expect(config.model).toBe('');
+      // Out-of-range temperature is clamped into [0, 1] like the dialog does.
+      expect(config.temperature).toBe(1);
+      expect(config.timeoutMs).toBeUndefined();
+      expect(config.maxTokens).toBeUndefined();
+      expect(config.customHeaders).toBeUndefined();
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+
+    it('keeps well-typed persisted values through sanitization', () => {
+      fakeStorage.setItem(
+        'gd-custom-ai-config',
+        JSON.stringify({
+          enabled: true,
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'mistral-7b',
+          temperature: 0.9,
+          timeoutMs: 300000,
+          maxTokens: 2048,
+          customHeaders: { 'X-Custom': 'value' },
+        })
+      );
+      _resetCustomAiClientForTesting();
+      const config = getCustomEndpointConfig();
+      expect(config.enabled).toBe(true);
+      expect(config.baseUrl).toBe('http://localhost:1234/v1');
+      expect(config.model).toBe('mistral-7b');
+      expect(config.temperature).toBe(0.9);
+      expect(config.timeoutMs).toBe(300000);
+      expect(config.maxTokens).toBe(2048);
+      expect(config.customHeaders).toEqual({ 'X-Custom': 'value' });
+      fakeStorage.removeItem('gd-custom-ai-config');
+      _resetCustomAiClientForTesting();
+    });
+  });
+
   describe('sendChatCompletion cancellation', () => {
     const minimalConfig = {
       enabled: true,

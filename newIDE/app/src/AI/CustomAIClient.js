@@ -68,10 +68,42 @@ export const getCustomEndpointConfig = (): CustomAIConfig => {
       const persisted = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
       if (persisted) {
         const parsed = JSON.parse(persisted);
-        cachedConfig = {
+        // Persisted values are user-tinkerable (localStorage): coerce every
+        // field back to its declared type so a corrupt entry can never crash
+        // a model call or leak through the header-building path.
+        const safeConfig: CustomAIConfig = {
           ...DEFAULT_CUSTOM_AI_CONFIG,
-          ...parsed,
+          enabled: parsed.enabled === true,
+          baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl : '',
+          apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
+          model: typeof parsed.model === 'string' ? parsed.model : '',
+          temperature:
+            typeof parsed.temperature === 'number' &&
+            Number.isFinite(parsed.temperature)
+              ? Math.max(0, Math.min(1, parsed.temperature))
+              : DEFAULT_CUSTOM_AI_CONFIG.temperature,
+          timeoutMs:
+            typeof parsed.timeoutMs === 'number' && parsed.timeoutMs > 0
+              ? parsed.timeoutMs
+              : undefined,
+          maxTokens:
+            typeof parsed.maxTokens === 'number' && parsed.maxTokens > 0
+              ? parsed.maxTokens
+              : undefined,
+          customHeaders:
+            parsed.customHeaders &&
+            typeof parsed.customHeaders === 'object' &&
+            !Array.isArray(parsed.customHeaders)
+              ? Object.fromEntries(
+                  Object.entries(parsed.customHeaders).filter(
+                    ([name, value]) =>
+                      typeof name === 'string' && typeof value === 'string'
+                    // $FlowExpectedError[incompatible-type] Object.entries widens the value type
+                  )
+                )
+              : undefined,
         };
+        cachedConfig = safeConfig;
         return cachedConfig;
       }
     }

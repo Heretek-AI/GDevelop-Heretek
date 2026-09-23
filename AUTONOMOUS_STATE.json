@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 11,
+  "last_cycle": 12,
   "completed_targets": [
     {
       "cycle": 1,
@@ -61,6 +61,12 @@
       "target": "Per-tool JSON Schema validation of tool-call arguments against GDEVELOP_OPENAI_TOOLS",
       "metric_delta": "Before: parsed tool arguments only needed to be JSON objects; wrong property names/types (e.g. sceneName vs scene_name) reached tool implementations unvalidated and failed downstream with confusing errors. After: validateToolCallArguments checks required properties, primitive types, enum values, and unknown arguments against each tool's declared parameters; schema-invalid calls are sanitized to {} with a warning listing every violation. One pre-existing spec fixture updated (used a non-schema property name \u2014 pinned the old unvalidated behavior). 5 new tests; 49/49 green.",
       "commit": "feat(ai): validate tool arguments against tool JSON schemas"
+    },
+    {
+      "cycle": 12,
+      "target": "Sanitize persisted custom-AI config on load (localStorage trust boundary)",
+      "metric_delta": "Before: getCustomEndpointConfig spread raw localStorage JSON over defaults \u2014 a mistyped/corrupt entry (temperature: 42, customHeaders: [..], timeoutMs: 'fast') flowed straight into request building and header construction. After: every field coerced to its declared type on load (booleans strict, strings type-checked, temperature clamped to [0,1], positive-number guards on timeoutMs/maxTokens, customHeaders filtered to string->string entries); corrupt JSON still falls back to defaults. Full suite baseline also established this cycle: 176 suites / 1944 tests, all passing. 3 new tests; 52/52 module green.",
+      "commit": "fix(ai): sanitize persisted custom-AI config on load"
     }
   ],
   "backlog": [
@@ -77,6 +83,7 @@
     "Client is non-streaming (axios POST); SSE-recovery hardening does not apply to current architecture",
     "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted",
     "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs",
-    "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)"
+    "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)",
+    "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields"
   ]
 }
