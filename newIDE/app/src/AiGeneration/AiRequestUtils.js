@@ -270,7 +270,11 @@ export const getFunctionCallToFunctionCallOutputMap = ({
     const message = output[i];
 
     if (message.type === 'message' && message.role === 'assistant') {
-      // Process function calls in this message
+      // Process function calls in this message. `content` is network-supplied
+      // and only type-asserted, and this runs on every chat render (the map
+      // feeds ChatMessages), so a payload without an array would crash the
+      // chat view itself rather than one field of it.
+      if (!Array.isArray(message.content)) continue;
       message.content.forEach(content => {
         if (content.type === 'function_call') {
           // Initialize with null output - will be updated if we find a matching output
@@ -325,6 +329,9 @@ export const getFunctionCallsToProcess = ({
 
     // Collect function calls that need processing
     if (message.type === 'message' && message.role === 'assistant') {
+      // Network-supplied and only type-asserted: a missing array would crash
+      // the caller that builds the function-call list for the chat.
+      if (!Array.isArray(message.content)) continue;
       const functionCalls = message.content.filter(
         content => content.type === 'function_call'
       );
@@ -372,6 +379,7 @@ export const getAllSubAgentFunctionCalls = ({
   for (let i = 0; i < output.length; i++) {
     const message = output[i];
     if (message.type === 'message' && message.role === 'assistant') {
+      if (!Array.isArray(message.content)) continue;
       for (const content of message.content) {
         if (content.type === 'function_call' && content.subAgentAiRequestId) {
           subAgentCalls.push(content);
@@ -446,6 +454,7 @@ export const getFunctionCallNameByCallId = ({
   for (let i = 0; i < output.length; i++) {
     const message = output[i];
     if (message.type === 'message' && message.role === 'assistant') {
+      if (!Array.isArray(message.content)) continue;
       for (const content of message.content) {
         if (content.type === 'function_call' && content.call_id === callId) {
           return content.name;
@@ -623,6 +632,7 @@ export const getLastMessagesFromAiRequestOutput = (
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
     if (message.type === 'message' && message.role === 'user') {
+      if (!Array.isArray(message.content)) break;
       const textContent = message.content.find(c => c.type === 'user_request');
       if (textContent) {
         lastUserMessage = textContent.text;
@@ -630,6 +640,7 @@ export const getLastMessagesFromAiRequestOutput = (
       break;
     }
     if (message.type === 'message' && message.role === 'assistant') {
+      if (!Array.isArray(message.content)) continue;
       for (const content of message.content) {
         if (
           content.type === 'output_text' &&

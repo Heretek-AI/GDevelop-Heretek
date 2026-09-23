@@ -4,6 +4,9 @@ import {
   getAiRequestSummaryTitle,
   getAllSubAgentFunctionCalls,
   getFunctionCallsToProcess,
+  getFunctionCallToFunctionCallOutputMap,
+  getFunctionCallNameByCallId,
+  getLastMessagesFromAiRequestOutput,
   getPendingSubAgentFunctionCalls,
   aiRequestPollSawActivity,
   canRetryAiRequest,
@@ -689,5 +692,73 @@ describe('getAiRequestSummaryTitle', () => {
         }: any)
       )
     ).toBe('');
+  });
+});
+
+describe('malformed message content never crashes the chat helpers', () => {
+  // Every one of these reads `content` straight from a network response, which
+  // is type-asserted but never validated at runtime. Before the guards, a
+  // message missing its array threw in the callers that build the chat view.
+  const malformedAssistant = ({
+    type: 'message',
+    status: 'completed',
+    role: 'assistant',
+    // $FlowFixMe deliberately malformed for the guard.
+    content: undefined,
+  }: any);
+  const malformedUser = ({
+    type: 'message',
+    status: 'completed',
+    role: 'user',
+    // $FlowFixMe deliberately malformed for the guard.
+    content: null,
+  }: any);
+
+  it('getFunctionCallToFunctionCallOutputMap tolerates a missing content array', () => {
+    expect(
+      getFunctionCallToFunctionCallOutputMap(
+        ({
+          aiRequest: ({ output: [malformedAssistant] }: any),
+        }: any)
+      ).size
+    ).toBe(0);
+  });
+
+  it('getFunctionCallsToProcess tolerates a missing content array', () => {
+    expect(() =>
+      getFunctionCallsToProcess(
+        ({
+          aiRequest: ({ output: [malformedAssistant] }: any),
+          editorFunctionCallResults: [],
+        }: any)
+      )
+    ).not.toThrow();
+  });
+
+  it('getAllSubAgentFunctionCalls tolerates a missing content array', () => {
+    expect(
+      getAllSubAgentFunctionCalls(
+        ({ aiRequest: ({ output: [malformedAssistant] }: any) }: any)
+      )
+    ).toEqual([]);
+  });
+
+  it('getFunctionCallNameByCallId tolerates a missing content array', () => {
+    expect(
+      getFunctionCallNameByCallId(
+        ({
+          aiRequest: ({ output: [malformedAssistant] }: any),
+          callId: 'c1',
+        }: any)
+      )
+    ).toBeNull();
+  });
+
+  it('getLastMessagesFromAiRequestOutput tolerates malformed messages', () => {
+    expect(
+      getLastMessagesFromAiRequestOutput(
+        ([malformedUser, malformedAssistant]: any)
+      )
+    ).toEqual({ lastUserMessage: null, lastAssistantMessages: [] });
   });
 });

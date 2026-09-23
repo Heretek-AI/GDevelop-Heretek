@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 100,
+  "last_cycle": 101,
   "completed_targets": [
     {
       "cycle": 75,
@@ -591,6 +591,12 @@
       "target": "Stop a malformed chat summary from crashing the chat list",
       "metric_delta": "435->442 tests; getUserRequestText dereferenced message.content as an array and each entry's .type without a guard, while every producer and consumer of that data is network-supplied and unvalidated (AiRequestSummary.firstUserMessage carries the raw server message, whose content is only type-asserted, never checked at runtime). A payload missing content, holding a non-array, or containing a null entry threw on .filter/.type — and this feeds AskAiHistory's sidebar titles and AiRequestContext, so one bad summary took the chat list down. Reproduced pre-fix (TypeError: Cannot read properties of undefined (reading 'filter') / of null (reading 'type')); 2 files, +119/-4",
       "commit": "fix(ai): stop a malformed chat summary from crashing the chat list"
+    },
+    {
+      "cycle": 101,
+      "target": "Guard every message-content loop against malformed payloads",
+      "metric_delta": "442->447 tests; applying cycle 100's heuristic to the rest of AiRequestUtils found five more unguarded reads of network-supplied `message.content` (getFunctionCallToFunctionCallOutputMap, getFunctionCallsToProcess, getAllSubAgentFunctionCalls, getFunctionCallNameByCallId, getLastMessagesFromAiRequestOutput). The first feeds ChatMessages' render map and FunctionCallRow, so a response missing the array crashed the whole chat view, not one field. All six reads in the file now check Array.isArray first; all 5 new tests fail pre-fix with TypeError on .forEach/.filter. 2 files, +83/-1",
+      "commit": "fix(ai): guard every message-content loop against malformed payloads"
     }
   ],
   "backlog": [
