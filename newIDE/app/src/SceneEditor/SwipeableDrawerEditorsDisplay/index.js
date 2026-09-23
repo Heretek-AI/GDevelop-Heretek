@@ -352,6 +352,7 @@ const SwipeableDrawerEditorsDisplay: React.ComponentType<{
                   }
                   instancesSelection={props.instancesSelection}
                   onInstancesAdded={props.onInstancesAdded}
+                  onDropImageFiles={props.onDropImageFiles}
                   onInstancesSelected={props.onInstancesSelected}
                   onInstanceDoubleClicked={props.onInstanceDoubleClicked}
                   onInstancesMoved={props.onInstancesMoved}

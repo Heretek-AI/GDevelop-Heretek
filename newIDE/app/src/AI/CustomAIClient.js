@@ -95,11 +95,10 @@ export const getCustomEndpointConfig = (): CustomAIConfig => {
             typeof parsed.customHeaders === 'object' &&
             !Array.isArray(parsed.customHeaders)
               ? Object.fromEntries(
-                  Object.entries(parsed.customHeaders).filter(
-                    ([name, value]) =>
-                      typeof name === 'string' && typeof value === 'string'
-                    // $FlowExpectedError[incompatible-type] Object.entries widens the value type
-                  )
+                  // $FlowExpectedError[incompatible-type] Object.entries widens the value type.
+                  (Object.entries(parsed.customHeaders): Array<
+                    [string, string]
+                  >).filter(([name, value]) => typeof value === 'string')
                 )
               : undefined,
         };

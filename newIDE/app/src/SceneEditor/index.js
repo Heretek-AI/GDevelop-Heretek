@@ -33,6 +33,10 @@ import getObjectByName from '../Utils/GetObjectByName';
 import UseSceneEditorCommands from './UseSceneEditorCommands';
 import { type InstancesEditorSettings } from '../InstancesEditor/InstancesEditorSettings';
 import { type ResourceManagementProps } from '../ResourcesList/ResourceSource';
+import { copyAllToProjectFolder } from '../ResourcesList/ResourceUtils';
+import { allResourceKindsAndMetadata } from '../ResourcesList/ResourceSource';
+import optionalRequire from '../Utils/OptionalRequire';
+import { showErrorBox } from '../UI/Messages/MessageBox';
 import { type PreviewDebuggerServer } from '../ExportAndShare/PreviewLauncher.flow';
 import EditSceneIcon from '../UI/CustomSvgIcons/EditScene';
 import {
@@ -1318,6 +1322,86 @@ export default class SceneEditor extends React.Component<Props, State> {
       this.state.chosenLayer
     );
     this._onInstancesAddedAndSendToEditor3D(instances);
+  };
+
+  _onDropImageFiles = async (pos: [number, number], files: Array<File>) => {
+    const path = optionalRequire('path');
+    const { project, globalObjectsContainer, objectsContainer } = this.props;
+    if (!path || !project) return; // Browser build: no local files to drop.
+
+    for (const file of files) {
+      // $FlowFixMe[prop-missing] - Electron adds `path` to dropped File objects.
+      const filePath: ?string = file.path;
+      if (!filePath) {
+        console.warn(
+          'Dropped file has no local path (web build?): skipping.',
+          file.name
+        );
+        continue;
+      }
+      if (!/\.(png|jpe?g|gif|svg|webp)$/i.test(filePath)) continue;
+
+      try {
+        // Files outside the project folder are copied into it (like the
+        // local resource source does from the file picker).
+        const [storedPath] = await copyAllToProjectFolder(
+          project,
+          [filePath],
+          new Map()
+        );
+        const resourcesManager = project.getResourcesManager();
+        const resourceKindMetadata = allResourceKindsAndMetadata.find(
+          resourceKind => resourceKind.kind === 'image'
+        );
+        if (!resourceKindMetadata) return;
+
+        const baseName = path.basename(storedPath).replace(/\.[^.]+$/, '');
+        const resourceName = newNameGenerator(baseName, name =>
+          resourcesManager.hasResource(name)
+        );
+        const newResource = resourceKindMetadata.createNewResource();
+        newResource.setName(resourceName);
+        newResource.setFile(
+          path.relative(path.dirname(project.getProjectFile()), storedPath)
+        );
+        resourcesManager.addResource(newResource);
+        newResource.delete();
+
+        const objectName = newNameGenerator(
+          baseName,
+          name =>
+            objectsContainer.hasObjectNamed(name) ||
+            (globalObjectsContainer &&
+              globalObjectsContainer.hasObjectNamed(name))
+        );
+        const object = objectsContainer.insertNewObject(
+          project,
+          'Sprite',
+          objectName,
+          objectsContainer.getObjectsCount()
+        );
+        const spriteConfiguration = gd.asSpriteConfiguration(
+          object.getConfiguration()
+        );
+        const sprite = new gd.Sprite();
+        sprite.setImageName(resourceName);
+        const animation = new gd.Animation();
+        animation.setDirectionsCount(1);
+        animation.getDirection(0).addSprite(sprite);
+        spriteConfiguration.addAnimation(animation);
+        sprite.delete();
+        animation.delete();
+
+        this._addInstance(pos, objectName);
+      } catch (error) {
+        console.error('Error while importing the dropped image:', error);
+        showErrorBox({
+          message: 'Error while importing the dropped image',
+          rawError: error,
+          errorId: 'dropped-image-import-error',
+        });
+      }
+    }
   };
 
   _onInstancesAddedAndSendToEditor3D = (
@@ -3160,6 +3244,7 @@ export default class SceneEditor extends React.Component<Props, State> {
                     instancesSelection={this.instancesSelection}
                     onSelectInstances={this._onSelectInstances}
                     onInstancesModified={this._onInstancesModified}
+                    onDropImageFiles={this._onDropImageFiles}
                     deleteSelection={this.deleteSelection}
                     onAddObjectInstance={this.addInstanceOnTheScene}
                     chosenLayer={this.state.chosenLayer}

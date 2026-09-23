@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 15,
+  "last_cycle": 16,
   "completed_targets": [
     {
       "cycle": 1,
@@ -85,6 +85,12 @@
       "target": "Delete key deletes selected instances from the Instances list (upstream #8291)",
       "metric_delta": "Before: the Instances list panel ignored Delete/Backspace \u2014 users had to select instances on the canvas to delete them. After: InstancesList wires its existing (inactive) KeyboardShortcuts instance with an onDelete callback fired for Delete and Backspace (text-editor exclusion already built into the shared handler), through an optional onDelete prop fed by SceneEditor.deleteSelection for both Mosaic and SwipeableDrawer displays. Diff: 5 files, +16 lines net. 13/13 InstancesEditor+SceneEditor tests, flow clean in touched dirs, lint clean.",
       "commit": "feat(editor): delete selected instances with Delete key in Instances list"
+    },
+    {
+      "cycle": 16,
+      "target": "Drag & drop image files from the OS onto the scene canvas (upstream #8297)",
+      "metric_delta": "Before: the scene canvas handled only react-dnd object drops; no OS file-drop handling existed anywhere in the IDE. After: native HTML5 onDragOver/onDrop on the InstancesEditor canvas filters image files (png/jpg/jpeg/gif/svg/webp), converts the drop position to scene coordinates via the existing viewPosition pattern, and SceneEditor._onDropImageFiles creates a gd.ImageResource (copied into the project folder if outside, relative path set like LocalResourceSources), a uniquely-named Sprite object with one animation using the resource, and an instance at the drop position via the existing _addInstance path. Browser build no-ops with a warning (no local paths). Also fixed 2 pre-existing Flow errors from cycle 12 (Object.entries widening) \u2014 src Flow errors now 0 vs baseline ~2; total 50 (48 node_modules parse noise).",
+      "commit": "feat(editor): create Sprite objects by dropping image files on the scene"
     }
   ],
   "backlog": [
@@ -103,6 +109,7 @@
     "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs",
     "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)",
     "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields",
-    "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers"
+    "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers",
+    "Resource-from-local-file pattern: copyAllToProjectFolder + relative setFile + resourcesManager.addResource + newResource.delete() \u2014 same as LocalResourceSources file picker; Electron File.path is the only local-path source"
   ]
 }

@@ -115,6 +115,9 @@ export type InstancesEditorPropsWithoutSizeAndScroll = {|
   ) => void,
   instancesSelection: InstancesSelection,
   onInstancesAdded: (instances: Array<gdInitialInstance>) => void,
+  // Optional: drops image files from the OS onto the canvas to create a
+  // Sprite object + instance at the drop position.
+  onDropImageFiles?: (pos: [number, number], files: Array<File>) => void,
   onInstancesSelected: (instances: Array<gdInitialInstance>) => void,
   onInstanceDoubleClicked: (instance: gdInitialInstance) => void,
   onInstancesMoved: (instances: Array<gdInitialInstance>) => void,
@@ -1977,6 +1980,37 @@ export default class InstancesEditor extends Component<Props, State> {
               ref={canvasArea => (this.canvasArea = canvasArea)}
               style={styles.canvasArea}
               id={instancesEditorId}
+              onDragOver={(
+                // $FlowFixMe[incompatible-type] React and native drag event types differ.
+                event: DragEvent
+              ) => {
+                // Allow the native drop event (image files from the OS).
+                event.preventDefault();
+              }}
+              onDrop={(
+                // $FlowFixMe[incompatible-type] React and native drag event types differ.
+                event: DragEvent
+              ) => {
+                event.preventDefault();
+                const { onDropImageFiles } = this.props;
+                const { viewPosition, canvasArea } = this;
+                if (!onDropImageFiles || !viewPosition || !canvasArea) return;
+                const files = (event.dataTransfer
+                  ? Array.from(event.dataTransfer.files)
+                  : []
+                )
+                  // $FlowFixMe[incompatible-call] File list widening.
+                  .filter(file =>
+                    /\.(png|jpe?g|gif|svg|webp)$/i.test(file.name || '')
+                  );
+                if (files.length === 0) return;
+                const canvasRect = canvasArea.getBoundingClientRect();
+                const pos = viewPosition.toSceneCoordinates(
+                  event.clientX - canvasRect.left,
+                  event.clientY - canvasRect.top
+                );
+                onDropImageFiles(pos, files);
+              }}
             />
           );
         }}
