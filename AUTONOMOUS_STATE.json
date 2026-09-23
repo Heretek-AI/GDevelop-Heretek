@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 140,
+  "last_cycle": 141,
   "completed_targets": [
     {
       "cycle": 75,
@@ -807,6 +807,12 @@
       "target": "Stop mergeIncrementalAiRequest throwing on a null fetched message",
       "metric_delta": "mergeIncrementalAiRequest read `fetchedOutput[0].messageId` unguarded after only a `.length > 0` check. The first element is network-supplied and getAiRequest validates ONLY the request's `id` key (ensureObjectHasProperty), so a null/non-object entry threw `TypeError: Cannot read properties of null (reading 'messageId')` out of the polling loop that merges every incremental fetch — the same class as cycles 134-136 and the reason ChatMessages already guards `Array.isArray(message.content)`. Fixed by reading the first element once and requiring it to be an object; a non-object simply means 'not an incremental slice', so the fetched request is used as-is (no behaviour change for well-formed responses). +1 test covering null/undefined/string/number first entries, mutation-checked (pre-fix throws the TypeError). 28/28 AiRequestContext via the project's own `npm test` (npx jest alone cannot transform the repo's .ts files — see heuristic).",
       "commit": "fix(ai): stop mergeIncrementalAiRequest throwing on a non-object message"
+    },
+    {
+      "cycle": 141,
+      "target": "Pin the three untested polling predicates the chat depends on",
+      "metric_delta": "Closed a real Tier 4 gap found with the now-trustworthy npm-test signal: three exported predicates drive live behaviour across 5 production files yet had ZERO test references — aiRequestShouldBeWatched (decides whether the polling loop keeps running; a wrong false leaves the chat never updating, a wrong true polls forever), aiRequestHasWorkInProgress (gates suspension in AiRequestContext and the sub-agent spinner in FunctionCallRow), and getSubAgentKind (drives the read-only script sandbox decision). +14 tests pinning each contract: working/ready/settled states, pending-sub-agent gating, finished/working vs aborted editor results, unprocessed-call detection, and the parent-launch-call lookup with missing-parent/no-parent cases. Both main predicates mutation-checked (breaking the ready-request gate fails 2 tests; narrowing the editor-results branch fails 1). 459/459 AI+AiGeneration (was 449), eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
+      "commit": "test(ai): cover the polling predicates the chat depends on"
     }
   ],
   "backlog": [
@@ -964,6 +970,7 @@
     "When a bug class is fixed (cycle 129's surrogate-splitting slice), grep for OTHER bare `.slice(0, N)`/`substring` truncations of text that reaches the wire — buildSubAgentReport carried the same defect 9 cycles later. And when adding a helper for a cap, TEST THROUGH THE CALLER: a test that calls truncateReport directly passes even after buildSubAgentReport is reverted to a raw slice; only driving buildSubAgentReport catches it.",
     "The surrogate-splitting truncation appeared THREE times (token budget, sub-agent report, GDD note); each was found only by grepping for the pattern after fixing the previous. When two fork modules both need a tiny pure helper but one already imports the other, add a new leaf module (SafeTruncation.js) rather than importing backwards or duplicating — and record the new file in fork-divergence.json in the same commit, which is what the guard's --update does surgically.",
     "Run fork specs with `npm test` (react-app-rewired with the CRA babel config), NOT a bare `npx jest`: bare jest fails to transform the repo's .ts files (e.g. UseForceUpdate.ts) and reports a SyntaxError that looks like an environmental failure. The earlier aiGeneration 'libGD missing' failures were also an artifact of bare jest in some suits — prefer `npm test -- --testPathPattern=<name>` to get a trustworthy signal.",
-    "CORRECTION to cycles 134/138/139: the '3 SpawnSubAgents / libGD-ProjectHelper failures' were NOT environmental — they were a bare-`npx jest` artifact. `npm test -- --testPathPattern=...` (react-app-rewired + CRA babel, with the libGD test artifact already installed) runs the whole AiGeneration directory green: 261/261 across 14 suites, and 449/449 across the 15 AI+AiGeneration suites. Always use `npm test`; bare jest cannot transform the repo's .ts files and produces misleading SyntaxError/undefined-global failures."
+    "CORRECTION to cycles 134/138/139: the '3 SpawnSubAgents / libGD-ProjectHelper failures' were NOT environmental — they were a bare-`npx jest` artifact. `npm test -- --testPathPattern=...` (react-app-rewired + CRA babel, with the libGD test artifact already installed) runs the whole AiGeneration directory green: 261/261 across 14 suites, and 449/449 across the 15 AI+AiGeneration suites. Always use `npm test`; bare jest cannot transform the repo's .ts files and produces misleading SyntaxError/undefined-global failures.",
+    "Find coverage gaps programmatically: for each fork-modified file, regex its `export const <name>` list and diff against the spec text — that surfaced aiRequestShouldBeWatched / aiRequestHasWorkInProgress / getSubAgentKind, all live in production with no tests. Also probe reachability before guarding a suspected crash: aiRequestHasWorkInProgress would throw on a null element of editorFunctionCallResults, but processEditorFunctionCalls only ever pushes object literals, so that guard would be dead code."
   ]
 }

@@ -22,6 +22,9 @@ import {
   isFailedAiRequestStart,
   getStandaloneCreateOutcome,
   getLatestActivePlan,
+  aiRequestShouldBeWatched,
+  aiRequestHasWorkInProgress,
+  getSubAgentKind,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
 
@@ -115,6 +118,141 @@ describe('getLatestActivePlan', () => {
       { type: 'function_call_output', call_id: 'c1', output: '{not json' },
     ]);
     expect(getLatestActivePlan(request)).toBe(null);
+  });
+});
+
+describe('aiRequestShouldBeWatched', () => {
+  it('watches a working request', () => {
+    expect(
+      aiRequestShouldBeWatched({
+        ...makeAiRequest([]),
+        status: 'working',
+      })
+    ).toBe(true);
+  });
+
+  it('watches a ready request only while it has pending sub-agents', () => {
+    const withSubAgent = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'run_edit_agent', 'sub-1'),
+      ]),
+    ]);
+    expect(aiRequestShouldBeWatched({ ...withSubAgent, status: 'ready' })).toBe(
+      true
+    );
+
+    const subAgentDone = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'run_edit_agent', 'sub-1'),
+      ]),
+      makeFunctionCallOutput('c1'),
+    ]);
+    expect(aiRequestShouldBeWatched({ ...subAgentDone, status: 'ready' })).toBe(
+      false
+    );
+  });
+
+  it('does not watch a settled request', () => {
+    for (const status of ['ready', 'error', 'suspended']) {
+      expect(aiRequestShouldBeWatched({ ...makeAiRequest([]), status })).toBe(
+        false
+      );
+    }
+  });
+});
+
+describe('aiRequestHasWorkInProgress', () => {
+  it('is true while the request is working', () => {
+    expect(
+      aiRequestHasWorkInProgress(
+        { ...makeAiRequest([]), status: 'working' },
+        null
+      )
+    ).toBe(true);
+  });
+
+  it('is true while an editor result is finished or working', () => {
+    const request = { ...makeAiRequest([]), status: 'ready' };
+    for (const status of ['finished', 'working']) {
+      const results: any = [{ status, call_id: 'c1' }];
+      expect(aiRequestHasWorkInProgress(request, results)).toBe(true);
+    }
+    // An aborted result is not work in progress.
+    const aborted: any = [{ status: 'aborted', call_id: 'c1' }];
+    expect(aiRequestHasWorkInProgress(request, aborted)).toBe(false);
+  });
+
+  it('is true for a ready request with an unprocessed call', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([makeFunctionCall('c1', 'create_scene')]),
+    ]);
+    // $FlowFixMe - status is a plain string in the fixture.
+    expect(
+      aiRequestHasWorkInProgress({ ...request, status: 'ready' }, null)
+    ).toBe(true);
+  });
+
+  it('is false for a ready request with nothing left', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([makeFunctionCall('c1', 'create_scene')]),
+      makeFunctionCallOutput('c1'),
+    ]);
+    expect(
+      aiRequestHasWorkInProgress({ ...request, status: 'ready' }, null)
+    ).toBe(false);
+  });
+
+  it('is false once the request settled', () => {
+    expect(
+      aiRequestHasWorkInProgress(
+        { ...makeAiRequest([]), status: 'error' },
+        null
+      )
+    ).toBe(false);
+    expect(
+      aiRequestHasWorkInProgress(
+        { ...makeAiRequest([]), status: 'suspended' },
+        null
+      )
+    ).toBe(false);
+  });
+});
+
+describe('getSubAgentKind', () => {
+  it('reads the kind from the parent launch call', () => {
+    const parent = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'run_explorer_agent', 'sub-1'),
+        makeSubAgentFunctionCall('c2', 'run_edit_agent', 'sub-2'),
+      ]),
+    ]);
+    const aiRequests = { 'parent-1': parent };
+    const explorer: any = {
+      ...makeAiRequest([]),
+      id: 'sub-1',
+      parentAiRequestId: 'parent-1',
+    };
+    const edit: any = {
+      ...makeAiRequest([]),
+      id: 'sub-2',
+      parentAiRequestId: 'parent-1',
+    };
+    expect(getSubAgentKind({ aiRequest: explorer, aiRequests })).toBe(
+      'explorer'
+    );
+    expect(getSubAgentKind({ aiRequest: edit, aiRequests })).toBe('edit');
+  });
+
+  it('is null without a parent, a missing parent, or a non-agent launch call', () => {
+    const topLevel: any = { ...makeAiRequest([]), id: 'top' };
+    expect(getSubAgentKind({ aiRequest: topLevel, aiRequests: {} })).toBe(null);
+
+    const orphan: any = {
+      ...makeAiRequest([]),
+      id: 'sub-9',
+      parentAiRequestId: 'missing',
+    };
+    expect(getSubAgentKind({ aiRequest: orphan, aiRequests: {} })).toBe(null);
   });
 });
 
