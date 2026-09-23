@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 17,
+  "last_cycle": 18,
   "completed_targets": [
     {
       "cycle": 1,
@@ -97,10 +97,15 @@
       "target": "Compaction before dropping: large tool outputs truncated in place by the context trimmer",
       "metric_delta": "Before: trimMessagesToBudget dropped oversized tool outputs entirely \u2014 the model lost the fact the tool ran and its summary. After: a first pass compacts the biggest tool output (>4000 chars) in place to its first 500 chars plus a '[... output trimmed: N characters removed ...]' marker, preserving the tool_calls/tool-output pairing; the existing drop path remains as fallback for non-tool-heavy overflows. Original message objects are never mutated. 1 new test (compaction keeps pairing, meets budget, no mutation); 54/54 green.",
       "commit": "perf(ai): compact large tool outputs before dropping history"
+    },
+    {
+      "cycle": 18,
+      "target": "Generalize prompt compaction to all oversized message contents",
+      "metric_delta": "Before: only tool outputs were compacted in place; long assistant/user messages were dropped wholesale by the fallback path. After: the compaction pass considers every non-system message in the trim region with a string content over 4000 chars, truncating to 500 chars + a '[... trimmed: N characters removed ...]' marker; the drop path survives only as a fallback for compaction-exhausted overflow (e.g. many medium messages). Drop-path coverage test still green (drops when compaction cannot close the gap); 55/55 green.",
+      "commit": "perf(ai): compact any oversized message before dropping history"
     }
   ],
   "backlog": [
-    "Prompt-compaction: summarize trimmed assistant messages (currently only tool outputs are compacted)",
     "Editor UX quick wins from docs/HERETEK-ROADMAP.md as they surface in upstream demand"
   ],
   "heuristics": [

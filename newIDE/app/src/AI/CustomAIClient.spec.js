@@ -500,7 +500,7 @@ describe('CustomAIClient', () => {
       const trimmed = trimMessagesToBudget(messages, 600);
       const compactedTool = trimmed.find(m => m.role === 'tool');
       expect(compactedTool).toBeDefined();
-      expect(compactedTool.content).toContain('output trimmed');
+      expect(compactedTool.content).toContain('trimmed');
       expect(compactedTool.content.length).toBeLessThan(700);
       // The tool_calls assistant stays paired with its output.
       expect(
@@ -509,6 +509,28 @@ describe('CustomAIClient', () => {
       expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(600);
       // The original message objects are not mutated.
       expect(toolOutput.content.length).toBe(20000);
+    });
+
+    it('compacts long assistant messages too, not only tool outputs', () => {
+      const system = { role: 'system', content: 'sys' };
+      const longAssistant = {
+        role: 'assistant',
+        content: 'a'.repeat(20000),
+      };
+      const last = [
+        { role: 'user', content: 'u'.repeat(400) },
+        { role: 'assistant', content: 'w'.repeat(400) },
+      ];
+      const messages = [system, longAssistant, ...last];
+
+      const trimmed = trimMessagesToBudget(messages, 600);
+      const compacted = trimmed.find(
+        m => m.role === 'assistant' && m !== last[1]
+      );
+      expect(compacted).toBeDefined();
+      expect(compacted.content).toContain('trimmed');
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(600);
+      expect(longAssistant.content.length).toBe(20000);
     });
 
     it('drops tool outputs together with their tool_calls assistant', () => {

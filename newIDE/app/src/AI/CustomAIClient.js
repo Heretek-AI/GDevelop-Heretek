@@ -356,22 +356,21 @@ export const trimMessagesToBudget = (
   let estimate = estimateMessagesTokens(messages);
   if (estimate <= budget) return messages;
 
-  // First pass: compact the biggest tool outputs in place rather than
-  // dropping them — the model keeps knowing the tool ran, losing only
-  // the bulk of its output. The newest exchange and the system prompt
-  // are never touched.
-  const TOOL_OUTPUT_COMPACT_THRESHOLD = 4000; // ~1000 tokens
-  const TOOL_OUTPUT_KEPT_HEAD = 500; // ~125 tokens
-  let compacted = false;
+  // First pass: compact the biggest oversized message contents in place
+  // rather than dropping them — tool outputs keep their pairing and the
+  // model keeps knowing the tool ran. The newest exchange and the system
+  // prompt are never touched.
+  const COMPACT_THRESHOLD = 4000; // ~1000 tokens
+  const KEPT_HEAD = 500; // ~125 tokens
   for (;;) {
     if (estimate <= budget) return messages;
     let largestIndex = -1;
     let largestSize = 0;
     for (let i = 1; i < messages.length - 2; i++) {
       const message = messages[i];
-      if (!message || message.role !== 'tool') continue;
+      if (!message || message.role === 'system') continue;
       if (typeof message.content !== 'string') continue;
-      if (message.content.length <= TOOL_OUTPUT_COMPACT_THRESHOLD) continue;
+      if (message.content.length <= COMPACT_THRESHOLD) continue;
       if (message.content.length > largestSize) {
         largestSize = message.content.length;
         largestIndex = i;
@@ -379,20 +378,15 @@ export const trimMessagesToBudget = (
     }
     if (largestIndex === -1) break;
     const message = messages[largestIndex];
-    const removed = message.content.length - TOOL_OUTPUT_KEPT_HEAD;
+    const removed = message.content.length - KEPT_HEAD;
     messages = messages.slice();
     messages[largestIndex] = {
       ...message,
       content:
-        message.content.slice(0, TOOL_OUTPUT_KEPT_HEAD) +
-        `\n[... output trimmed: ${removed} characters removed to fit the model context window ...]`,
+        message.content.slice(0, KEPT_HEAD) +
+        `\n[... trimmed: ${removed} characters removed to fit the model context window ...]`,
     };
     estimate -= Math.ceil(removed / 4);
-    compacted = true;
-  }
-  if (compacted) {
-    // Compaction was not enough or found nothing: fall through to the
-    // drop path with the compacted messages.
   }
   const kept = [];
   let dropToolOutputs = false;
