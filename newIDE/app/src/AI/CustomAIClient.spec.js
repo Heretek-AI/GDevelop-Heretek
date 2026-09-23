@@ -392,6 +392,38 @@ describe('CustomAIClient', () => {
       expect(axios.post.mock.calls[1][2].timeout).toBe(120000);
     });
 
+    it('appends a hint to a 401 when no API key is configured', async () => {
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 401,
+          data: { error: { message: 'Invalid API key' } },
+        },
+      });
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig, // apiKey: ''
+        })
+      ).rejects.toThrow(/AI Provider Error \(401\).*No API key is configured/);
+
+      // With a key configured, the raw provider error is passed through.
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 401,
+          data: { error: { message: 'Invalid API key' } },
+        },
+      });
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: { ...minimalConfig, apiKey: 'sk-test' },
+        })
+      ).rejects.toThrow(/^AI Provider Error \(401\): Invalid API key$/);
+    });
+
     it('rejects with an abort message when the signal is already aborted', async () => {
       const controller = new AbortController();
       controller.abort();

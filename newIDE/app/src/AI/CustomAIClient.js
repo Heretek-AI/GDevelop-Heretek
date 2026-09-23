@@ -2013,7 +2013,12 @@ export const sendChatCompletion = async ({
         (data && data.error && (data.error.message || data.error)) ||
         error.message ||
         `HTTP error ${status}`;
-      throw new Error(`AI Provider Error (${status}): ${errorMsg}`);
+      const hasApiKey = !!(currentConfig.apiKey && currentConfig.apiKey.trim());
+      const authHint =
+        status === 401 && !hasApiKey
+          ? ' (No API key is configured for this endpoint — set one in the AI preferences if the provider requires it.)'
+          : '';
+      throw new Error(`AI Provider Error (${status}): ${errorMsg}${authHint}`);
     }
     throw error;
   }

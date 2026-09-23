@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 3,
+  "last_cycle": 4,
   "completed_targets": [
     {
       "cycle": 1,
@@ -19,10 +19,15 @@
       "target": "Configurable per-request timeout (timeoutMs on CustomAIConfig)",
       "metric_delta": "Before: hardcoded 120000ms timeout in sendChatCompletion hard-killed slow local models mid-agent-loop with a generic axios message. After: CustomAIConfig.timeoutMs (optional, positive-number validated, default 120000) flows to axios' timeout option; persists via existing setCustomEndpointConfig/localStorage path with zero UI change. Diff +14/-1 client, +20 tests (config honored, invalid value falls back to default).",
       "commit": "feat(ai): configurable per-request timeout for BYOK endpoints"
+    },
+    {
+      "cycle": 4,
+      "target": "Distinguishable 401 error when no API key is configured",
+      "metric_delta": "Before: a keyless misconfigured hosted provider surfaced a raw 'AI Provider Error (401)' only after a full round trip with no hint. After: sendChatCompletion appends an actionable hint ('No API key is configured... set one in AI preferences') only when status is 401 AND no key is set; keyed 401s pass through untouched. Diff +10/-1 client, +27 tests.",
+      "commit": "feat(ai): hint missing API key on 401 provider errors"
     }
   ],
   "backlog": [
-    "Surface a hint when a 401 comes back and no API key is configured (hosted providers)",
     "Add timeoutMs field to the custom-AI preferences dialog UI (config currently localStorage-only)",
     "Add BYOK structured JSON schema validation for Event Sheet generation",
     "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
