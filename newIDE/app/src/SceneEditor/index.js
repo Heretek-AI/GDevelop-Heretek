@@ -3160,6 +3160,7 @@ export default class SceneEditor extends React.Component<Props, State> {
                     instancesSelection={this.instancesSelection}
                     onSelectInstances={this._onSelectInstances}
                     onInstancesModified={this._onInstancesModified}
+                    deleteSelection={this.deleteSelection}
                     onAddObjectInstance={this.addInstanceOnTheScene}
                     chosenLayer={this.state.chosenLayer}
                     onChooseLayer={this._onChooseLayer}

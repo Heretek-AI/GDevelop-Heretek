@@ -123,6 +123,8 @@ type Props = {|
   selectedInstances: Array<gdInitialInstance>,
   onSelectInstances: (Array<gdInitialInstance>, boolean) => void,
   onInstancesModified: (Array<gdInitialInstance>) => void,
+  // Optional: enables Delete-key deletion while the list has focus.
+  onDelete?: () => void,
 |};
 
 class InstancesList extends Component<Props, State> {
@@ -135,8 +137,12 @@ class InstancesList extends Component<Props, State> {
   instanceRowRenderer: ?typeof gd.InitialInstanceJSFunctor;
   table: ?typeof RVTable;
   _keyboardShortcuts: KeyboardShortcuts = new KeyboardShortcuts({
-    isActive: () => false,
-    shortcutCallbacks: {},
+    isActive: () => true,
+    shortcutCallbacks: {
+      onDelete: () => {
+        if (this.props.onDelete) this.props.onDelete();
+      },
+    },
   });
 
   // This should be updated, see https://reactjs.org/blog/2018/03/27/update-on-async-rendering.html.

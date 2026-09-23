@@ -576,6 +576,7 @@ const SwipeableDrawerEditorsDisplay: React.ComponentType<{
                       selectedInstances={selectedInstances}
                       onSelectInstances={selectInstances}
                       onInstancesModified={onInstancesModified || noop}
+                      onDelete={props.deleteSelection}
                       ref={instancesListRef}
                     />
                   </Paper>

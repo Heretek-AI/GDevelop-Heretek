@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 13,
+  "last_cycle": 15,
   "completed_targets": [
     {
       "cycle": 1,
@@ -73,12 +73,25 @@
       "target": "Surface history trimming in the AI chat UI",
       "metric_delta": "Before: context trims were console.warn-only \u2014 users had no explanation when the agent 'forgot' old exchanges. After: trims are counted per request in a fork-only in-memory registry (customGetAiRequestContextTrimCount; sub-agent trims attributed to the parent chat), and ChatMessages renders a secondary note 'Older messages were trimmed to fit the AI model's context window.' when the count is non-zero and the chat is not working. New test proves trims are recorded against the parent chat id and reset with client state; 53/53 green, flow clean, dev+prod compiles green.",
       "commit": "feat(ai): surface context trimming in the AI chat"
+    },
+    {
+      "cycle": 14,
+      "target": "Backlog audit: prune stale items, queue roadmap UX quick wins",
+      "metric_delta": "Three completed backlog items removed (timeoutMs UI done cycle 6, per-tool schema validation done cycle 11, workflow actions audited clean cycle 5). AiGeneration suites re-run green (148/148) after the ChatMessages change; fork divergence still matches. New backlog seeded from docs/HERETEK-ROADMAP.md direction C (editor UX cluster).",
+      "commit": "chore(autonomous): prune stale backlog, seed UX quick wins"
+    },
+    {
+      "cycle": 15,
+      "target": "Delete key deletes selected instances from the Instances list (upstream #8291)",
+      "metric_delta": "Before: the Instances list panel ignored Delete/Backspace \u2014 users had to select instances on the canvas to delete them. After: InstancesList wires its existing (inactive) KeyboardShortcuts instance with an onDelete callback fired for Delete and Backspace (text-editor exclusion already built into the shared handler), through an optional onDelete prop fed by SceneEditor.deleteSelection for both Mosaic and SwipeableDrawer displays. Diff: 5 files, +16 lines net. 13/13 InstancesEditor+SceneEditor tests, flow clean in touched dirs, lint clean.",
+      "commit": "feat(editor): delete selected instances with Delete key in Instances list"
     }
   ],
   "backlog": [
-    "Add timeoutMs field to the custom-AI preferences dialog UI (config currently localStorage-only)",
-    "Fix deprecated CodeQL/ESLint workflow actions and SARIF emission",
-    "Per-tool JSON Schema validation of tool arguments against GDEVELOP_OPENAI_TOOLS parameter definitions"
+    "Delete key deletes selected instances in the Instances list (upstream #8291)",
+    "Drag&drop image files into the scene editor (upstream #8297)",
+    "Integer/pixel-art scaling option (upstream #7495)",
+    "Prompt-compaction: summarize trimmed tool outputs instead of dropping them"
   ],
   "heuristics": [
     "Never modify upstream GDCore bindings unless exposing new scriptable AI APIs",
@@ -89,6 +102,7 @@
     "customSuspendAiRequest is synchronous and lock-free by design (cache-copy swap); abort controllers live outside the cache so suspension works even for requests not yet persisted",
     "GitHub Actions versions audited cycle 5 \u2014 all current; re-check after upstream syncs",
     "parseAssistantMessage fixtures must use schema-valid arguments (GDEVELOP_OPENAI_TOOLS is the validation source of truth since cycle 11)",
-    "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields"
+    "getCustomEndpointConfig treats localStorage as untrusted input \u2014 field-level coercion on load; keep that property when adding new CustomAIConfig fields",
+    "KeyboardShortcuts supports onDelete (Backspace+Delete) and excludes text editors \u2014 reuse it for list panels instead of ad-hoc keydown handlers"
   ]
 }

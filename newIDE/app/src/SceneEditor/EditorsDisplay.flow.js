@@ -44,6 +44,9 @@ export type SceneEditorsDisplayProps = {|
     targetPosition?: 'center' | 'upperCenter'
   ) => void,
   onInstancesModified?: (Array<gdInitialInstance>) => void,
+  // Deletes the selected instances: the Instances list uses it so the Delete
+  // key works while the list has focus, like in the scene canvas.
+  deleteSelection?: () => void,
   editInstanceVariables: (instance: ?gdInitialInstance) => void,
   editObjectByName: ({
     objectName: string,
