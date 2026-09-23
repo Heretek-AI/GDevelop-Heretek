@@ -974,6 +974,77 @@ describe('CustomAIClient', () => {
       await expect(pending).rejects.toThrow(/aborted/);
       expect(axios.post).not.toHaveBeenCalled();
     });
+
+    it('recovers when the connection drops after partial content', async () => {
+      const encoder = new TextEncoder();
+      let readCount = 0;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              readCount += 1;
+              if (readCount === 1) {
+                return {
+                  done: false,
+                  value: encoder.encode(
+                    'data: ' +
+                      JSON.stringify({
+                        choices: [{ delta: { content: 'partial ' } }],
+                      }) +
+                      '\n'
+                  ),
+                };
+              }
+              // Second read: connection split mid-stream.
+              throw new TypeError('network error');
+            },
+          }),
+        },
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            { message: { role: 'assistant', content: 'recovered full' } },
+          ],
+        },
+      });
+
+      const deltas = [];
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+        onStreamDelta: partial => deltas.push(partial),
+      });
+
+      expect(deltas).toContain('partial ');
+      expect(message.content).toBe('recovered full');
+      expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not start a second non-streaming request after a stream timeout', async () => {
+      // fetch aborts with AbortError (as when the stream timeout controller fires).
+      global.fetch = jest.fn().mockImplementation(
+        () =>
+          new Promise((resolve, reject) => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          })
+      );
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: { ...streamConfig, timeoutMs: 5 },
+        })
+      ).rejects.toThrow(/timed out or was aborted after 5 ms/);
+      // Critical: no silent second wait of timeoutMs on the non-streaming path.
+      expect(axios.post).not.toHaveBeenCalled();
+    });
   });
 
   describe('per-request model override', () => {

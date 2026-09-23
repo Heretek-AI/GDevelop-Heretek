@@ -2453,9 +2453,13 @@ const streamChatCompletion = async ({
       throw new Error('AI request was aborted.');
     }
     if (error && error.name === 'AbortError') {
-      throw new Error(
+      // Flag stream timeouts so sendChatCompletion does not immediately start
+      // a second non-streaming request that would wait another full timeoutMs.
+      const timeoutError: Error & { isStreamTimeout?: boolean } = new Error(
         `The request timed out or was aborted after ${timeoutMs} ms (streaming). Increase the timeout in the AI preferences for slow local models.`
       );
+      timeoutError.isStreamTimeout = true;
+      throw timeoutError;
     }
     if (
       error instanceof TypeError &&
@@ -2546,6 +2550,10 @@ export const sendChatCompletion = async ({
       // A user abort must not trigger a retry: the caller signal is already
       // aborted and the non-streaming request would immediately fail too.
       if (signal && signal.aborted) throw streamError;
+      // Stream timeouts already waited timeoutMs — a non-streaming retry would
+      // double the stall. Surface the timeout immediately with its guidance.
+      // $FlowFixMe[prop-missing] optional flag set by streamChatCompletion.
+      if (streamError && streamError.isStreamTimeout) throw streamError;
       // Some endpoints reject streaming or drop mid-stream; a single
       // non-streaming retry keeps the turn alive at worst-case latency.
       console.warn(

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 41,
+  "last_cycle": 42,
   "completed_targets": [
     {
       "cycle": 1,
@@ -241,6 +241,12 @@
       "target": "Tab-open full fetch works for offline BYOK / local-ai-* without a profile",
       "metric_delta": "Before: AskAiEditorContainer mount effect used a bare `if (!selectedAiRequest || !profile) return` (AskAiEditorContainer.js:1449), so offline BYOK never refreshed the selected chat on tab open \u2014 UI relied solely on cache freshness; logged-out local-ai-* history could show stale status after a closed tab. After: shared shouldFetchAiRequestOnTabOpen mirrors loadAiRequest (profile OR local-ai-* OR isCustomEndpointEnabled) and userId falls back to LOCAL_BYOK_USER_ID. 5 new pure helper tests. AI suite 293\u2192298 tests / 22 suites green. Diff: AiRequestUtils.js + .spec + AskAiEditorContainer.js only (fork-only path), divergence 124/56/7 green, lockfile green.",
       "commit": "fix(ai): refresh selected chat on tab open for offline BYOK"
+    },
+    {
+      "cycle": 42,
+      "target": "No silent non-streaming retry after a stream timeout (double-wait) + mid-stream drop recovery coverage",
+      "metric_delta": "Before: streamChatCompletion AbortError from the combined timeout controller was rethrown as a plain Error; sendChatCompletion's catch then fell through to the non-streaming axios.post with the same timeoutMs, so a slow local model could stall 2x timeoutMs (stream timeout + full non-streaming wait) before surfacing the timeout guidance. Mid-stream connection drops after partial content were also untested. After: timeout errors carry isStreamTimeout; the fallback rethrows them immediately (user abort + stream timeout are the two no-retry cases); network drops still fall back once. 2 new tests: partial-content drop recovers via axios, stream timeout never calls axios.post. AI suite 298\u2192300 tests / 22 suites green. Diff: CustomAIClient.js +10/-1, CustomAIClient.spec.js +71 (fork-only), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
+      "commit": "fix(ai): do not retry non-streaming after a stream timeout"
     }
   ],
   "backlog": [
