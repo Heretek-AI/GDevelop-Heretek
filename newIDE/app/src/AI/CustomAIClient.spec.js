@@ -1208,6 +1208,81 @@ describe('CustomAIClient', () => {
       const requestPayload = axios.post.mock.calls[0][1];
       expect(requestPayload.model).toBe('qwen2.5-coder');
     });
+
+    it('sends the overridden model for next-step suggestions', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start a chat',
+      });
+      customSetAiRequestModelOverride(created.id, 'deepseek-chat');
+
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  explanationMessage: 'Next:',
+                  suggestions: [{ title: 'Go', suggestedMessage: 'Do it' }],
+                }),
+              },
+            },
+          ],
+        },
+      });
+      await customGetAiRequestSuggestions(created.id);
+
+      const requestPayload = axios.post.mock.calls[1][1];
+      expect(requestPayload.model).toBe('deepseek-chat');
+    });
+
+    it('sends the overridden model for related event generation', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'chat before generate',
+      });
+      customSetAiRequestModelOverride(created.id, 'llama3.2');
+
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content:
+                  '```json\n[{"type":"add_events","events":[{"type":"BuiltinCommonInstructions::Standard","conditions":[],"actions":[]}]}]\n```',
+              },
+            },
+          ],
+        },
+      });
+      await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Move player',
+        eventBatches: null,
+        extensionNamesList: '',
+        objectsList: 'Player',
+        existingEventsAsText: '',
+        aiRequestId: created.id,
+      });
+
+      const requestPayload = axios.post.mock.calls[1][1];
+      expect(requestPayload.model).toBe('llama3.2');
+      customSetAiRequestModelOverride(created.id, '');
+    });
   });
 
   describe('persisted config sanitization', () => {

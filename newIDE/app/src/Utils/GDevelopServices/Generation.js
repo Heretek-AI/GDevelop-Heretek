@@ -1015,6 +1015,7 @@ export const createAiGeneratedEvent = async (
       extensionNamesList,
       objectsList,
       existingEventsAsText: existingEventsJson || undefined,
+      aiRequestId: relatedAiRequestId || null,
     });
   }
 

@@ -2986,6 +2986,7 @@ export const customCreateAiRequest = async ({
     assistantResponse = await sendChatCompletion({
       messages: openAiMessages,
       tools: GDEVELOP_OPENAI_TOOLS,
+      config: getEffectiveConfigForRequest(reqId),
       signal: abortController.signal,
     });
   } finally {
@@ -3625,6 +3626,7 @@ Return your response STRICTLY as a JSON object with this format:
         ...transformGDevelopMessagesToOpenAi(req.output || []),
         { role: 'user', content: prompt },
       ],
+      config: getEffectiveConfigForRequest(aiRequestId),
     });
 
     const clean = (res.content || '')
@@ -3653,6 +3655,7 @@ export const customCreateAiGeneratedEvent = async ({
   extensionNamesList,
   objectsList,
   existingEventsAsText,
+  aiRequestId,
 }: {|
   sceneName: string,
   eventsDescription: string | null,
@@ -3660,6 +3663,7 @@ export const customCreateAiGeneratedEvent = async ({
   extensionNamesList?: string,
   objectsList?: string,
   existingEventsAsText?: string,
+  aiRequestId?: string | null,
 |}): Promise<CreateAiGeneratedEventResult> => {
   const prompt = `You are the GDevelop Event Generation Engine.
 Generate the GDevelop events in JSON format matching GDevelop's internal event structure for scene "${sceneName}".
@@ -3688,6 +3692,7 @@ Ensure generatedEvents is a JSON string of standard GDevelop event objects (e.g.
         { role: 'system', content: 'You are a GDevelop 5 Event generator.' },
         { role: 'user', content: prompt },
       ],
+      config: getEffectiveConfigForRequest(aiRequestId || ''),
     });
 
     const clean = (res.content || '')
