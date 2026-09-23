@@ -9,6 +9,7 @@ import {
 } from '../AiRequestUtils';
 import { getStudioRole, type StudioRoleId } from './Roles';
 import { isSpawnAgentCall, parseSpawnAgentArgs } from './SpawnSubAgents';
+import { truncateAtCodePointBoundary } from './SafeTruncation';
 
 /**
  * The role a studio sub-agent was spawned with, read back from its parent's
@@ -141,10 +142,9 @@ export const MAX_SUB_AGENT_REPORT_LENGTH = 4000;
  */
 export const truncateReport = (report: string, maxLength: number): string => {
   if (report.length <= maxLength) return report;
-  let end = maxLength;
-  const lastCode = report.charCodeAt(end - 1);
-  if (lastCode >= 0xd800 && lastCode <= 0xdbff) end -= 1;
-  return report.slice(0, end) + '\n…(report truncated)';
+  return (
+    truncateAtCodePointBoundary(report, maxLength) + '\n…(report truncated)'
+  );
 };
 
 /**

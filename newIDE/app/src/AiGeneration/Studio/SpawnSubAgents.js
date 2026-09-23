@@ -4,6 +4,7 @@ import { makeSimplifiedProjectBuilder } from '../../EditorFunctions/SimplifiedPr
 import { customCreateSubAgentAiRequest } from '../../AI/CustomAIClient';
 import { isSpawnableRoleId, type StudioRoleId } from './Roles';
 import { type AiRequestMessageAssistantFunctionCall } from '../../Utils/GDevelopServices/Generation';
+import { truncateAtCodePointBoundary } from './SafeTruncation';
 
 const gd: libGDevelop = global.gd;
 
@@ -135,7 +136,10 @@ export const buildGddContextNote = (project: ?gdProject): string => {
   const note = `The studio's design document, as GDD_ project variables:\n${lines.join(
     '\n'
   )}`;
-  return note.length > 4000 ? note.slice(0, 4000) + '\n…(truncated)' : note;
+  return (
+    truncateAtCodePointBoundary(note, 4000) +
+    (note.length > 4000 ? '\n…(truncated)' : '')
+  );
 };
 
 export type SpawnSubAgentResult =

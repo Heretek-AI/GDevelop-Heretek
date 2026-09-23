@@ -8,6 +8,7 @@ import {
   truncateReport,
   MAX_SUB_AGENT_REPORT_LENGTH,
 } from './FinalizeSubAgents';
+import { truncateAtCodePointBoundary } from './SafeTruncation';
 import { buildPlanStatusUpdateOutput } from './UseStudioRuntime';
 import { buildPlanOutput } from './PlanStore';
 
@@ -473,6 +474,32 @@ describe('FinalizeSubAgents', () => {
       expect(plan.tasks[0].agentCallId).toBe('call-1');
       expect(plan.tasks[1].agentCallId).toBe('call-2');
       expect(plan.tasks[1].description).toBe('Units walk the grid.');
+    });
+
+    it('truncateAtCodePointBoundary never leaves a lone surrogate', () => {
+      // The shared helper both report caps go through. Repeating an emoji puts
+      // a high surrogate at every odd offset, so roughly half of all cut points
+      // would fall mid-pair with a plain slice.
+      const text = 'A\u{1F3AE}'.repeat(50);
+      const hasLoneSurrogate = (value: string): boolean => {
+        for (let i = 0; i < value.length; i++) {
+          const code = value.charCodeAt(i);
+          if (code >= 0xd800 && code <= 0xdbff) {
+            const next = value.charCodeAt(i + 1);
+            if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+            i++;
+          } else if (code >= 0xdc00 && code <= 0xdfff) return true;
+        }
+        return false;
+      };
+      for (let n = 1; n <= text.length + 2; n++) {
+        const out = truncateAtCodePointBoundary(text, n);
+        expect(hasLoneSurrogate(out)).toBe(false);
+        expect(out.length).toBeLessThanOrEqual(n);
+      }
+      // Text that already fits is returned unchanged.
+      expect(truncateAtCodePointBoundary('short', 10)).toBe('short');
+      expect(truncateAtCodePointBoundary(text, text.length)).toBe(text);
     });
 
     it('truncating a report does not split a surrogate pair', () => {
