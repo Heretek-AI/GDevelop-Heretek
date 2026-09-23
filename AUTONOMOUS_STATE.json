@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 85,
+  "last_cycle": 86,
   "completed_targets": [
     {
       "cycle": 75,
@@ -506,6 +506,12 @@
       "target": "Charge the real token cost when compacting history",
       "metric_delta": "407->409 tests; trimMessagesToBudget decremented its running estimate by removedChars/4 after compacting a message. For a CJK message (4800 chars ~ 4800 tokens) that left the estimate at 3734 while the true total was 528, so the loop kept dropping older history it no longer needed to drop. The decrement is now the estimator's own delta (estimateTokens(before) - estimateTokens(after)) and the kept head is a token budget rather than a 500-char slice. Test proven red on the cycle-84 code at a budget that sits between the true and inflated totals; 2 files, +59/-9",
       "commit": "fix(ai): charge the real token cost when compacting history"
+    },
+    {
+      "cycle": 86,
+      "target": "Tolerate a hole in the message list while trimming",
+      "metric_delta": "409->410 tests; trimMessagesToBudget guarded its isProtected check with `message && ...` and estimateMessagesTokens skips nulls, but the keep/drop loop dereferenced message.role/content unguarded. Reachable when a null follows an assistant whose tool_calls started the drop: TypeError 'Cannot read properties of null (reading role)', reproduced pre-fix and now impossible. One early `if (!message) continue;` makes the loop match the tolerance the rest of the function already has; 2 files, +26/-3",
+      "commit": "fix(ai): tolerate a hole in the message list while trimming"
     }
   ],
   "backlog": [
@@ -609,6 +615,7 @@
     "getTokenBudget's output reserve must track the max_tokens actually sent: reserving a blanket half-window while the request caps output at a few hundred tokens discards usable context and silently compacts the system prompt. Any future output-side knob must feed the same reserve.",
     "estimateTokens feeds every trim/compaction/budget decision, so a unit error there silently invalidates all of them: the flat chars/4 rule under-counted CJK ~4x while being correct for English. Keep the ASCII path bit-identical when changing it (ceil(ascii/4) preserves the old result) and guard non-Latin scripts explicitly rather than lowering the ratio globally.",
     "A token->character conversion must be the exact inverse of the token estimator: when estimateTokens became script-aware, the flat `* 4` in hardCapSystemContent/compactSystemMessageToBudget silently disagreed and 'capped' CJK prompts came out 4x over. Any change to the estimator must audit every site that converts budgets back to lengths.",
-    "A running token estimate must be decremented by re-measuring the content, never by a chars/N assumption: after the estimator became script-aware, trimMessagesToBudget's chars/4 decrement left a phantom 3207 tokens of estimate and dropped history that fit. Test such bugs by choosing a budget between the true and the stale totals, or the test passes either way."
+    "A running token estimate must be decremented by re-measuring the content, never by a chars/N assumption: after the estimator became script-aware, trimMessagesToBudget's chars/4 decrement left a phantom 3207 tokens of estimate and dropped history that fit. Test such bugs by choosing a budget between the true and the stale totals, or the test passes either way.",
+    "Reachability decides whether a guard test is real: a null mid-list passed on both the fixed and unfixed code because it never entered the drop branch — the crash needed the null to follow an assistant whose tool_calls had already started dropToolOutputs. Build the input that reaches the exact branch, then confirm it fails before the fix."
   ]
 }

@@ -3683,6 +3683,48 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('history trimming tolerates a hole in the message list', () => {
+    it('trims a list containing a null entry without throwing', () => {
+      // estimateMessagesTokens and the isProtected guard both already skip a
+      // null message; the keep/drop loop dereferenced it unguarded, so the
+      // same input crashed the trim the rest of the function tolerated.
+      const messages = [
+        { role: 'system', content: 'sys' },
+        null,
+        { role: 'assistant', content: 'x'.repeat(9000) },
+        { role: 'user', content: 'middle' },
+        { role: 'user', content: 'newest' },
+      ];
+      // $FlowFixMe deliberately malformed list for the guard.
+      const trimmed = trimMessagesToBudget(messages, 300);
+      expect(Array.isArray(trimmed)).toBe(true);
+      expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(300);
+      // The newest exchange is still there.
+      expect(trimmed.some(m => m && m.content === 'newest')).toBe(true);
+    });
+
+    it('does not crash when the null follows a dropped tool_calls assistant', () => {
+      // The guard at the top is `message && message.role === 'system'`, and the
+      // null-skip in estimateMessagesTokens, but the dropToolOutputs branch
+      // dereferenced message.role directly. Reaching it needs the drop to have
+      // started on an earlier assistant, which is why a plain hole mid-list
+      // did not reproduce it.
+      const messages = [
+        { role: 'system', content: 'sys' },
+        {
+          role: 'assistant',
+          content: 'calling a tool',
+          tool_calls: [{ id: 'c1', function: { name: 'f', arguments: '{}' } }],
+        },
+        null,
+        { role: 'user', content: 'newest-a' },
+        { role: 'user', content: 'newest-b' },
+      ];
+      // $FlowFixMe deliberately malformed list for the guard.
+      expect(() => trimMessagesToBudget(messages, 5)).not.toThrow();
+    });
+  });
+
   describe('compaction honours the budget in non-Latin scripts', () => {
     it('caps a CJK system prompt at its token budget, not 4x it', () => {
       // Regression: estimateTokens counted CJK as one token per character (so

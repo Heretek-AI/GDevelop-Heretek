@@ -776,9 +776,13 @@ export const trimMessagesToBudget = (
       kept.push(message);
       continue;
     }
+    if (!message) {
+      // Same null tolerance estimateMessagesTokens and the isProtected guard
+      // above already have: a hole in the list must not crash the trim.
+      continue;
+    }
     if (estimate > budget && !dropToolOutputs) {
-      const toolCalls =
-        message && message.role === 'assistant' && message.tool_calls;
+      const toolCalls = message.role === 'assistant' && message.tool_calls;
       if (toolCalls && toolCalls.length > 0) {
         dropToolOutputs = true;
       }
