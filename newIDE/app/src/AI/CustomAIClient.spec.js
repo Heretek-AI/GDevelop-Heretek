@@ -4026,6 +4026,62 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('a 200 response carrying an error body', () => {
+    it('fails the turn instead of recording an empty answer', async () => {
+      // Some servers report model failures with HTTP 200 and an error body.
+      // Returning it as a message made the turn look successful: the parser
+      // found no content, so an empty assistant reply was stored and the user
+      // got neither an error nor a retry.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { error: { message: 'model is loading, try again' } },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+
+      // The turn is an error, with the server's own message, not a blank reply.
+      expect(created.status).toBe('error');
+      expect(created.error && created.error.message).toContain(
+        'model is loading, try again'
+      );
+      const assistantMessages = (created.output || []).filter(
+        message => message.role === 'assistant'
+      );
+      expect(assistantMessages).toHaveLength(0);
+    });
+
+    it('still accepts a normal completion body', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      expect(created.status).toBe('ready');
+    });
+  });
+
   describe('context occupancy is the latest prompt, not the running cost', () => {
     it('tracks the most recent prompt size while tokens total keeps growing', async () => {
       // The gauge reports how full the window is NOW, so it must read the last

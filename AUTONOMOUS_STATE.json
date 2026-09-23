@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 106,
+  "last_cycle": 107,
   "completed_targets": [
     {
       "cycle": 75,
@@ -627,6 +627,12 @@
       "target": "Use prompt occupancy, not cumulative cost, for the context gauge",
       "metric_delta": "451->454 tests; cycle 105 fed the gauge customGetAiRequestTokenTotal, which is a CUMULATIVE cost meter (addTokenUsage adds every turn's prompt+answer), while the gauge's own contract is 'the share of the context already used' — a current occupancy. Measured, the cumulative numerator was already 2x too large after two turns and grows without bound, so the gauge would have inflated forever and described nothing. A separate registry now records the latest turn's prompt size (estimateMessagesTokens(budgetedMessages), already computed at each of the three call sites; sub-agents attribute to the parent key), is cleared with the other per-request registries, and the gauge reads it. 4 files, +94/-2",
       "commit": "fix(ai): use prompt occupancy, not cumulative cost, for the context gauge"
+    },
+    {
+      "cycle": 107,
+      "target": "Fail a turn when a 200 response carries an error body",
+      "metric_delta": "454->456 tests; the non-streaming path read response.data.error only on non-2xx responses, so a server reporting a model failure with HTTP 200 and an error body fell through to `return response.data`. parseAssistantMessage found no `content`, and an EMPTY assistant message was recorded as a successful turn — the user saw a blank reply with no error and no Retry (pre-fix the request status is 'ready' where it must be 'error'). A 200 with an error body now raises 'AI Provider Error (200 with an error body): <server message>' with response.status attached so the existing hint resolution applies. 2 files, +74",
+      "commit": "fix(ai): fail a turn when a 200 response carries an error body"
     }
   ],
   "backlog": [
@@ -750,6 +756,7 @@
     "Before hardening an unguarded read, check the file's divergence bucket: a defensive guard in an upstream-identical, untracked file creates permanent merge surface (the fork-divergence guard flags it as new divergence) for no reproduced failure. Fix upstream-owned files only for real defects; prefer files already in the modified/forkOnly buckets, or the fix belongs upstream.",
     "Recognising a protocol terminator is not acting on it: the SSE parser saw `data: [DONE]` and returned from the line handler, leaving the read loop waiting for a socket close the server need not send. When code special-cases a terminator, check whether the surrounding loop actually stops.",
     "When the fork adds local accounting for something the server used to report, check every UI consumer of the server field: the context gauge read only aiRequest.contextStats, so the local path (which tracks tokens itself) left it permanently empty. A field the server sets is not a field that is always set.",
-    "Check what a metric's contract means before wiring a source to it: the context gauge asks 'how full is the window now' but cycle 105 fed it a cumulative cost meter, which inflates every turn. Two similarly-named token counters existed (cumulative totals vs. latest prompt size) and the doc comment was the only thing distinguishing them."
+    "Check what a metric's contract means before wiring a source to it: the context gauge asks 'how full is the window now' but cycle 105 fed it a cumulative cost meter, which inflates every turn. Two similarly-named token counters existed (cumulative totals vs. latest prompt size) and the doc comment was the only thing distinguishing them.",
+    "HTTP 200 does not mean success: some OpenAI-compatible servers report model failures (still loading, OOM) in the body with a 200. Any code that returns response.data without checking for an error field turns such a failure into an empty successful turn — check the body shape, not just the status."
   ]
 }

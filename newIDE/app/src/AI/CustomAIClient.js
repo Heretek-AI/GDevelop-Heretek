@@ -3161,6 +3161,24 @@ export const sendChatCompletion = async ({
       return response.data.choices[0].message;
     }
 
+    // Some servers report a model failure with HTTP 200 and an error body
+    // rather than a 4xx/5xx. Returning it as a message made the turn look
+    // successful: parseAssistantMessage found no `content`, so an EMPTY
+    // assistant reply was recorded with no error and no retry offered.
+    if (response.data && response.data.error) {
+      const rawError = response.data.error;
+      const message =
+        typeof rawError === 'string'
+          ? rawError
+          : rawError.message || JSON.stringify(rawError);
+      const error = new Error(
+        `AI Provider Error (200 with an error body): ${message}`
+      );
+      // $FlowFixMe[prop-missing] attach status so hints resolve as for a 4xx.
+      error.response = { status: 200, data: response.data };
+      throw error;
+    }
+
     return response.data;
   } catch (error) {
     if (axios.isCancel(error) || (signal && signal.aborted)) {
