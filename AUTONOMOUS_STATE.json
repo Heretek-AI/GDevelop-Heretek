@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 129,
+  "last_cycle": 130,
   "completed_targets": [
     {
       "cycle": 75,
@@ -741,6 +741,12 @@
       "target": "Stop sliceToTokenBudget splitting surrogate pairs",
       "metric_delta": "sliceToTokenBudget walked UTF-16 code units and cut at a code-unit offset, so a cut between the two halves of an astral character left a lone high surrogate. Measured: on a body of repeated 'A<emoji>' (high surrogate at every odd offset) 82 of 185 budgets ended mid-pair, and the result encodes to U+FFFD — so a truncated system prompt reached the local model with a replacement character where a real scene/object name was. This is the inverse of estimateTokens (the comment requires they stay inverses) and it feeds hardCapSystemContent, compactSystemMessageToBudget and the history trim, so the corruption affected the prompt, system compaction and dropped history. Fixed by stepping the cut back one unit when it would land after a high surrogate; the full-string path still returns the original reference. +2 tests via the public compactSystemMessageToBudget, mutation-checked (without the guard hasLoneSurrogate is true). 188/188 file, eslint --max-warnings=0, prettier clean.",
       "commit": "fix(ai): never split a surrogate pair when slicing to a token budget"
+    },
+    {
+      "cycle": 130,
+      "target": "Audit the remaining AI-client surface and re-verify the slicer invariant",
+      "metric_delta": "No code change — verification cycle. Probed every not-yet-audited path: validateToolCallArguments (wired into both the tool_calls and markdown-JSON fallback paths, executing sanitized arguments or skipping; no schema here uses additionalProperties so the strict unknown-argument check is sound); the markdown tool-call regex (withstood nested objects, brace-containing strings, and escaped quotes because the non-greedy match must reach the closing fence); withLocalAiTurnLock (correct tail-chaining, finally-release, per-id keying, cleanup); sanitizeAiRequestSuggestions (rejects non-objects, empty arrays, missing fields); estimateMessagesTokens (already hardened in an earlier cycle — tool call ids/names/args and tool_call_id are charged); saveLocalAiRequests (recency sort, quota swallowed, gameProjectJson excluded); normalizePersistedMessages (legacy text->output_text healing); customCreateAssetSearch/ResourceSearch (honest empty results, nothing fabricated). Also re-verified cycle 129's sliceToTokenBudget against its documented inverse contract after the change: 0 inverse violations and 0 lone surrogates across 1600 budget slices over ascii/CJK/emoji-heavy/mixed text.",
+      "commit": "(no code change — verification cycle)"
     }
   ],
   "backlog": [
@@ -886,6 +892,7 @@
     "The wire payload is the last line of defence and needs its own bounds: sendChatCompletion's `config || getCustomEndpointConfig()` and testConnection's spread-merge both let unsanitized values through, so validate numeric fields (temperature, timeoutMs) at payload construction rather than trusting only sanitizeCustomAIConfig. Also: JSON.stringify(NaN) is `null`, so a non-finite number is not ignored by the server — it becomes an explicit null argument.",
     "normalizeBaseUrl is the single entry point for every request path (sendChatCompletion, getEndpointUrl, testConnection), so it must tolerate every value a corrupted localStorage can hold. PreferencesProvider.loadPreferencesFromLocalStorage only backfills missing keys — it does NOT validate the type of a present one — so any preference value is effectively untyped at runtime despite the Flow annotation.",
     "When auditing an input boundary, check reachability before guarding: getEndpointUrl's endpointPath and maxTokens' negative path both throw/send badly in principle, but no caller or UI can produce those values, so a guard would be dead code. The reachable ones were the storage-hydrated preference values (baseUrl, temperature, timeoutMs) because PreferencesProvider never type-checks a present key.",
-    "sliceToTokenBudget and estimateTokens are an inverse pair and must stay one; sliceToTokenBudget also indexes UTF-16 code units, so any cut must not fall between a high and low surrogate (test with a body of repeated 'A<emoji>' — the emoji at an odd offset catches it, whereas emoji placed at the START of a body never hit it because truncation drops the suffix). Slicing a string is not safe on a non-BMP boundary in general."
+    "sliceToTokenBudget and estimateTokens are an inverse pair and must stay one; sliceToTokenBudget also indexes UTF-16 code units, so any cut must not fall between a high and low surrogate (test with a body of repeated 'A<emoji>' — the emoji at an odd offset catches it, whereas emoji placed at the START of a body never hit it because truncation drops the suffix). Slicing a string is not safe on a non-BMP boundary in general.",
+    "The AI client's defensive layer is now broad: tool arg validation on both routes, header CRLF blocking, SSE chunk recovery, context budgeting with a CJK-aware estimator, bounded persistence, and surrogate-safe slicing. When re-auditing, prefer probing a documented invariant numerically (e.g. sliceToTokenBudget/estimateTokens as an inverse pair across 1600 slices) over re-reading the code — it catches regressions the eye misses."
   ]
 }
