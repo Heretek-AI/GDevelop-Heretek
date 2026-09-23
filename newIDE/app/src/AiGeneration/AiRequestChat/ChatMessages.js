@@ -439,6 +439,11 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
 
             let pendingFunctionCallItems: Array<FunctionCallItem> = [];
 
+            // `content` is network-supplied and only type-asserted; a
+            // response missing the array would crash the whole chat view.
+            if (!Array.isArray(message.content)) {
+              return;
+            }
             message.content.forEach((messageContent, messageContentIndex) => {
               if (messageContent.type === 'function_call') {
                 const existingFunctionCallOutput = functionCallToFunctionCallOutput.get(
@@ -632,6 +637,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
         for (const message of aiRequest.output || []) {
           if (message.type !== 'message' || message.role !== 'assistant')
             continue;
+          if (!Array.isArray(message.content)) continue;
           for (const messageContent of message.content) {
             if (messageContent.type !== 'function_call') continue;
             if (messageContent.name === 'create_or_update_plan') continue;
@@ -792,6 +798,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
         const map: Map<string, Array<FunctionCallItem>> = new Map();
         (aiRequest.output || []).forEach(message => {
           if (message.type === 'message' && message.role === 'assistant') {
+            if (!Array.isArray(message.content)) return;
             message.content.forEach(messageContent => {
               if (
                 messageContent.type === 'function_call' &&

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 101,
+  "last_cycle": 102,
   "completed_targets": [
     {
       "cycle": 75,
@@ -597,6 +597,12 @@
       "target": "Guard every message-content loop against malformed payloads",
       "metric_delta": "442->447 tests; applying cycle 100's heuristic to the rest of AiRequestUtils found five more unguarded reads of network-supplied `message.content` (getFunctionCallToFunctionCallOutputMap, getFunctionCallsToProcess, getAllSubAgentFunctionCalls, getFunctionCallNameByCallId, getLastMessagesFromAiRequestOutput). The first feeds ChatMessages' render map and FunctionCallRow, so a response missing the array crashed the whole chat view, not one field. All six reads in the file now check Array.isArray first; all 5 new tests fail pre-fix with TypeError on .forEach/.filter. 2 files, +83/-1",
       "commit": "fix(ai): guard every message-content loop against malformed payloads"
+    },
+    {
+      "cycle": 102,
+      "target": "Guard the chat component's own content loops",
+      "metric_delta": "447 tests (unchanged); ChatMessages itself read `message.content` in three unguarded loops — the renderItems builder (line 442), the working-status text collector (635) and the taskId→items map (795). All three run on every chat render with network-supplied data, so a response missing the array crashed the chat view rather than a helper behind it; the file already sat in the `modified` bucket, so no new divergence. Guarded with Array.isArray checks matching each loop's control flow. 1 file, +7",
+      "commit": "fix(ai): guard the chat component's own content loops"
     }
   ],
   "backlog": [
