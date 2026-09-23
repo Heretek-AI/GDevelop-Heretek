@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 141,
+  "last_cycle": 142,
   "completed_targets": [
     {
       "cycle": 75,
@@ -813,6 +813,12 @@
       "target": "Pin the three untested polling predicates the chat depends on",
       "metric_delta": "Closed a real Tier 4 gap found with the now-trustworthy npm-test signal: three exported predicates drive live behaviour across 5 production files yet had ZERO test references — aiRequestShouldBeWatched (decides whether the polling loop keeps running; a wrong false leaves the chat never updating, a wrong true polls forever), aiRequestHasWorkInProgress (gates suspension in AiRequestContext and the sub-agent spinner in FunctionCallRow), and getSubAgentKind (drives the read-only script sandbox decision). +14 tests pinning each contract: working/ready/settled states, pending-sub-agent gating, finished/working vs aborted editor results, unprocessed-call detection, and the parent-launch-call lookup with missing-parent/no-parent cases. Both main predicates mutation-checked (breaking the ready-request gate fails 2 tests; narrowing the editor-results branch fails 1). 459/459 AI+AiGeneration (was 449), eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
       "commit": "test(ai): cover the polling predicates the chat depends on"
+    },
+    {
+      "cycle": 142,
+      "target": "Fail closed when a sub-agent's role id cannot be resolved",
+      "metric_delta": "Found by the coverage-gap sweep (buildSystemPrompt had no test): buildSystemPrompt called `getStudioRole(role)` which THROWS on an unknown id, and the sub-agent turn path also called `getToolsForRole(studioRoleId)`, which delegates to the same throw. Reachable: `studioRoleId` is read back from a persisted AiRequest on EVERY sub-agent turn (CustomAIClient 3882), and loadLocalAiRequests validates only `id`/`status` — so a stale or corrupted role id killed the turn mid-flight. Worse, the naive no-throw fallback is a privilege escalation: mutation-checked, substituting the full toolset handed an unrecognized-role sub-agent run_script, create_scene and all 22 mutating tools — for an agent that may have been a read-only tester. Fixed by resolving the role through isStudioRoleId and falling back to READ_ONLY_OPENAI_TOOLS (a module-level constant built once from Roles.READ_ONLY_TOOL_NAMES, no per-turn allocation) on both the creation and continue-turn paths; a top-level request with no role still gets every tool. +2 tests asserting the security contract (no offered tool is in MUTATING_TOOL_NAMES), mutation-verified. 461/461 AI+AiGeneration, eslint --max-warnings=0, prettier + tsc clean, divergence guard clean.",
+      "commit": "fix(ai): fail closed when a sub-agent role id cannot be resolved"
     }
   ],
   "backlog": [
@@ -971,6 +977,7 @@
     "The surrogate-splitting truncation appeared THREE times (token budget, sub-agent report, GDD note); each was found only by grepping for the pattern after fixing the previous. When two fork modules both need a tiny pure helper but one already imports the other, add a new leaf module (SafeTruncation.js) rather than importing backwards or duplicating — and record the new file in fork-divergence.json in the same commit, which is what the guard's --update does surgically.",
     "Run fork specs with `npm test` (react-app-rewired with the CRA babel config), NOT a bare `npx jest`: bare jest fails to transform the repo's .ts files (e.g. UseForceUpdate.ts) and reports a SyntaxError that looks like an environmental failure. The earlier aiGeneration 'libGD missing' failures were also an artifact of bare jest in some suits — prefer `npm test -- --testPathPattern=<name>` to get a trustworthy signal.",
     "CORRECTION to cycles 134/138/139: the '3 SpawnSubAgents / libGD-ProjectHelper failures' were NOT environmental — they were a bare-`npx jest` artifact. `npm test -- --testPathPattern=...` (react-app-rewired + CRA babel, with the libGD test artifact already installed) runs the whole AiGeneration directory green: 261/261 across 14 suites, and 449/449 across the 15 AI+AiGeneration suites. Always use `npm test`; bare jest cannot transform the repo's .ts files and produces misleading SyntaxError/undefined-global failures.",
-    "Find coverage gaps programmatically: for each fork-modified file, regex its `export const <name>` list and diff against the spec text — that surfaced aiRequestShouldBeWatched / aiRequestHasWorkInProgress / getSubAgentKind, all live in production with no tests. Also probe reachability before guarding a suspected crash: aiRequestHasWorkInProgress would throw on a null element of editorFunctionCallResults, but processEditorFunctionCalls only ever pushes object literals, so that guard would be dead code."
+    "Find coverage gaps programmatically: for each fork-modified file, regex its `export const <name>` list and diff against the spec text — that surfaced aiRequestShouldBeWatched / aiRequestHasWorkInProgress / getSubAgentKind, all live in production with no tests. Also probe reachability before guarding a suspected crash: aiRequestHasWorkInProgress would throw on a null element of editorFunctionCallResults, but processEditorFunctionCalls only ever pushes object literals, so that guard would be dead code.",
+    "When an unknown enum/id must not crash a turn, pick the fallback by PRIVILEGE, not by convenience: getToolsForRole throwing was load-bearing (it stops a read-only role silently gaining mutations), so the no-throw replacement had to be the read-only subset, not the full toolset. Mutation-check the direction — swapping in the full toolset made the new test show create_scene/run_script being offered. Also: buildSystemPrompt had ZERO coverage despite shaping every prompt; the coverage-gap sweep (regex `export const X` vs the spec text) is what surfaced it."
   ]
 }

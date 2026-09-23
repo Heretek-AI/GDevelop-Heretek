@@ -7,7 +7,12 @@
 // session keys, or anything that requires unpredictability.
 
 import axios from 'axios';
-import { getStudioRole, getToolsForRole } from '../AiGeneration/Studio/Roles';
+import {
+  getStudioRole,
+  getToolsForRole,
+  isStudioRoleId,
+  READ_ONLY_TOOL_NAMES,
+} from '../AiGeneration/Studio/Roles';
 import {
   type AiRequest,
   type AiRequestMessage,
@@ -2721,7 +2726,14 @@ export const buildSystemPrompt = ({
   role?: string | null,
   spawnContextNote?: string | null,
 |}): string => {
-  const rolePrompt = role ? getStudioRole((role: any)).systemPrompt : null;
+  // An unrecognized role id must not throw here: `role` is read back from a
+  // persisted AiRequest (`existing.studioRoleId`), which is not validated on
+  // load, so a stale or corrupted id would kill the turn while its prompt is
+  // being built. Fall back to the shared prompt instead.
+  const rolePrompt =
+    role && isStudioRoleId(role)
+      ? getStudioRole((role: any)).systemPrompt
+      : null;
 
   let prompt = rolePrompt
     ? `${rolePrompt}
@@ -3315,6 +3327,22 @@ export const sendChatCompletion = async ({
 // embedded-JSON fallback was silently disabled for those tools — a model that
 // emitted its call as a JSON block got no tool executed at all.
 // Every name below is an inspection/read tool; none mutates the project.
+/**
+ * The read-only subset of the tool schema, as a constant.
+ *
+ * Used as the fail-closed toolset when a sub-agent's role id cannot be
+ * resolved (a stale or corrupted persisted `studioRoleId`): a read-only agent
+ * must never be handed the mutating tools just because its role is unknown,
+ * and the turn must not throw mid-flight either. Computed once so no per-turn
+ * allocation is added to the hot path.
+ */
+const READ_ONLY_OPENAI_TOOLS = GDEVELOP_OPENAI_TOOLS.filter(
+  tool =>
+    !!tool &&
+    !!tool.function &&
+    READ_ONLY_TOOL_NAMES.includes(tool.function.name)
+);
+
 export const SIDE_EFFECT_FREE_TOOLS = new Set([
   'describe_instances',
   'read_events_source',
@@ -3895,9 +3923,16 @@ export const customAddMessageToAiRequest = async ({
 
     // Local models have small context windows: trim replayed history (never
     // the system prompt or the newest exchange) before burning the request.
-    const roleTools = studioRoleId
+    // A non-null but unrecognized persisted role means a sub-agent whose role
+    // id is stale or corrupted. Do not throw mid-turn, and do not fall back to
+    // the full toolset either: a read-only sub-agent (a tester) would gain
+    // mutations on every later turn. Fail closed to the read-only subset. A
+    // top-level request has no role at all and keeps every tool.
+    const roleTools = !studioRoleId
+      ? GDEVELOP_OPENAI_TOOLS
+      : isStudioRoleId(studioRoleId)
       ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
-      : GDEVELOP_OPENAI_TOOLS;
+      : READ_ONLY_OPENAI_TOOLS;
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
       getMessageBudget(getEffectiveConfigForRequest(aiRequestId), roleTools)
@@ -4076,7 +4111,15 @@ export const customCreateSubAgentAiRequest = async ({
       systemPrompt
     );
 
-    const subAgentTools = getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS);
+    // A sub-agent that is CREATED with an unrecognized role must not receive
+    // the full toolset: `getToolsForRole` throws precisely so a role that is
+    // meant to be read-only cannot silently gain mutations. Fail closed to the
+    // read-only subset instead of failing open, which is why this differs from
+    // the continue-turn fallback above (there the role only re-derives tools
+    // for an already-created agent).
+    const subAgentTools = isStudioRoleId(roleId)
+      ? getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS)
+      : READ_ONLY_OPENAI_TOOLS;
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
       getMessageBudget(

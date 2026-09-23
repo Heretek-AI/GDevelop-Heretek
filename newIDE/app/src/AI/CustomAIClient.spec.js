@@ -58,7 +58,11 @@ import {
 } from './CustomAIClient';
 import { isFailedAiRequestStart } from '../AiGeneration/AiRequestUtils';
 
-import { getToolsForRole } from '../AiGeneration/Studio/Roles';
+import {
+  getToolsForRole,
+  MUTATING_TOOL_NAMES,
+  READ_ONLY_TOOL_NAMES,
+} from '../AiGeneration/Studio/Roles';
 
 jest.mock('axios');
 
@@ -4175,6 +4179,79 @@ describe('CustomAIClient', () => {
       expect(names.length).toBeGreaterThan(0);
       names.forEach(name => expect(testerToolNames).toContain(name));
       expect(systemPrompt).toContain('QA tester');
+    });
+
+    it('fails closed to the read-only toolset for an unrecognized creation role', async () => {
+      // getToolsForRole throws on an unknown id, which is deliberate: a role
+      // that is meant to be read-only must not silently gain mutations. The
+      // creation path fails closed to the read-only subset instead of throwing
+      // or handing over every tool.
+      mockAssistantReply('Spawned.');
+      await customCreateSubAgentAiRequest({
+        parentAiRequestId: 'local-ai-parent',
+        roleId: 'not-a-role',
+        userRequest: 'Do something.',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+
+      const { names, systemPrompt } = sentToolNames(0);
+      expect(names.length).toBeGreaterThan(0);
+      // The contract is the security property, not a specific list: nothing
+      // offered may be a tool that mutates the project, and everything offered
+      // is a declared read-only one.
+      names.forEach(name => expect(MUTATING_TOOL_NAMES).not.toContain(name));
+      names.forEach(name => expect(READ_ONLY_TOOL_NAMES).toContain(name));
+      // No role prompt is invented for an unknown role.
+      expect(systemPrompt).not.toContain('QA tester');
+    });
+
+    it('keeps a read-only toolset on later turns of a corrupted-role sub-agent', async () => {
+      // A persisted sub-agent whose studioRoleId is stale (a role renamed or
+      // removed) must not throw mid-turn, nor regain the mutating tools on its
+      // next turn. Seed the local cache the way a reload would.
+      global.localStorage = {
+        getItem: key =>
+          key === 'gd-custom-ai-requests'
+            ? JSON.stringify({
+                'local-ai-child': {
+                  id: 'local-ai-child',
+                  createdAt: '2026-01-01T00:00:00.000Z',
+                  updatedAt: '2026-01-01T00:00:00.000Z',
+                  userId: LOCAL_BYOK_USER_ID,
+                  status: 'ready',
+                  mode: 'agent',
+                  parentAiRequestId: 'local-ai-parent',
+                  studioRoleId: 'legacy-role-that-no-longer-exists',
+                  error: null,
+                  output: [],
+                },
+              })
+            : null,
+        setItem: () => {},
+        removeItem: () => {},
+      };
+      _resetCustomAiClientForTesting();
+      loadLocalAiRequests();
+      try {
+        mockAssistantReply('Continued.');
+
+        // Must not throw, and must not offer a mutating tool.
+        await customAddMessageToAiRequest({
+          aiRequestId: 'local-ai-child',
+          userMessage: 'keep going',
+          functionCallOutputs: [],
+        });
+
+        const { names } = sentToolNames(0);
+        expect(names.length).toBeGreaterThan(0);
+        names.forEach(name => expect(MUTATING_TOOL_NAMES).not.toContain(name));
+        expect(names).not.toContain('create_scene');
+        expect(names).not.toContain('run_script');
+      } finally {
+        delete global.localStorage;
+      }
     });
 
     it('writes a mutated request through to the cache', async () => {
