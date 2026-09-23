@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 40,
+  "last_cycle": 41,
   "completed_targets": [
     {
       "cycle": 1,
@@ -235,10 +235,15 @@
       "target": "Harden custom-endpoint config writes and local request-cache load/save",
       "metric_delta": "Before: setCustomEndpointConfig merged raw $Shape into cachedConfig without type coercion, so mistyped updates (string temperature, non-boolean enabled) poisoned the live session until process reset; saveLocalAiRequests had no try/catch (quota/SecurityError aborted create/update/delete); loadLocalAiRequests Object.assign'd any JSON including arrays/scalars/null values, which could crash customGetAiRequests sort/status mapping. After: shared sanitizeCustomAIConfig used by both get and set (non-object JSON \u2192 full defaults; object fields coerced/clamped); save wrapped in try/catch; load only merges plain-object entries with string id+status. 5 new tests. AI suite 288\u2192293 tests / 22 suites green. Diff: CustomAIClient.js + tests only (fork-only path), divergence 124/56/7 green, lockfile green, ESLint 0, prettier clean.",
       "commit": "fix(ai): harden custom endpoint config and local request cache"
+    },
+    {
+      "cycle": 41,
+      "target": "Tab-open full fetch works for offline BYOK / local-ai-* without a profile",
+      "metric_delta": "Before: AskAiEditorContainer mount effect used a bare `if (!selectedAiRequest || !profile) return` (AskAiEditorContainer.js:1449), so offline BYOK never refreshed the selected chat on tab open \u2014 UI relied solely on cache freshness; logged-out local-ai-* history could show stale status after a closed tab. After: shared shouldFetchAiRequestOnTabOpen mirrors loadAiRequest (profile OR local-ai-* OR isCustomEndpointEnabled) and userId falls back to LOCAL_BYOK_USER_ID. 5 new pure helper tests. AI suite 293\u2192298 tests / 22 suites green. Diff: AiRequestUtils.js + .spec + AskAiEditorContainer.js only (fork-only path), divergence 124/56/7 green, lockfile green.",
+      "commit": "fix(ai): refresh selected chat on tab open for offline BYOK"
     }
   ],
   "backlog": [
-    "AskAiEditorContainer tab-open full fetch requires profile (AskAiEditorContainer.js:1449) \u2014 offline BYOK relies on cache freshness instead",
     "Suspend hosted path uses userId: profile ? profile.id : '' (AiRequestContext.js:1502) \u2014 empty-string fallback; local-ai-* returns before this line so offline path is safe",
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
     "OnRetryAfterError: consider allowing custom-endpoint ids (non local-ai- prefix) without profile when isCustomEndpointEnabled() \u2014 currently only local-ai- prefix is allowed",
@@ -276,6 +281,7 @@
     "setCustomEndpointConfig must sanitize the merged object before caching \u2014 getCustomEndpointConfig short-circuits on cachedConfig, so unsanitized set values poison the live session even when a later load would be safe",
     "Non-object JSON in localStorage (null/scalars/arrays) must fall back to the full DEFAULT config, not to empty-string baseUrl (normalizeBaseUrl only repairs empty string at request time; enabled with empty baseUrl is a confusing half-state)",
     "loadLocalAiRequests must only merge plain-object entries with string id+status; Object.assign of arrays/null creates cache keys that crash Object.values(...).sort on updatedAt",
-    "saveLocalAiRequests must catch setItem errors \u2014 every create/update/delete path calls it and a quota throw would abort the in-memory operation after the cache write"
+    "saveLocalAiRequests must catch setItem errors \u2014 every create/update/delete path calls it and a quota throw would abort the in-memory operation after the cache write",
+    "Mount-time side effects in AskAiEditorContainer must use shouldFetchAiRequestOnTabOpen (profile | local-ai-* | customEndpoint) \u2014 a bare !profile gate skips offline BYOK even when getAiRequest already routes local ids to the cache"
   ]
 }

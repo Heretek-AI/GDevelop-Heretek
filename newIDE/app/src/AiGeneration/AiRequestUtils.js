@@ -66,6 +66,26 @@ export const canSendAiRequestForSession = (
 ): boolean => !!profile || customEndpointEnabled;
 
 /**
+ * Whether the editor container's mount-time "tab open" full fetch should run
+ * for the currently selected chat. Mirrors AiRequestContext.loadAiRequest:
+ * a profile always can; without one, local-ai-* ids (cache-only) and any id
+ * while a custom endpoint is enabled may fetch. Hosted non-local ids without
+ * a profile and without a custom endpoint are refused (the hosted API would
+ * 401).
+ */
+export const shouldFetchAiRequestOnTabOpen = (options: {|
+  selectedAiRequest: ?{ id: string },
+  profile: ?{ id: string },
+  customEndpointEnabled: boolean,
+|}): boolean => {
+  const { selectedAiRequest, profile, customEndpointEnabled } = options;
+  if (!selectedAiRequest) return false;
+  if (profile) return true;
+  if (selectedAiRequest.id.startsWith('local-ai-')) return true;
+  return customEndpointEnabled;
+};
+
+/**
  * Whether the suggestions side-fetch should run for this session and request
  * state: an agent/orchestrator request that is ready with a project loaded,
  * not mid-send, and allowed for this session (profile or custom endpoint).

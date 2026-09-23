@@ -6,6 +6,7 @@ import {
   aiRequestPollSawActivity,
   canRetryAiRequest,
   canSendAiRequestForSession,
+  shouldFetchAiRequestOnTabOpen,
   shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
 } from './AiRequestUtils';
@@ -365,5 +366,60 @@ describe('shouldFetchAiRequestSuggestions', () => {
         })
       )
     ).toBe(true);
+  });
+});
+
+describe('shouldFetchAiRequestOnTabOpen', () => {
+  const localRequest = { id: 'local-ai-1' };
+  const hostedRequest = { id: 'chat-1' };
+
+  it('refuses when no request is selected', () => {
+    expect(
+      shouldFetchAiRequestOnTabOpen({
+        selectedAiRequest: null,
+        profile: { id: 'user-1' },
+        customEndpointEnabled: false,
+      })
+    ).toBe(false);
+  });
+
+  it('allows a logged-in profile for hosted ids', () => {
+    expect(
+      shouldFetchAiRequestOnTabOpen({
+        selectedAiRequest: hostedRequest,
+        profile: { id: 'user-1' },
+        customEndpointEnabled: false,
+      })
+    ).toBe(true);
+  });
+
+  it('allows local-ai-* chats without a profile (offline BYOK)', () => {
+    expect(
+      shouldFetchAiRequestOnTabOpen({
+        selectedAiRequest: localRequest,
+        profile: null,
+        customEndpointEnabled: false,
+      })
+    ).toBe(true);
+  });
+
+  it('allows any selected chat while a custom endpoint is enabled', () => {
+    expect(
+      shouldFetchAiRequestOnTabOpen({
+        selectedAiRequest: hostedRequest,
+        profile: null,
+        customEndpointEnabled: true,
+      })
+    ).toBe(true);
+  });
+
+  it('refuses hosted non-local ids without a profile or custom endpoint', () => {
+    expect(
+      shouldFetchAiRequestOnTabOpen({
+        selectedAiRequest: hostedRequest,
+        profile: null,
+        customEndpointEnabled: false,
+      })
+    ).toBe(false);
   });
 });

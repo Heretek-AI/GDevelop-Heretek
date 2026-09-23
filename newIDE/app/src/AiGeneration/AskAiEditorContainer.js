@@ -57,6 +57,7 @@ import {
   canSendAiRequestForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
+  shouldFetchAiRequestOnTabOpen,
 } from './AiRequestUtils';
 import { type EditorFunctionCallResult } from '../EditorFunctions';
 import { useStableUpToDateRef } from '../Utils/UseStableUpToDateCallback';
@@ -1443,14 +1444,24 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
 
       // Do a full fetch when the tab is opened to ensure the UI starts with
       // up-to-date server state (e.g. request may have been suspended while
-      // the tab was closed).
+      // the tab was closed). Offline BYOK / local-ai-* chats are cache-only
+      // and must refresh too — a bare `!profile` gate used to skip them.
       React.useEffect(
         () => {
-          if (!selectedAiRequest || !profile) return;
+          if (
+            !shouldFetchAiRequestOnTabOpen({
+              selectedAiRequest,
+              profile,
+              customEndpointEnabled: isCustomEndpointEnabled(),
+            })
+          )
+            return;
+          const aiRequestId = selectedAiRequest ? selectedAiRequest.id : null;
+          if (!aiRequestId) return;
           retryIfFailed({ times: 2 }, () =>
             getAiRequest(getAuthorizationHeader, {
-              userId: profile.id,
-              aiRequestId: selectedAiRequest.id,
+              userId: profile ? profile.id : LOCAL_BYOK_USER_ID,
+              aiRequestId,
             })
           )
             .then(aiRequest => {
