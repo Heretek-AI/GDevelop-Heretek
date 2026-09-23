@@ -672,6 +672,98 @@ describe('CustomAIClient', () => {
       }
     });
 
+    it('fails with a clear error when the model response is not JSON', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: 'Sorry, I cannot help with that request.',
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Move player right',
+      });
+
+      expect(result.creationSucceeded).toBe(false);
+      if (!result.creationSucceeded) {
+        expect(result.errorMessage).toContain('could not be parsed as JSON');
+      }
+    });
+
+    it('fails when generatedEvents is not a JSON list of events', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content:
+                  '```json\n{"operationName":"insert","generatedEvents":"not-a-json-array"}\n```',
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Move player right',
+      });
+
+      expect(result.creationSucceeded).toBe(false);
+      if (!result.creationSucceeded) {
+        expect(result.errorMessage).toContain('generatedEvents');
+      }
+    });
+
+    it('accepts a generatedEvents JSON string array payload', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content:
+                  '```json\n{"operationName":"insert","generatedEvents":' +
+                  JSON.stringify(
+                    JSON.stringify([
+                      { type: 'BuiltinCommonInstructions::Standard' },
+                    ])
+                  ) +
+                  '}\n```',
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Move player right',
+      });
+
+      expect(result.creationSucceeded).toBe(true);
+      if (result.creationSucceeded) {
+        const change = result.aiGeneratedEvent.changes[0];
+        expect(JSON.parse(change.generatedEvents)).toEqual([
+          { type: 'BuiltinCommonInstructions::Standard' },
+        ]);
+      }
+    });
+
     it('provides empty asset and resource search results in BYOK mode', async () => {
       const assetResult = await customCreateAssetSearch({
         searchTerms: 'coin',

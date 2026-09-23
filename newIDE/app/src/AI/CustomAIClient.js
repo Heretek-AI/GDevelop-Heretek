@@ -2782,15 +2782,44 @@ Ensure generatedEvents is a JSON string of standard GDevelop event objects (e.g.
     try {
       changeData = JSON.parse(clean);
     } catch (parseErr) {
-      changeData = {
-        operationName: 'insert',
-        operationTargetEvent: null,
-        generatedEvents: '[]',
-        diagnosticLines: [],
-        undeclaredVariables: [],
-        undeclaredObjectVariables: {},
-        missingObjectBehaviors: {},
-        missingResources: [],
+      // Never report a silent, empty 'success': the editor would insert
+      // nothing while telling the user the generation worked.
+      return {
+        creationSucceeded: false,
+        errorMessage:
+          'The model response could not be parsed as JSON. Try rephrasing the request, lowering the temperature, or using a stronger model.',
+      };
+    }
+
+    // The generatedEvents payload must be a JSON string (or array) holding a
+    // list of events; anything else would corrupt the events sheet.
+    const rawGeneratedEvents = changeData.generatedEvents;
+    let generatedEventsValid = true;
+    let generatedEventsText;
+    if (typeof rawGeneratedEvents === 'string') {
+      generatedEventsText = rawGeneratedEvents;
+      try {
+        const parsedEvents = JSON.parse(rawGeneratedEvents);
+        generatedEventsValid = Array.isArray(parsedEvents);
+      } catch (eventsParseErr) {
+        generatedEventsValid = false;
+      }
+    } else if (Array.isArray(rawGeneratedEvents)) {
+      generatedEventsText = JSON.stringify(rawGeneratedEvents);
+    } else if (
+      rawGeneratedEvents === undefined ||
+      rawGeneratedEvents === null
+    ) {
+      generatedEventsText = '[]';
+    } else {
+      generatedEventsText = JSON.stringify(rawGeneratedEvents);
+      generatedEventsValid = false;
+    }
+    if (!generatedEventsValid) {
+      return {
+        creationSucceeded: false,
+        errorMessage:
+          'The model response did not contain a valid list of generated events (generatedEvents must be a JSON string or array of GDevelop event objects).',
       };
     }
 
@@ -2814,10 +2843,7 @@ Ensure generatedEvents is a JSON string of standard GDevelop event objects (e.g.
           operationName: changeData.operationName || 'insert',
           operationTargetEvent: changeData.operationTargetEvent || null,
           isEventsJsonValid: true,
-          generatedEvents:
-            typeof changeData.generatedEvents === 'string'
-              ? changeData.generatedEvents
-              : JSON.stringify(changeData.generatedEvents || []),
+          generatedEvents: generatedEventsText,
           areEventsValid: true,
           extensionNames: changeData.extensionNames || [],
           diagnosticLines: changeData.diagnosticLines || [],

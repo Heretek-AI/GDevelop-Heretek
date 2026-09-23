@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 5,
+  "last_cycle": 7,
   "completed_targets": [
     {
       "cycle": 1,
@@ -31,6 +31,12 @@
       "target": "Pin Node 20 via .nvmrc to match CI (toolchain hygiene)",
       "metric_delta": "Before: local machine runs Node 26 while all 5 CI jobs use Node 20 \u2014 no in-repo pin, drift risk for dev vs CI. After: .nvmrc with '20' (upstream has none \u2014 new fork-only path, recorded in fork-divergence.json). GitHub Actions inventory audited: all actions current (checkout@v4, setup-node@v4, codeql@v3), no deprecation drift.",
       "commit": "chore(toolchain): pin Node 20 via .nvmrc to match CI"
+    },
+    {
+      "cycle": 7,
+      "target": "Fail loudly on malformed model JSON in customCreateAiGeneratedEvent",
+      "metric_delta": "Before: a non-JSON model response silently produced a successful EMPTY event insert (isEventsJsonValid: true, creationSucceeded: true) \u2014 the user saw 'success' with zero events; a non-array generatedEvents payload went to the sheet unchecked. After: non-JSON responses fail with an actionable message, and generatedEvents (string or array) must parse to a JSON list or generation fails. 3 new tests (invalid JSON, non-list generatedEvents, valid string-array payload). Diff +40/-12 client, 37/37 tests green.",
+      "commit": "fix(ai): reject malformed model JSON in event generation"
     }
   ],
   "backlog": [
