@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 75,
+  "last_cycle": 76,
   "completed_targets": [
     {
       "cycle": 75,
@@ -445,12 +445,18 @@
       "target": "Show Send again label after a failed AI send",
       "metric_delta": "377->380 tests; shouldShowSendAgainLabel drives Send again on new/existing chat buttons when lastSendError set and not working; cleared TODOs in AskAiStandAloneForm/AskAiEditorContainer; 5 files, +56/-4",
       "commit": "fix(ai): show Send again after a failed AI send"
+    },
+    {
+      "cycle": 76,
+      "target": "Surface a first-token wait hint while a local model cold-starts",
+      "metric_delta": "380->384 tests (4 new hook/timer tests + 5 predicate tests); a cold Ollama/LM Studio load leaves the stream silent past COLD_START_HINT_DELAY_MS (15s), so the chat now says it is waiting on the first token instead of leaving an idle chat indistinguishable from a hung one; clears the moment bytes arrive; hidden for hosted requests; no network calls added; 3 files, +259/-1",
+      "commit": "feat(ai): explain a silent local model cold start in the chat"
     }
   ],
   "backlog": [
     "Consider honoring upstream community 3D PRs (#8343-#8349) via cherry-pick if upstream stalls (roadmap B)",
     "Importing AiGeneration/Utils.js in Jest requires mocking EditorFunctions/EditorFunctionCallRunner/UseSearchAndInstall* (Spine/three ESM); consider extracting useAiRequestState deps",
-    "Surface a first-byte wait/loading hint while a local model cold-starts (Ollama) so the idle watchdog is never the first user-visible signal"
+    "Extend the cold-start hint to sub-agent turns and the stand-alone form (LocalColdStartHint is only wired into ChatMessages' working indicator today)"
   ],
   "heuristics": [
     {
@@ -533,6 +539,9 @@
     "Hosted mutation gates must be profile-or-local-ai only — isCustomEndpointEnabled never authorizes hosted rename/suspend/delete for a logged-out session (empty or LOCAL_BYOK userId would still hit Generation)",
     "Affordability gates must accept local session identity (local-ai-* id or local-* userId) alongside the endpoint toggle — canAfford with only isCustomEndpointEnabled still blocks offline BYOK sends when hosted quota is exhausted and the endpoint is off",
     "Pending-create Stop must accept the customHasPendingCreateAiRequest registry as an alternative to the endpoint toggle — requiring endpoint-on alone hides Stop if the user flips the toggle while an Ollama/VRAM create is still hung",
-    "Failed-send UX: setLastSendError must drive a visible Send again label (not only error text) — lastSendError already clears on setSendingAiRequest(true) retry, so gate on hasSendError && !isWorking and never while Stop/cancel is active"
+    "Failed-send UX: setLastSendError must drive a visible Send again label (not only error text) — lastSendError already clears on setSendingAiRequest(true) retry, so gate on hasSendError && !isWorking and never while Stop/cancel is active",
+    "The Edit tool re-indents regions it did not change in these large Flow files (ChatMessages.js: 1384/1326 churn for a 60-line addition) — use python exact-text replacement and verify with `git diff -w --stat` that it matches the plain `--stat`",
+    "Local-model UX timers belong in AiRequestChat/Utils.js as a hook (useLocalColdStartHint) driven by a readHasBytes callback — ChatMessages.js pulls CSS-module imports that Jest cannot parse, so component-level timer tests need the hook extracted, and Utils.js imports are type-only (elided) so it stays lightweight in tests",
+    "Jest specs for hooks/components here use @jest-environment jsdom as the FIRST file comment, react-dom/client createRoot + act from react-dom/test-utils (React 18 removed create from test-utils)"
   ]
 }

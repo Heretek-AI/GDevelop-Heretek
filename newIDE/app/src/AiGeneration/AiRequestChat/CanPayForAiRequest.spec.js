@@ -1,9 +1,18 @@
+/**
+ * @jest-environment jsdom
+ */
 // @flow
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { act } from 'react-dom/test-utils';
 import {
   canPayForAiRequest,
   canAffordAiRequest,
   canCancelPendingCreateAiRequest,
   shouldShowSendAgainLabel,
+  shouldShowLocalColdStartHint,
+  useLocalColdStartHint,
+  COLD_START_HINT_DELAY_MS,
 } from './Utils';
 import {
   type Quota,
@@ -281,5 +290,141 @@ describe('shouldShowSendAgainLabel', () => {
     expect(
       shouldShowSendAgainLabel({ hasSendError: false, isWorking: true })
     ).toBe(false);
+  });
+});
+
+describe('shouldShowLocalColdStartHint', () => {
+  it('explains the wait once a local model has been silent past the delay', () => {
+    expect(
+      shouldShowLocalColdStartHint({
+        isLocalRequest: true,
+        hasBytes: false,
+        elapsedMs: COLD_START_HINT_DELAY_MS,
+      })
+    ).toBe(true);
+  });
+
+  it('stays quiet before the delay so a normal first token is not narrated', () => {
+    expect(
+      shouldShowLocalColdStartHint({
+        isLocalRequest: true,
+        hasBytes: false,
+        elapsedMs: COLD_START_HINT_DELAY_MS - 1,
+      })
+    ).toBe(false);
+  });
+
+  it('clears as soon as the stream produces content', () => {
+    // Once the first token lands, the partial text is the progress indicator;
+    // a "still loading" hint beside it would contradict what is on screen.
+    expect(
+      shouldShowLocalColdStartHint({
+        isLocalRequest: true,
+        hasBytes: true,
+        elapsedMs: COLD_START_HINT_DELAY_MS * 10,
+      })
+    ).toBe(false);
+  });
+
+  it('never shows for a hosted request, which streams its first token promptly', () => {
+    expect(
+      shouldShowLocalColdStartHint({
+        isLocalRequest: false,
+        hasBytes: false,
+        elapsedMs: COLD_START_HINT_DELAY_MS * 10,
+      })
+    ).toBe(false);
+  });
+
+  it('does not fire exactly at the boundary-less zero elapsed time', () => {
+    expect(
+      shouldShowLocalColdStartHint({
+        isLocalRequest: true,
+        hasBytes: false,
+        elapsedMs: 0,
+      })
+    ).toBe(false);
+  });
+});
+
+const Probe = ({ isLocalRequest, readHasBytes }) => {
+  const showHint = useLocalColdStartHint({ isLocalRequest, readHasBytes });
+  return showHint ? <span>SHOWING</span> : null;
+};
+
+const renderProbe = (props: Object) => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  act(() => {
+    root.render(<Probe {...props} />);
+  });
+  return { container, root };
+};
+
+describe('useLocalColdStartHint', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('shows the hint only after the model has been silent past the delay', () => {
+    const { container } = renderProbe({
+      isLocalRequest: true,
+      readHasBytes: () => false,
+    });
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS - 1000);
+    });
+    expect(container.textContent).toBe('');
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(container.textContent).toBe('SHOWING');
+  });
+
+  it('clears the hint as soon as the stream produces bytes', () => {
+    let hasBytes = false;
+    const { container } = renderProbe({
+      isLocalRequest: true,
+      readHasBytes: () => hasBytes,
+    });
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS);
+    });
+    expect(container.textContent).toBe('SHOWING');
+    hasBytes = true;
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(container.textContent).toBe('');
+  });
+
+  it('never shows for a hosted request, however long it waits', () => {
+    const { container } = renderProbe({
+      isLocalRequest: false,
+      readHasBytes: () => false,
+    });
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS * 5);
+    });
+    expect(container.textContent).toBe('');
+  });
+
+  it('stops polling once unmounted, so a settled chat leaves no timer behind', () => {
+    const readHasBytes = jest.fn(() => false);
+    const { root } = renderProbe({ isLocalRequest: true, readHasBytes });
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+    const callsWhileMounted = readHasBytes.mock.calls.length;
+    act(() => {
+      root.unmount();
+    });
+    act(() => {
+      jest.advanceTimersByTime(10000);
+    });
+    expect(readHasBytes.mock.calls.length).toBe(callsWhileMounted);
   });
 });

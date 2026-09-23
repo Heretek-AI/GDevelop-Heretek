@@ -1,4 +1,5 @@
 // @flow
+import * as React from 'react';
 import {
   type AiRequestMessageAssistantFunctionCall,
   type AiRequestAssistantMessage,
@@ -187,3 +188,79 @@ export const shouldShowSendAgainLabel = ({
   hasSendError: boolean,
   isWorking: boolean,
 |}): boolean => hasSendError && !isWorking;
+
+/**
+ * How long a local model may produce nothing before the chat explains why:
+ * a cold Ollama/LM Studio start (loading weights into VRAM, or swapping a
+ * model back in) is tens of seconds of silence on a stream that has not
+ * produced its first token. Below this the generic "Thinking..." rotation is
+ * the honest description; above it, silence is a fact the user should see
+ * rather than a hang they have to guess at.
+ */
+export const COLD_START_HINT_DELAY_MS = 15000;
+
+/**
+ * Whether to explain a silent local model start.
+ *
+ * Only meaningful for a request that runs on the user's own endpoint: the
+ * hosted API streams promptly, so a wait there means something else. `hasBytes`
+ * is true once the stream has produced any content, at which point the partial
+ * text itself is the progress indicator and a "still loading" hint would be
+ * wrong. The elapsed time is measured from when the turn started, not from the
+ * last chunk — this describes the *first* token, which is the one a cold local
+ * model withholds.
+ */
+export const shouldShowLocalColdStartHint = ({
+  isLocalRequest,
+  hasBytes,
+  elapsedMs,
+}: {|
+  isLocalRequest: boolean,
+  hasBytes: boolean,
+  elapsedMs: number,
+|}): boolean =>
+  isLocalRequest && !hasBytes && elapsedMs >= COLD_START_HINT_DELAY_MS;
+
+/**
+ * Drives shouldShowLocalColdStartHint on a timer.
+ *
+ * Kept out of the component so the timing contract is testable without
+ * rendering the chat (whose CSS-module imports need the app's webpack loader).
+ * `readHasBytes` is a function, not a value: the partial content lives in the
+ * client's per-request registry, which is polled rather than subscribed to, so
+ * the hook must keep reading it while it runs.
+ *
+ * Re-checks on a one-second interval instead of a one-shot timer: the wait that
+ * matters is "how long since the first token should have arrived", so the hook
+ * has to notice the tokens *arriving* and clear itself, not just fire once.
+ */
+export const useLocalColdStartHint = ({
+  isLocalRequest,
+  readHasBytes,
+}: {|
+  isLocalRequest: boolean,
+  readHasBytes: () => boolean,
+|}): boolean => {
+  const [showHint, setShowHint] = React.useState(false);
+  React.useEffect(
+    () => {
+      if (!isLocalRequest) {
+        setShowHint(false);
+        return undefined;
+      }
+      const startedAt = Date.now();
+      const interval = setInterval(() => {
+        setShowHint(
+          shouldShowLocalColdStartHint({
+            isLocalRequest,
+            hasBytes: readHasBytes(),
+            elapsedMs: Date.now() - startedAt,
+          })
+        );
+      }, 1000);
+      return () => clearInterval(interval);
+    },
+    [isLocalRequest, readHasBytes]
+  );
+  return showHint;
+};

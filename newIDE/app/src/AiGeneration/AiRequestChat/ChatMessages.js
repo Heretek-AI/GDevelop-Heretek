@@ -48,7 +48,7 @@ import { type FunctionCallItem, type RenderItem } from './Utils';
 import { DislikeFeedbackDialog } from './DislikeFeedbackDialog';
 import { AiRequestErrorRow } from './AiRequestErrorRow';
 import { AiCreditsLimitRow } from './AiCreditsLimitRow';
-import { canPayForAiRequest } from './Utils';
+import { canPayForAiRequest, useLocalColdStartHint } from './Utils';
 import Text from '../../UI/Text';
 import { ColumnStackLayout, LineStackLayout } from '../../UI/Layout';
 import Floppy from '../../UI/CustomSvgIcons/Floppy';
@@ -87,6 +87,38 @@ const PartialStreamText = ({ aiRequestId }: {| aiRequestId: string |}) => {
   return (
     <Text noMargin displayInlineAsSpan size="body-small" color="secondary">
       {tail}
+    </Text>
+  );
+};
+
+/**
+ * Explains a silent local model start. A cold Ollama/LM Studio load can hold
+ * the stream quiet for tens of seconds, and until the first token arrives the
+ * rotating "Thinking..." phrases are the only signal the user has — an idle
+ * chat looks identical to a hung one. This says what is actually happening
+ * during that first-token window, and clears itself as soon as bytes arrive.
+ *
+ * Hidden for hosted requests, whose first token is prompt.
+ */
+const LocalColdStartHint = ({
+  aiRequestId,
+  isLocalRequest,
+}: {|
+  aiRequestId: string,
+  isLocalRequest: boolean,
+|}) => {
+  const showHint = useLocalColdStartHint({
+    isLocalRequest,
+    readHasBytes: () => !!customGetAiRequestPartialContent(aiRequestId),
+  });
+  if (!showHint) return null;
+  return (
+    <Text noMargin displayInlineAsSpan size="body-small" color="secondary">
+      {' '}
+      <Trans>
+        Still waiting for the first token — a local model may be loading into
+        memory. This can take a minute.
+      </Trans>
     </Text>
   );
 };
@@ -1412,6 +1444,10 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
               </Text>
             </div>
             <PartialStreamText aiRequestId={aiRequest.id} />
+            <LocalColdStartHint
+              aiRequestId={aiRequest.id}
+              isLocalRequest={aiRequest.id.startsWith('local-ai-')}
+            />
           </Line>
         ) : null}
 
