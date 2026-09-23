@@ -7,6 +7,7 @@ import {
   canRetryAiRequest,
   canSendAiRequestForSession,
   canUseEditorAiTools,
+  canStartAiRequestCreate,
   shouldFetchAiRequestOnTabOpen,
   shouldFetchAiRequestSuggestions,
   MAX_AI_REQUEST_RETRIES_IN_A_ROW,
@@ -562,5 +563,22 @@ describe('canUseEditorAiTools', () => {
   it('allows local/BYOK without a profile when the endpoint is on', () => {
     expect(canUseEditorAiTools(null, true)).toBe(true);
     expect(canUseEditorAiTools(undefined, true)).toBe(true);
+  });
+});
+
+describe('canStartAiRequestCreate', () => {
+  it('allows a logged-in profile with or without the custom endpoint', () => {
+    expect(canStartAiRequestCreate({ id: 'user-1' }, false)).toBe(true);
+    expect(canStartAiRequestCreate({ id: 'user-1' }, true)).toBe(true);
+  });
+
+  it('allows offline local BYOK create (no profile, endpoint off)', () => {
+    expect(canStartAiRequestCreate(null, false)).toBe(true);
+    expect(canStartAiRequestCreate(undefined, false)).toBe(true);
+  });
+
+  it('allows local/BYOK create without a profile when the endpoint is on', () => {
+    expect(canStartAiRequestCreate(null, true)).toBe(true);
+    expect(canStartAiRequestCreate(undefined, true)).toBe(true);
   });
 });

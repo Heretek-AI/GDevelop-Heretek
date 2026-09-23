@@ -145,6 +145,29 @@ export const canUseEditorAiTools = (
 };
 
 /**
+ * Whether a new AI request may be created for this session (the stand-alone
+ * form and the editor container's create effect).
+ *
+ * Always allowed: a profile uses the hosted API when the custom endpoint is
+ * off (or the local client when it is on). Without a profile the forms set
+ * activeUserId to LOCAL_BYOK_USER_ID ('local-byok-user'), which Generation
+ * and prepareAiUserContent dual-gate onto the offline client — so create
+ * must not open the account dialog first.
+ *
+ * The old `!profile && !customEndpointEnabled` account-dialog gate blocked
+ * new local chats after logout / endpoint toggle-off even though cycles 64–66
+ * already list, send, and watch those sessions offline.
+ */
+export const canStartAiRequestCreate = (
+  profile: ?{ id: string },
+  customEndpointEnabled: boolean
+): boolean => {
+  if (profile) return true;
+  // Logged-out create uses LOCAL_BYOK_USER_ID → Generation local path.
+  return customEndpointEnabled || !profile;
+};
+
+/**
  * Whether the editor container's mount-time "tab open" full fetch should run
  * for the currently selected chat. Mirrors AiRequestContext.loadAiRequest:
  * a profile always can; without one, local-ai-* ids (cache-only) and any id

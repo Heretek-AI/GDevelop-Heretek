@@ -26,6 +26,7 @@ import {
   getStandaloneCreateOutcome,
   canRetryAiRequestForSession,
   canSendAiRequestForSession,
+  canStartAiRequestCreate,
   canSendFeedbackForSession,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
@@ -290,7 +291,7 @@ export const AskAiStandAloneForm = ({
         if (!newAiRequestOptions) return;
         console.info('Starting a new AI request...');
 
-        if (!profile && !isCustomEndpointEnabled()) {
+        if (!canStartAiRequestCreate(profile, isCustomEndpointEnabled())) {
           onOpenCreateAccountDialog();
           startNewAiRequest(null);
           return;

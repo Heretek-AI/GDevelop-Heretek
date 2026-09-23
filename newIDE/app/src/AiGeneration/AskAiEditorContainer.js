@@ -59,6 +59,7 @@ import {
   canSendFeedbackForSession,
   aiRequestHasWorkInProgress,
   canSendAiRequestForSession,
+  canStartAiRequestCreate,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
   shouldFetchAiRequestOnTabOpen,
@@ -638,7 +639,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             if (!newAiRequestOptions) return;
             console.info('Starting a new AI request...');
 
-            if (!profile && !isCustomEndpointEnabled()) {
+            if (!canStartAiRequestCreate(profile, isCustomEndpointEnabled())) {
               onOpenCreateAccountDialog();
               startNewAiRequest(null);
               return;
