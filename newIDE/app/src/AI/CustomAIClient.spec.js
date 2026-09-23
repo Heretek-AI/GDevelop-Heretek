@@ -1980,6 +1980,34 @@ describe('CustomAIClient', () => {
       expect(forked.output.length).toBe(aiRequest.output.length);
     });
 
+    it('clears the source error and copies the model override on fork', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'Seed' } }],
+        },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Errored parent',
+      });
+      customSetAiRequestModelOverride(aiRequest.id, 'deepseek-chat');
+      customUpdateAiRequest({
+        ...customGetAiRequest(aiRequest.id),
+        status: 'error',
+        error: { code: 'server_error', message: 'boom' },
+      });
+
+      const forked = customForkAiRequest(aiRequest.id);
+      expect(forked.id).not.toBe(aiRequest.id);
+      expect(forked.status).toBe('ready');
+      expect(forked.error).toBeNull();
+      expect(customGetAiRequestModelOverride(forked.id)).toBe('deepseek-chat');
+      expect(customGetAiRequestModelOverride(aiRequest.id)).toBe(
+        'deepseek-chat'
+      );
+    });
+
     it('patches title and archived attributes on a local request', async () => {
       // $FlowFixMe
       axios.post.mockResolvedValueOnce({

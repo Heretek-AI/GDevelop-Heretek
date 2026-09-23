@@ -3611,6 +3611,12 @@ export const customForkAiRequest = (
   }
 
   const now = new Date().toISOString();
+  // Clear any terminal error from the source chat: a fork starts ready. Keep
+  // the per-request model override so the fork continues on the same model.
+  const modelOverride = localAiRequestModelOverrides[aiRequestId];
+  if (modelOverride) {
+    localAiRequestModelOverrides[newReqId] = modelOverride;
+  }
   const forked: AiRequest = {
     ...(original || {}),
     id: newReqId,
@@ -3618,6 +3624,7 @@ export const customForkAiRequest = (
     updatedAt: now,
     userId: LOCAL_BYOK_USER_ID,
     status: 'ready',
+    error: null,
     forkedFromAiRequestId: aiRequestId,
     output,
   };

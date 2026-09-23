@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 51,
+  "last_cycle": 52,
   "completed_targets": [
     {
       "cycle": 1,
@@ -301,6 +301,12 @@
       "target": "First-turn customCreateAiRequest threw without caching \u2014 no transcript, no error-row Retry for offline cold-start failures",
       "metric_delta": "create catch persists status:'error' (or suspended on abort) + user message to cache and RETURNS failed; 2 new tests; AI suite 316/316",
       "commit": "fix(ai): persist failed first-turn local creates so Retry can continue"
+    },
+    {
+      "cycle": 52,
+      "target": "customForkAiRequest spread kept a stale source error and dropped the per-request model override",
+      "metric_delta": "fork now sets error:null and copies localAiRequestModelOverrides; 1 new test; AI suite 317/317",
+      "commit": "fix(ai): clear error and copy model override when forking a local request"
     }
   ],
   "backlog": [
@@ -355,6 +361,7 @@
     "Retry session gate is canRetryAiRequestForSession(profile, id): profile OR local-ai-* only \u2014 non-local ids without profile must stay refused because Generation.retryAiRequest only short-circuits local-ai-* and otherwise hits hosted /action/retry which requires a userId",
     "AskAiStandAloneForm onStop must call context suspendAiRequest (returns Promise<void>, already optimistic-updates status and aborts local turns) \u2014 a no-op onStop left the Stop button spinning without cancelling BYOK generation",
     "Local customAddMessageToAiRequest must RETURN a status:'error' AiRequest on non-abort model failure (persisting local output for continue) \u2014 throwing left React status ready so canRetryAiRequest/ErrorRow never appeared for ordinary Ollama/LM Studio failures",
-    "customCreateAiRequest must cache+return the request on non-abort first-turn failure (status:'error' + user message in output) \u2014 throwing left no chat transcript and no canRetryAiRequest surface for Ollama cold-start / offline first sends"
+    "customCreateAiRequest must cache+return the request on non-abort first-turn failure (status:'error' + user message in output) \u2014 throwing left no chat transcript and no canRetryAiRequest surface for Ollama cold-start / offline first sends",
+    "customForkAiRequest must set error:null and copy localAiRequestModelOverrides[from]\u2192[to] \u2014 spreading a status:ready copy of an errored source left a non-null error field and silently reset the model override"
   ]
 }
