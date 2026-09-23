@@ -81,6 +81,34 @@ jobs:
           echo "sync_branch=$SYNC_BRANCH" >> $GITHUB_OUTPUT
           echo "merge_success=$MERGE_SUCCESS" >> $GITHUB_OUTPUT
 
+      - name: Verify fork divergence is unchanged by the sync
+        # A sync merge can silently re-introduce upstream copies of files the
+        # fork deliberately deletes or modifies (it is how
+        # Extensions/Physics3DBehavior/tests/Physics3DRuntimeBehavior.spec.js
+        # was deleted by hand and how the obsolete wavesurfer patch keeps
+        # coming back). `fork-divergence.json` is the checked-in allowlist of
+        # intended divergence; this step reports any drift instead of letting
+        # it reach a reviewer as a mystery diff. Informational only: the
+        # reviewer decides whether to record the drift or revert it.
+        if: steps.check_diff.outputs.commits_count != '0'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if node scripts/check-fork-divergence.js; then
+            echo "Divergence matches fork-divergence.json."
+          else
+            {
+              echo "### Fork divergence changed in this sync"
+              echo ""
+              echo "The sync introduced or removed divergence not recorded in"
+              echo "\`fork-divergence.json\`. Review the list above, then either"
+              echo "record it (\`node scripts/check-fork-divergence.js --update\`)"
+              echo "or revert the accidental part before merging."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Fork divergence changed; see the job summary."
+          fi
+
       - name: Open or Update Sync PR
         if: steps.check_diff.outputs.commits_count != '0'
         run: |

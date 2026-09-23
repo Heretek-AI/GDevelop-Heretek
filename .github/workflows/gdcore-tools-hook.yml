@@ -9,13 +9,17 @@ on:
   release:
     types: [published]
 
+# Minimal least-privilege permissions: dispatches to another repository
+# using a PAT, so the default GITHUB_TOKEN needs no write scope.
+permissions:
+  contents: read
 jobs:
   dispatch-event:
     if: github.repository == '4ian/GDevelop'
     runs-on: ubuntu-latest
     steps:
       - name: Repository Dispatch
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
         with:
           token: ${{ secrets.GDCORE_TOOLS_PAT }}
           repository: arthuro555/gdcore-tools

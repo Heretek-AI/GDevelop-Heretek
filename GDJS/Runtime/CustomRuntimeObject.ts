@@ -1,4 +1,3 @@
-// nosonar: typescript:S4335 -- intersection with any is intentional for runtimeobject flexibility
 /*
  * GDevelop JS Platform
  * Copyright 2013-2022 Florian Rival (Florian.Rival@gmail.com). All rights reserved.
@@ -20,7 +19,7 @@ namespace gdjs {
   export type CustomObjectConfiguration = ObjectConfiguration & {
     animatable?: SpriteAnimationData[];
     variant: string;
-    childrenContent?: { [objectName: string]: ObjectConfiguration & any };
+    childrenContent?: { [objectName: string]: ObjectConfiguration & any }; // nosonar: typescript:S4335 -- the `& any` is intentional: a custom object's children carry arbitrary per-object configuration.
     isInnerAreaFollowingParentSize: boolean;
   };
 

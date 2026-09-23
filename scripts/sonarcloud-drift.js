@@ -14,6 +14,15 @@
  *   node scripts/sonarcloud-drift.js                 # report current count
  *   node scripts/sonarcloud-drift.js --update-baseline   # record new baseline
  *   node scripts/sonarcloud-drift.js --max-growth-pct=10  # custom threshold
+ *
+ * CI contract (consumed by .github/workflows/fallow.yml):
+ *   exits 0  and writes `count=<n>` + `baseline=<n|-> to $GITHUB_OUTPUT
+ *   exits 1  when growth exceeds the threshold
+ *   exits 2  on a fatal error (network/parse)
+ *
+ * The baseline file is committed. When it is missing, this script seeds it
+ * from the current count and records that it did so in `seeded=true`, so a
+ * fresh checkout never fails the first run for lack of a baseline.
  */
 
 const fs = require('fs');
@@ -36,6 +45,13 @@ function parseArgs(argv) {
     }
   }
   return args;
+}
+
+function writeGithubOutput(fields) {
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (!outputPath) return;
+  const lines = Object.keys(fields).map(key => `${key}=${fields[key]}`);
+  fs.appendFileSync(outputPath, lines.join('\n') + '\n');
 }
 
 function fetchOpenCount() {
@@ -96,27 +112,40 @@ async function main() {
   if (args.updateBaseline) {
     writeBaseline(count);
     console.log(`Wrote baseline to ${BASELINE_PATH}`);
+    writeGithubOutput({ count, baseline: count, seeded: 'true' });
     return;
   }
 
-  if (baseline) {
-    const baseCount = baseline.count;
-    const delta = count - baseCount;
-    const pct = ((delta / baseCount) * 100).toFixed(2);
-    console.log(`Baseline: ${baseCount} (recorded ${baseline.recordedAt})`);
-    console.log(`Delta: ${delta > 0 ? '+' : ''}${delta} (${pct}%)`);
-    if (delta > 0 && parseFloat(pct) > args.maxGrowthPct) {
-      console.error(
-        `\nERROR: open-issue count grew by ${pct}% (>${args.maxGrowthPct}% threshold)`
-      );
-      console.error(`       See SONARCLOUD_REMEDIATION_PLAN.md for suppressions.`);
-      process.exit(1);
-    }
-  } else {
+  // No baseline committed yet (fresh checkout or first run after a reset):
+  // seed it rather than failing, and say so loudly so it gets committed.
+  if (!baseline) {
+    writeBaseline(count);
     console.log(
-      `No baseline found at ${BASELINE_PATH}; skipping growth check.`
+      `No baseline found at ${BASELINE_PATH}; seeded it with ${count}.`
     );
-    console.log(`Run with --update-baseline to record the current count.`);
+    console.log(
+      `Commit .sonarcloud-drift-baseline so subsequent runs compare against it.`
+    );
+    writeGithubOutput({ count, baseline: count, seeded: 'true' });
+    return;
+  }
+
+  const baseCount = baseline.count;
+  const delta = count - baseCount;
+  const pct = ((delta / baseCount) * 100).toFixed(2);
+  console.log(`Baseline: ${baseCount} (recorded ${baseline.recordedAt})`);
+  console.log(`Delta: ${delta > 0 ? '+' : ''}${delta} (${pct}%)`);
+
+  writeGithubOutput({ count, baseline: baseCount, seeded: 'false' });
+
+  if (delta > 0 && parseFloat(pct) > args.maxGrowthPct) {
+    console.error(
+      `\nERROR: open-issue count grew by ${pct}% (>${args.maxGrowthPct}% threshold)`
+    );
+    console.error(
+      `       See MAINTENANCE.md ("Static analysis") before relaxing this.`
+    );
+    process.exit(1);
   }
 }
 

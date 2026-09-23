@@ -79,8 +79,7 @@ return functionArguments ?
   if (options.logCode) console.log(fullCode);
 
   // Create a "real" JavaScript function with the generated code.
-  // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
-  const runCompiledEventsFunction = new Function(
+  const runCompiledEventsFunction = new Function( // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
     'gdjs',
     'runtimeScene',
     'functionArguments',
@@ -91,8 +90,7 @@ return functionArguments ?
 }
 
 const generatedEventsCodeToJSFunction = (code, gdjs, runtimeScene) => {
-  // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
-  const func = new Function(
+  const func = new Function( // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
     'gdjs',
     'runtimeScene',
     'functionArguments',
@@ -107,7 +105,7 @@ const generatedEventsCodeToJSFunction = (code, gdjs, runtimeScene) => {
   return functionNamespace.func(runtimeScene, ...functionArguments, runtimeScene);`
   );
 
-  return (...args) => func(gdjs, runtimeScene, args);
+  return (...args) => func(gdjs, runtimeScene, args); // nosonar: javascript:S1523 -- calls the function compiled by the `new Function` above; this test helper compiles generated event code in a controlled test environment.
 };
 
 /**
@@ -160,8 +158,7 @@ function generateCompiledEventsForEventsBasedBehavior(
   }
 
   // Create a function returning the generated behavior.
-  // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
-  const compiledBehavior = new Function(
+  const compiledBehavior = new Function( // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
     'gdjs',
     `"use strict";
      let behaviorNamespace = {};
@@ -227,8 +224,7 @@ function generateCompiledEventsForEventsBasedObject(
   objectMethodMangledNames.delete();
 
   // Create a function returning the generated object.
-  // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
-  const compiledObject = new Function(
+  const compiledObject = new Function( // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
     'gdjs',
     `"use strict";
      let objectNamespace = {};
@@ -464,8 +460,7 @@ function generateCompiledEventsForLayout(gd, project, layout, logCode = false) {
   if (logCode) console.log(code);
 
   // Create a function running the generated code.
-  // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
-  const compiledFunction = new Function(
+  const compiledFunction = new Function( // nosonar: javascript:S1523 -- new Function() is intentional; this test helper compiles generated event code in a controlled test environment.
     'gdjs',
     'runtimeScene',
     `"use strict";

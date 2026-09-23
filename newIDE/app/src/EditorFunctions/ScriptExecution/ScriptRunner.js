@@ -206,14 +206,7 @@ const evaluateScript = ({
   ].join('\n');
 
   // eslint-disable-next-line no-new-func
-  // nosonar: javascript:S1523 — `new Function` is intentional here. The
-  // script source comes from our own backend LLM (see file header). The
-  // shadowing of browser globals above is hygiene, not security: the
-  // script can do no more than the LLM itself can via tool calls.
-  // TODO(security): swap for a Worker / QuickJS-WASM sandbox when
-  // third-party prompts ever run through this code path.
-  // eslint-disable-next-line no-new-func
-  const scriptFunction: any = new Function(
+  const scriptFunction: any = new Function( // nosonar: javascript:S1523 — new Function is intentional: the script source comes from our own backend LLM, the browser globals it needs are shadowed above, and the script can do no more than the LLM already can via tool calls.
     // $FlowFixMe[incompatible-type] - the Function constructor accepts parameter names then the body.
     ...[...parameterNames, functionBody]
   );
@@ -221,9 +214,9 @@ const evaluateScript = ({
 
   // Promise.resolve so that a synchronously thrown error is also converted
   // into a rejected promise by the caller's try/catch on await.
-  // nosonar: javascript:S1523 — the scriptFunction is the result of
-  // `new Function` above; see the rationale comment there.
-  return Promise.resolve(scriptFunction(...scopedArguments));
+  return Promise.resolve(
+    scriptFunction(...scopedArguments) // nosonar: javascript:S1523 — invokes the function compiled by `new Function` above.
+  );
 };
 
 export const executeScript = async ({

@@ -1,14 +1,34 @@
 # CodeQL configuration for this fork.
 #
-# Paths to analyse live here (not in the workflow file) because
-# `paths` is a setting of the CodeQL config file, not a direct input to
-# `github/codeql-action/init`. See
-# https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/customizing-code-scanning
-# for the supported inputs.
+# !!! THIS FILE IS NOT READ BY THE CURRENT CODE SCANNING SETUP !!!
 #
-# Only the JS/TS sources that ship user-facing code are scanned. The C++
-# tree (Core/, GDJS/Runtime/Cpp*, etc.) is covered by separate tools in
-# .circleci/config.yml and excluded here to avoid duplicate findings.
+# This repository uses CodeQL *default setup* (verified: the code scanning
+# configuration lists languages actions, c-cpp, javascript, python and
+# typescript with the `extended` query suite). Default setup does NOT read a
+# repository's `.github/codeql-config.yml`; it only honours a config file
+# named by the `github-codeql-config-file` *repository property*, which must
+# be created at the organisation level and is currently unset (the org
+# exposes no custom properties).
+#
+# Evidence that this file is inert: it lists `**/__tests__/**` under
+# `paths-ignore`, yet code scanning reports an open alert inside
+# `GDevelop.js/__tests__/ExpressionCompletionFinder.spec.js` and inside
+# `GDJS/tests/games/iframe-playground/*.html`.
+#
+# The `paths` list below is therefore documentation of intent, not enforcement.
+# Two ways to make it real, pick one when it matters:
+#
+#   1. Create the org repository property so default setup picks this file up:
+#        gh api --method PATCH orgs/Heretek-AI/properties/schema \
+#          -f 'properties[][property_name]=github-codeql-config-file' ...
+#      then set it per repository to `.github/codeql-config.yml`. Requires org
+#      admin; see GitHub's "Repository properties for code scanning".
+#   2. Switch code scanning to advanced setup (a workflow that calls
+#      `github/codeql-action/init` with `config-file:`). More moving parts and
+#      a workflow to maintain on every sync.
+#
+# Until then, exclude paths by fixing the alerts or dismissing them with a
+# reason in the Security tab, not by editing this file.
 
 name: "GDevelop Heretek JS/TS security-and-quality"
 paths:

@@ -2,10 +2,11 @@
 #
 # What this runs:
 #   1. Lockfile security guard (scripts/security/check-lockfiles.js).
-#   2. libGD.js (Emscripten) build, once, then shared via artifact.
-#   3. Jest test suites in newIDE/app and GDevelop.js, both consuming the
+#   2. Fork-divergence guard (scripts/check-fork-divergence.js).
+#   3. libGD.js (Emscripten) build, once, then shared via artifact.
+#   4. Jest test suites in newIDE/app and GDevelop.js, both consuming the
 #      build output.
-#   4. Lint + Flow type checks for newIDE/app.
+#   5. Lint + Flow type checks for newIDE/app.
 #
 # Karma/Mocha tests for GDJS and SharedLibs/TileMapHelper require a
 # headless browser and are run in the dedicated CI jobs in
@@ -43,6 +44,29 @@ jobs:
           node-version: "20"
       - name: Run guard
         run: node scripts/security/check-lockfiles.js
+
+  fork-divergence:
+    name: Fork divergence guard
+    # Keeps the fork's divergence from 4ian/GDevelop bounded and deliberate.
+    # `fork-divergence.json` is the checked-in allowlist; this job fails when a
+    # path diverges that is not listed (new, undecided divergence) or when a
+    # listed path no longer diverges (stale entry). Without it, divergence only
+    # surfaces as a merge conflict on the next upstream sync.
+    #
+    # The upstream tree is read through the GitHub trees API rather than a
+    # clone: 4ian/GDevelop is ~1.7 GB and this job runs on every PR.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Compare against upstream 4ian/GDevelop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-fork-divergence.js
 
   lockfile-sync:
     name: Lockfile sync (all manifests)

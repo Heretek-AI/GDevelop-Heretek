@@ -3812,8 +3812,7 @@ namespace gdjs {
       // Compile the script first, so a syntax error is reported cleanly.
       let scriptFunction: Function;
       try {
-        // nosonar: typescript:S1523 -- new Function() is intentional; this test runner compiles user-provided gameplay scripts in a sandboxed environment.
-        scriptFunction = new Function(
+        scriptFunction = new Function( // nosonar: typescript:S1523 -- new Function() is intentional; this test runner compiles user-provided gameplay scripts in a sandboxed environment.
           'harness',
           'console',
           '"use strict"; return (async () => {\n' + source + '\n})();'
@@ -3966,7 +3965,7 @@ namespace gdjs {
         if (harness._onProgress) harness._onProgress(0);
         try {
           await Promise.race([
-            scriptFunction(harness, scriptConsole),
+            scriptFunction(harness, scriptConsole), // nosonar: typescript:S1523 -- calls the function compiled by `new Function` above; user-provided gameplay scripts run in a sandboxed environment.
             watchdog,
             stopSignal,
           ]);

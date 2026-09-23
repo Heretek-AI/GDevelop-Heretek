@@ -280,7 +280,6 @@ mkdir -p .build-tests && cd .build-tests && cmake .. && make clang-format
 > and `npm run check-types` reports 322 errors, 305 of them `THREE` (`Cannot find namespace 'THREE'` /
 > `Property 'X' does not exist on type '{}'`) across `Extensions/3D`, `GDJS/Runtime/pixi-renderers`, etc.;
 > the remaining 17 are pre-existing Spine / pixi typings mismatches.
-> `DEPENDABOT_PR_REMEDIATION_PLAN.md` line 22 records the same class of failure ("8258 errors ... 0 new").
 > Neither check is gated by the fork's `.github/workflows/ci.yml` — that job runs `check-format` and
 > `check-types` inside `newIDE/app` only; `.semaphore/semaphore.yml` does gate `GDJS check-types`. Diff
 > against this baseline before blaming your change.
@@ -351,7 +350,16 @@ clang-tidy, ASan/UBSan, visual tests).
 
 ## Fork Divergence
 
-**This fork differs from upstream in a few concentrated places.** Expect merge conflicts there.
+**This fork differs from upstream in 164 paths out of ~6,700.** Expect merge conflicts there.
+
+**`fork-divergence.json` is the authoritative allowlist** of every path the fork intentionally diverges
+on, in three buckets (`modified` 110, `forkOnly` 54, `upstreamMissing` 7). It is generated and enforced by
+`scripts/check-fork-divergence.js`: the `fork-divergence` job in `.github/workflows/ci.yml` fails when a
+path diverges that is not listed, or when a listed path stops diverging. Run
+`node scripts/check-fork-divergence.js` after any change that touches upstream-owned files, and
+`--update` (committing the manifest in the same commit) when the divergence is intended. See
+[MAINTENANCE.md](MAINTENANCE.md) for the full procedure and for why `upstreamMissing` is the bucket that
+silently breaks syncs.
 
 **BYOK / local AI** — `newIDE/app/src/AI/CustomAIClient.js` (fork-only directory; ~2145 lines: config in
 localStorage under `gd-custom-ai-config`, the `GDEVELOP_OPENAI_TOOLS` schema, `transformGDevelopMessagesToOpenAi`,
@@ -380,6 +388,8 @@ preview), `MainFrame/EditorContainers/DebuggerEditorContainer.js`.
    `src/AI/CustomAIClient.js`, `src/AI/CustomAIClient.spec.js`, `src/AiGeneration/AiConfiguration.js`,
    `src/MainFrame/Preferences/PreferencesDialog.js`, `src/MainFrame/Preferences/PreferencesProvider.js`.
    **Renaming or moving those five paths silently disables the guard.**
+4. verifies fork divergence against `fork-divergence.json` (informational, via the step
+   `Verify fork divergence is unchanged by the sync`).
 
 Also note: `extract-translations.yml`, `update-translations.yml`, `update-extension-translations.yml` and
 `gdcore-tools-hook.yml` are guarded by `if: github.repository == '4ian/GDevelop'` and **never run here** —
@@ -399,6 +409,10 @@ Cite these rather than inventing behaviour:
 - `newIDE/docs/Supported-JavaScript-features-and-coding-style.md` — the garbage-free engine rules.
 - `GDJS/README.md`, `GDJS/tests/README.md`, `GDevelop.js/README.md` — engine, tests, bindings.
 - `BUILD.md`, `SECRETS.md`, `KNOWN_VULNS.md` — fork build/security policy.
+- `MAINTENANCE.md` — **how to keep this fork maintainable**: fork-divergence policy and the guard that
+  enforces it, the fallow and SonarCloud scopes, what to fix vs. leave in each scanner, and the upstream
+  sync procedure. Read it before editing `.fallow.toml`, `.sonarcloud.properties`,
+  `fork-divergence.json`, or `.github/workflows/`.
 - `Extensions/README.md`, `newIDE/README-themes.md`, `newIDE/visual-tests/README.md`.
 - Root `scripts/README.md` is **partially stale** — it references `ReleaseProcedure.{bat,sh}` and
   `CopyWindowsToLinuxReleaseFiles.sh`, which do not exist in this checkout.

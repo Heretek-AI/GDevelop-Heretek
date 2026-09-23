@@ -688,9 +688,7 @@ namespace gdjs {
         }
 
         // Tell the Lobbies iframe that the lobby has been left.
-// explains message is not sensitive and easy debugging is desired)
-        // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
-        lobbiesIframe.contentWindow.postMessage(
+        lobbiesIframe.contentWindow.postMessage( // nosonar: typescript:S2819 — wildcard target origin is intentional: the message is not sensitive and a wildcard allows easy debugging.
           {
             id: 'lobbyLeft',
           },
@@ -847,11 +845,9 @@ namespace gdjs {
 
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
         return;
-// explains message is not sensitive and easy debugging is desired)
       }
 
-      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
-      lobbiesIframe.contentWindow.postMessage(
+      lobbiesIframe.contentWindow.postMessage( // nosonar: typescript:S2819 — wildcard target origin is intentional: the message is not sensitive and a wildcard allows easy debugging.
         {
           id: 'lobbyUpdated',
           positionInLobby,
@@ -881,13 +877,11 @@ namespace gdjs {
         gdjs.multiplayerComponents.getLobbiesIframe(runtimeScene);
 
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
-// explains message is not sensitive and easy debugging is desired)
         logger.info('The lobbies iframe is not opened, not sending message.');
         return;
       }
 
-      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
-      lobbiesIframe.contentWindow.postMessage(
+      lobbiesIframe.contentWindow.postMessage( // nosonar: typescript:S2819 — wildcard target origin is intentional: the message is not sensitive and a wildcard allows easy debugging.
         {
           id: 'gameCountdownStarted',
         },
@@ -1586,15 +1580,13 @@ namespace gdjs {
       const lobbiesIframe =
         gdjs.multiplayerComponents.getLobbiesIframe(runtimeScene);
       if (!lobbiesIframe || !lobbiesIframe.contentWindow) {
-// explains message is not sensitive and easy debugging is desired)
         // Cannot send the message if the iframe is not opened.
         return;
       }
 
       const platformInfo = runtimeScene.getGame().getPlatformInfo();
 
-      // nosonar: typescript:S2819 -- wildcard target origin is intentional (see comment above)
-      lobbiesIframe.contentWindow.postMessage(
+      lobbiesIframe.contentWindow.postMessage( // nosonar: typescript:S2819 — wildcard target origin is intentional: the message is not sensitive and a wildcard allows easy debugging.
         {
           id: 'sessionInformation',
           isCordova: platformInfo.isCordova,

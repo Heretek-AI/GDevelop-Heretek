@@ -22,6 +22,11 @@ on:
   # to publish on Chromatic (not done by default).
   workflow_dispatch:
 
+# Minimal least-privilege permissions: builds Storybook, uploads it as an
+# artifact and (optionally) syncs it to S3 / Chromatic with their own
+# credentials. No repository write.
+permissions:
+  contents: read
 jobs:
   build-storybook:
     runs-on: ubuntu-latest
@@ -55,7 +60,7 @@ jobs:
 
       - name: Configure AWS Credentials
         if: steps.decide.outputs.should-publish == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           aws-access-key-id: ${{ secrets.BUILD_STORYBOOK_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.BUILD_STORYBOOK_AWS_SECRET_ACCESS_KEY }}
@@ -100,7 +105,7 @@ jobs:
       - name: Publish Storybook to Chromatic
         if: github.event_name == 'workflow_dispatch' && env.SHOULD_PUBLISH_CHROMATIC == 'true'
         continue-on-error: true
-        uses: chromaui/action@v1
+        uses: chromaui/action@c93e0bc3a63aa176e14a75b61a31847cbfdd341c # v1
         with:
           workingDir: newIDE/app
           storybookBuildDir: "build-storybook"

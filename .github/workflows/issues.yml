@@ -2,13 +2,18 @@ name: GDevelop Issues automatic workflow
 on:
   issues:
     types: [opened]
+# Minimal least-privilege permissions: this workflow only reads the new
+# issue's body from the event payload and posts one comment.
+permissions:
+  contents: read
+  issues: write
 jobs:
   autocomment:
     runs-on: ubuntu-latest
     if: contains(github.event.issue.body, 'The node to be removed is not a child of this node')
     steps:
       - name: Autocomment indications on bug if it looks like #3453
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@23ff15729ef2fc348714a3bb66d2f655ca9066f2 # v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.issue.number }}

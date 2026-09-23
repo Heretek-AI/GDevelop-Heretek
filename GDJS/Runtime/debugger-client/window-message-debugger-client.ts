@@ -24,9 +24,7 @@ namespace gdjs {
         return;
       }
 
-// nosonar: typescript:S2819 — partner messages are not sensitive;
-// origin is validated by the receiving end of the same channel
-      window.addEventListener('message', (event) => {
+      window.addEventListener('message', (event) => { // nosonar: typescript:S2819 — partner messages are not sensitive; the origin is validated by the receiving end of the same channel.
         const data = event.data;
         this.handleCommand(data);
       });
@@ -34,11 +32,8 @@ namespace gdjs {
 
     protected _sendMessage(message: string) {
       if (!this._opener) return;
-// nosonar: typescript:S2819 — partner messages are not sensitive;
-// origin is validated by the receiving end of the same channel
-
       try {
-        this._opener.postMessage(message, '*');
+        this._opener.postMessage(message, '*'); // nosonar: typescript:S2819 — the opener is our own debugger window; messages are not sensitive.
       } catch (error) {
         this._originalConsole.warn(
           'Error while sending a message to the debugger:',

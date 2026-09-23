@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: "20"
       - name: Run fallow audit
-        uses: fallow-rs/fallow@v3
+        uses: fallow-rs/fallow@bd8fca5af5df4ccfd94c7a835d17bd93c31a7cef # v3
         with:
           version: "3.27.0"
           command: audit
@@ -140,23 +140,41 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # `sonarcloud-drift.js` owns both the fetch and the threshold, and now
+      # writes `count` / `baseline` / `seeded` to $GITHUB_OUTPUT. It also seeds
+      # the baseline itself when the file is absent, which is why the separate
+      # "Seed baseline if missing" step that used to sit here is gone: it was
+      # gated on `steps.drift.outputs.outcome == 'skipped'`, which is not a
+      # real value (a step exposes its result as `steps.<id>.outcome`; the
+      # script never wrote any output at all). It could therefore never run.
       - name: Run drift check
         id: drift
         run: node scripts/sonarcloud-drift.js
-      - name: Seed baseline if missing
-        if: steps.drift.outputs.outcome == 'skipped'
-        run: node scripts/sonarcloud-drift.js --update-baseline
-      - name: Threshold guard
-        continue-on-error: true # informational for now: SonarCloud open count is currently above threshold; refresh suppressions (see SONARCLOUD_REMEDIATION_PLAN.md) before re-gating
-        # Phase 4 acceptance: open count should stay under 4,500. If it
-        # climbs above that, the suppressions need refreshing or new
-        # patterns are leaking in. Update SONARCLOUD_REMEDIATION_PLAN.md
-        # if the threshold moves.
+
+      # Ceiling on the absolute count, independent of the growth percentage.
+      #
+      # This is deliberately NOT `continue-on-error`. The pre-cleanup value of
+      # 1,500 was chosen before the vendored/generated paths were excluded and
+      # was never achievable; the fork measured 2,845 open at the baseline
+      # recorded in `.sonarcloud-drift-baseline`. The ceiling below is that
+      # baseline plus ~10% headroom, so it fires on real drift (a new rule
+      # class, a re-enabled path, a dependency that pulls in unignored code)
+      # rather than on the standing tail of upstream-identical code smells.
+      #
+      # Raise it deliberately, together with `--update-baseline`, when a change
+      # legitimately adds issues; never to make a red run green.
+      - name: Absolute-count ceiling
         run: |
-          TOTAL=$(curl -fs "https://sonarcloud.io/api/issues/search?componentKeys=Heretek-AI_GDevelop-Heretek&issueStatuses=OPEN&ps=1" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin)['total'])")
-          echo "Open SonarCloud issues: $TOTAL"
-          if [ "$TOTAL" -gt 1500 ]; then
-            echo "::error::SonarCloud open count $TOTAL exceeds 1,500 threshold"
+          COUNT="${{ steps.drift.outputs.count }}"
+          BASE="${{ steps.drift.outputs.baseline }}"
+          CEILING=$(( BASE + BASE / 10 ))
+          echo "Open SonarCloud issues: $COUNT (baseline $BASE, ceiling $CEILING)"
+          if [ "$COUNT" -gt "$CEILING" ]; then
+            echo "::error::SonarCloud open count $COUNT exceeds the ceiling of $CEILING (baseline $BASE + 10%). See MAINTENANCE.md."
             exit 1
           fi
+
+      - name: Remind when the baseline was just seeded
+        if: steps.drift.outputs.seeded == 'true'
+        run: |
+          echo "::warning::.sonarcloud-drift-baseline was missing and has been seeded with ${{ steps.drift.outputs.count }}. Commit it."

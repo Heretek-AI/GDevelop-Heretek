@@ -11,6 +11,11 @@ on:
       - "**" # Don't run on new tags
   workflow_dispatch: # Allows manual triggering from the Actions tab
 
+# Minimal least-privilege permissions: opens a pull request with the
+# extension translations copied from GDevelop-extensions.
+permissions:
+  contents: write
+  pull-requests: write
 jobs:
   update-extension-translations:
     if: github.repository == '4ian/GDevelop'
@@ -37,7 +42,7 @@ jobs:
           cp /tmp/GDevelop-extensions/.translations/LocalesMetadata.js newIDE/app/src/locales/ExtensionLocalesMetadata.js
 
       - name: Create Pull Request with updated translations
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
           commit-message: Update extension translations [skip ci]
           branch: chore/update-extension-translations

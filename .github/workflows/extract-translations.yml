@@ -11,6 +11,10 @@ on:
   # Allows to run this workflow manually from the Actions tab.
   workflow_dispatch:
 
+# Minimal least-privilege permissions: extracts strings locally and uploads
+# them to Crowdin with a Crowdin token. No repository write.
+permissions:
+  contents: read
 jobs:
   extract-translations:
     if: github.repository == '4ian/GDevelop'
