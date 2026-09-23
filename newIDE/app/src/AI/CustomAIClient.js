@@ -913,8 +913,22 @@ export const saveLocalAiRequests = () => {
   if (typeof localStorage === 'undefined') return;
 
   try {
-    const keys = Object.keys(localAiRequestsCache);
-    const recentKeys = keys.slice(-MAX_LOCAL_SAVED_REQUESTS);
+    // Keep the most recently *updated* chats, not the most recently created:
+    // object key order is insertion order, so re-assigning an older chat after
+    // a new turn leaves it in its original slot. Slicing on that order would
+    // drop a newer conversation from persistence while keeping a stale one —
+    // continuing an old chat could make a recent one disappear on reload.
+    const recentKeys = Object.keys(localAiRequestsCache)
+      .filter(key => localAiRequestsCache[key])
+      .sort((a, b) => {
+        const aAt = new Date(localAiRequestsCache[a].updatedAt).getTime();
+        const bAt = new Date(localAiRequestsCache[b].updatedAt).getTime();
+        // An unparsable/missing timestamp sorts last rather than scrambling.
+        const safeA = Number.isFinite(aAt) ? aAt : 0;
+        const safeB = Number.isFinite(bAt) ? bAt : 0;
+        return safeB - safeA;
+      })
+      .slice(0, MAX_LOCAL_SAVED_REQUESTS);
     const persistableMap: { [id: string]: AiRequest } = {};
 
     for (const key of recentKeys) {

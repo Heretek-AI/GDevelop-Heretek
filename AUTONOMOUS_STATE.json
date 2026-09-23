@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 90,
+  "last_cycle": 91,
   "completed_targets": [
     {
       "cycle": 75,
@@ -536,6 +536,12 @@
       "target": "Bill reasoning output in the local cost meter",
       "metric_delta": "417->419 tests; all three addTokenUsage call sites passed estimateTokens(assistantResponse.content), so streamed reasoning_content was never added to the per-chat token total. Since cycle 80 the stream carries that field, and a reasoning model can spend most of its output on it, so the local cost meter under-reported exactly the models whose usage users watch for. completionOutputTokens totals content + reasoning_content and every call site uses it. The test is differential (same turn with and without a reasoning delta) because the ~220-token system prompt dominates the absolute total and a flat threshold passed both before and after. 2 files, +112/-3",
       "commit": "fix(ai): bill reasoning output in the local cost meter"
+    },
+    {
+      "cycle": 91,
+      "target": "Prune persisted local chats by recency, not insertion order",
+      "metric_delta": "419->420 tests; saveLocalAiRequests kept `keys.slice(-20)` of Object.keys, which is insertion order. Re-assigning an existing chat after a new turn does not move its key, so continuing an older chat left it in its original slot and it was the one evicted — the newest conversations disappeared on reload while stale ones survived. Verified pre-fix: continuing local-ai-0 among 21 chats persisted 1..20 and dropped 0. Keys are now sorted by updatedAt (the same field customGetAiRequests sorts on) with unparsable timestamps last. 2 files, +66/-2",
+      "commit": "fix(ai): prune persisted local chats by recency, not insertion order"
     }
   ],
   "backlog": [
@@ -646,6 +652,7 @@
     "A streaming client must not assume a 200 response is SSE: a proxy that ignores stream:true returns a JSON completion, which yields no data: lines and looks like an empty stream. Check the content type before parsing, and keep the non-JSON case on the normal fallback path.",
     "estimateMessagesTokens must count every field the model receives: tool name, call id and tool_call_id were omitted, under-counting a tool-heavy transcript by 81%. When adding a field to an outgoing message, add it to the estimator in the same change.",
     "Before fixing a suspected race, confirm the operations can overlap: sub-agent turns are awaited sequentially in the spawn loop, so the shared parent partialContent key is safe to clear there, and scoping the cleanup to the child id would have left the parent key stale (permanently suppressing the cold-start hint). I reverted that change.",
-    "A cost/usage meter must total every field a completion returns: reasoning_content was omitted after cycle 80 started carrying it. Pin such accounting with a differential test (run the same turn with and without the field) — an absolute threshold is swamped by the system prompt and passes either way."
+    "A cost/usage meter must total every field a completion returns: reasoning_content was omitted after cycle 80 started carrying it. Pin such accounting with a differential test (run the same turn with and without the field) — an absolute threshold is swamped by the system prompt and passes either way.",
+    "JS object key order is insertion order: writing to an existing key does not move it. Any recency cap over Object.keys must sort by the timestamp the rest of the app uses (updatedAt here), or continuing an old entry evicts the newest ones."
   ]
 }

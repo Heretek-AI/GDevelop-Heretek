@@ -2115,6 +2115,78 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('persisted request pruning keeps the most recent chats', () => {
+    const memoryStorage = {};
+    const fakeStorage = {
+      getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+      setItem: (key, value) => {
+        memoryStorage[key] = String(value);
+      },
+      removeItem: key => {
+        delete memoryStorage[key];
+      },
+    };
+    beforeEach(() => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+      global.localStorage = fakeStorage;
+      _resetCustomAiClientForTesting();
+    });
+    afterEach(() => {
+      delete global.localStorage;
+    });
+
+    const makeRequest = (id, updatedAt) => ({
+      id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt,
+      userId: LOCAL_BYOK_USER_ID,
+      status: 'ready',
+      error: null,
+      output: [],
+    });
+
+    it('drops the least recently updated chat, not the most recently created', () => {
+      // Object key order is insertion order, so re-assigning an older chat
+      // after a new turn does not move it. Pruning by key order would drop a
+      // newer conversation while keeping the stale one that was just continued.
+      const base = Date.parse('2026-01-01T00:00:00.000Z');
+      const nowSpy = jest.spyOn(Date, 'now');
+      // Seed 20 chats, oldest first (id-0 oldest).
+      for (let i = 0; i < 20; i++) {
+        nowSpy.mockReturnValue(base + i * 1000);
+        customUpdateAiRequest(
+          makeRequest(`local-ai-${i}`, new Date(base + i * 1000).toISOString())
+        );
+      }
+      expect(Object.keys(loadLocalAiRequests())).toHaveLength(20);
+
+      // Continue the OLDEST chat: it becomes the most recently updated.
+      const newest = base + 20 * 1000;
+      nowSpy.mockReturnValue(newest);
+      customUpdateAiRequest(
+        makeRequest('local-ai-0', new Date(newest).toISOString())
+      );
+      // Add one more so the cache exceeds the cap and pruning runs.
+      nowSpy.mockReturnValue(newest + 1000);
+      customUpdateAiRequest(
+        makeRequest('local-ai-20', new Date(newest + 1000).toISOString())
+      );
+
+      saveLocalAiRequests();
+      const persisted = JSON.parse(
+        memoryStorage['gd-custom-ai-requests'] || '{}'
+      );
+      const ids = Object.keys(persisted);
+      expect(ids).toHaveLength(20);
+      // The just-continued old chat and the brand-new one are kept.
+      expect(ids).toContain('local-ai-0');
+      expect(ids).toContain('local-ai-20');
+      // The stalest one was dropped instead.
+      expect(ids).not.toContain('local-ai-1');
+      nowSpy.mockRestore();
+    });
+  });
+
   describe('persisted config sanitization', () => {
     // The suite runs in the Node jest environment: no localStorage.
     const memoryStorage = {};
