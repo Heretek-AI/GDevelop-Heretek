@@ -34,6 +34,8 @@ import {
   testConnection,
   sendChatCompletion,
   estimateTokens,
+  estimateToolsTokens,
+  getMessageBudget,
   getTokenBudget,
   estimateMessagesTokens,
   trimMessagesToBudget,
@@ -3511,6 +3513,67 @@ describe('CustomAIClient', () => {
         output: [...(child.output || []), marker],
       });
       expect(customGetAiRequest(child.id).output.length).toBe(before + 1);
+    });
+  });
+
+  describe('tool schema counts against the context budget', () => {
+    const llamaConfig = {
+      enabled: true,
+      baseUrl: 'http://localhost:11434/v1',
+      apiKey: '',
+      // llama family -> 8192 window -> 4096-token budget before tools.
+      model: 'llama3.2',
+      temperature: 0.7,
+    };
+
+    it('estimates the built-in toolset in the thousands of tokens', () => {
+      const toolsTokens = estimateToolsTokens(GDEVELOP_OPENAI_TOOLS);
+      expect(toolsTokens).toBeGreaterThan(4096);
+    });
+
+    it('subtracts the tools from the messages budget', () => {
+      // qwen -> 32768 window -> 16384 budget, comfortably above the schema, so
+      // the subtraction is observable without hitting the floor.
+      const qwenConfig = { ...llamaConfig, model: 'qwen2.5-coder' };
+      expect(getTokenBudget(qwenConfig)).toBe(16384);
+      expect(getMessageBudget(qwenConfig, GDEVELOP_OPENAI_TOOLS)).toBe(
+        16384 - estimateToolsTokens(GDEVELOP_OPENAI_TOOLS)
+      );
+    });
+
+    it('keeps a usable floor when the tools cannot fit the window', () => {
+      // A llama window (4096 budget) is smaller than the tool schema. The
+      // budget must not collapse to zero: that would strip the system prompt
+      // and all history, which is worse than an oversized request the server
+      // reports normally.
+      expect(getMessageBudget(llamaConfig, GDEVELOP_OPENAI_TOOLS)).toBe(1024);
+    });
+
+    it('is unchanged when no tools are sent', () => {
+      expect(getMessageBudget(llamaConfig, [])).toBe(
+        getTokenBudget(llamaConfig)
+      );
+      expect(getMessageBudget(llamaConfig)).toBe(getTokenBudget(llamaConfig));
+    });
+
+    it('leaves room for the tools on a model that can hold them', async () => {
+      setCustomEndpointConfig({ ...llamaConfig, model: 'qwen2.5-coder' });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      await customCreateAiRequest({ userRequest: 'start', mode: 'chat' });
+
+      const body = axios.post.mock.calls[0][1];
+      // Message estimate must respect the smaller budget AND the tools must
+      // still be sent — budgeting must not strip them.
+      expect(estimateMessagesTokens(body.messages)).toBeLessThanOrEqual(
+        getMessageBudget({ ...llamaConfig, model: 'qwen2.5-coder' }, body.tools)
+      );
+      expect(Array.isArray(body.tools)).toBe(true);
+      expect(body.tools.length).toBeGreaterThan(0);
     });
   });
 

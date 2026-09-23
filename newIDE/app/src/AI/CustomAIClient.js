@@ -510,6 +510,38 @@ export const getTokenBudget = (config?: ?CustomAIConfig): number => {
 };
 
 /**
+ * Estimate the size of the tool definitions sent alongside a request.
+ *
+ * `tools` ride on the same request as the messages and consume the same
+ * context window, but they are not messages. The built-in toolset serializes
+ * to roughly 6.5k tokens, which is more than a llama-family model's entire
+ * message budget — budgeting messages alone therefore sends a request that is
+ * already over the window before a single line of history is counted.
+ */
+export const estimateToolsTokens = (tools?: ?Array<Object>): number =>
+  tools && tools.length ? estimateTokens(JSON.stringify(tools)) : 0;
+
+// The messages must keep at least this much room after the tools are
+// accounted for. Without a floor, a model whose window cannot hold the tool
+// schema would get a zero budget and lose its system prompt and history
+// entirely — a worse outcome than sending an oversized request. The tools are
+// still sent (the model needs them); the shortfall surfaces through the
+// server's own context-length error rather than as silent amnesia.
+const MIN_MESSAGE_BUDGET = 1024;
+
+/**
+ * Message budget once the tool definitions sharing the window are subtracted.
+ */
+export const getMessageBudget = (
+  config: ?CustomAIConfig,
+  tools?: ?Array<Object>
+): number =>
+  Math.max(
+    MIN_MESSAGE_BUDGET,
+    getTokenBudget(config) - estimateToolsTokens(tools)
+  );
+
+/**
  * Estimate the prompt size of a full OpenAI-style message list.
  */
 export const estimateMessagesTokens = (openAiMessages: Array<Object>): number =>
@@ -3228,7 +3260,7 @@ export const customCreateAiRequest = async ({
   const createConfig = getEffectiveConfigForRequest(reqId);
   const budgetedMessages = trimMessagesToBudget(
     openAiMessages,
-    getTokenBudget(createConfig)
+    getMessageBudget(createConfig, GDEVELOP_OPENAI_TOOLS)
   );
   noteSystemCompactedIfChanged(reqId, openAiMessages, budgetedMessages);
   if (budgetedMessages.length < openAiMessages.length) {
@@ -3436,9 +3468,12 @@ export const customAddMessageToAiRequest = async ({
 
     // Local models have small context windows: trim replayed history (never
     // the system prompt or the newest exchange) before burning the request.
+    const roleTools = studioRoleId
+      ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
+      : GDEVELOP_OPENAI_TOOLS;
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
-      getTokenBudget(getEffectiveConfigForRequest(aiRequestId))
+      getMessageBudget(getEffectiveConfigForRequest(aiRequestId), roleTools)
     );
     noteSystemCompactedIfChanged(aiRequestId, openAiMessages, budgetedMessages);
     if (budgetedMessages.length < openAiMessages.length) {
@@ -3455,9 +3490,7 @@ export const customAddMessageToAiRequest = async ({
     try {
       assistantResponse = await sendChatCompletion({
         messages: budgetedMessages,
-        tools: studioRoleId
-          ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
-          : GDEVELOP_OPENAI_TOOLS,
+        tools: roleTools,
         config: getEffectiveConfigForRequest(aiRequestId),
         signal: abortController.signal,
         onStreamDelta: partialContent => {
@@ -3613,9 +3646,13 @@ export const customCreateSubAgentAiRequest = async ({
       systemPrompt
     );
 
+    const subAgentTools = getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS);
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
-      getTokenBudget(getEffectiveConfigForRequest(parentAiRequestId || reqId))
+      getMessageBudget(
+        getEffectiveConfigForRequest(parentAiRequestId || reqId),
+        subAgentTools
+      )
     );
     noteSystemCompactedIfChanged(
       parentAiRequestId || reqId,
@@ -3640,7 +3677,7 @@ export const customCreateSubAgentAiRequest = async ({
     try {
       assistantResponse = await sendChatCompletion({
         messages: budgetedMessages,
-        tools: getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS),
+        tools: subAgentTools,
         config: getEffectiveConfigForRequest(parentAiRequestId || reqId),
         signal: abortController.signal,
         // Attribute the partial content to the parent chat, which is what the

@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 80,
+  "last_cycle": 81,
   "completed_targets": [
     {
       "cycle": 75,
@@ -476,6 +476,12 @@
       "target": "Carry streamed reasoning_content so streaming matches non-streaming",
       "metric_delta": "389->391 tests; the SSE accumulator only read delta.content, so a reasoning model (DeepSeek-R1, qwq, Ollama reasoning builds — all named BYOK/local targets) lost its whole chain of thought whenever streaming was on, while the identical non-streamed request kept it via parseAssistantMessage's reasoning_content read. The assembled stream message now carries reasoning_content and is attached only when non-empty. Reproduction test proven red pre-fix (Expected 'Let me think. Use a sprite.', Received undefined); a second test pins that no field is attached when the model streams none. 2 files, +96/-0",
       "commit": "fix(ai): carry streamed reasoning_content like the non-streamed path"
+    },
+    {
+      "cycle": 81,
+      "target": "Count the tool schema against the model context budget",
+      "metric_delta": "391->396 tests; trimMessagesToBudget measured only messages, but the 41-tool schema rides on the same request. Measured against the real JSON, the toolset serializes to ~6.5k tokens while a llama-family model's message budget is 4096 — so every llama request was over-window before any history counted, and qwen/mistral lost a fifth of their usable context. getMessageBudget now subtracts estimateToolsTokens(tools) at all three turn paths, with a 1024-token floor so a model that cannot hold the schema keeps its system prompt and history instead of silently losing all context (the first attempt had no floor and broke three existing compaction tests — caught and fixed before commit). All 5 new tests fail pre-fix. 2 files, +107/-7",
+      "commit": "fix(ai): count the tool schema against the model context budget"
     }
   ],
   "backlog": [
@@ -572,6 +578,8 @@
     "A hook that takes a callback prop as an effect dependency is reset by any parent re-render that passes it inline — ChatMessages re-renders every 8s (thinking-phrase rotation), so useLocalColdStartHint never reached its 15s threshold in the real chat even though the isolated hook tests passed. Read callbacks through a latest-ref (`ref.current = fn` during render, ref not the fn in deps) and add a reproduction test that re-renders with a fresh inline callback.",
     "customGetAiRequestPartialContent is only populated by the paths that pass onStreamDelta to sendChatCompletion — addMessage long had it, create/sub-agent did not. Any UI signal derived from that registry (the cold-start hint) is wrong for whichever turn types omit it, so keep all three turn paths publishing and clearing together.",
     "The connection-test export is `testConnection`, not `customTestConnection` — grepping the wrong name produced a false 'zero tests' reading on a well-covered function. Verify an export's real name before claiming a coverage gap.",
-    "Streaming and non-streaming paths must produce the same message shape: the SSE accumulator read only delta.content while parseAssistantMessage also reads reasoning_content, so reasoning models silently lost their thinking under streaming. When adding a field to one path, check the other."
+    "Streaming and non-streaming paths must produce the same message shape: the SSE accumulator read only delta.content while parseAssistantMessage also reads reasoning_content, so reasoning models silently lost their thinking under streaming. When adding a field to one path, check the other.",
+    "The built-in GDEVELOP_OPENAI_TOOLS schema is ~6.5k tokens of serialized JSON (measure it on JSON.stringify, not the indented source — the source reads ~10.8k and overstates by 65%). It shares the request's context window with the messages, so any budget that only measures messages over-sends on small local models.",
+    "When subtracting a large fixed cost from a budget, clamp with a floor: without one, a model whose window cannot hold the fixed cost gets a zero budget and silently loses its system prompt and history — a worse failure than the oversized request it was meant to prevent."
   ]
 }
