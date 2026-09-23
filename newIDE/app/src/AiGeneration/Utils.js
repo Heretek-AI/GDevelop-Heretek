@@ -21,7 +21,6 @@ import {
 } from './ExtensionsOutsideEditorChangesAccumulator';
 import { type EventsFunctionsExtensionsState } from '../EventsFunctionsExtensionsLoader/EventsFunctionsExtensionsContext';
 import {
-  getAiRequest,
   getAiRequestSuggestions,
   type AiRequest,
   type AiRequestMessage,
@@ -1331,7 +1330,6 @@ export const useAiRequestState = ({
     editorFunctionCallResultsStorage,
     isFetchingSuggestions,
     setIsFetchingSuggestions,
-    selectedAiRequestId,
     setSelectedAiRequestId,
     selectedAiRequest,
   } = React.useContext(AiRequestContext);
@@ -1878,39 +1876,12 @@ export const useAiRequestState = ({
     [profile, setSelectedAiRequestId]
   );
 
-  React.useEffect(
-    () => {
-      // If a request ID is selected but not in storage, try to fetch it directly
-      // This can happen when navigating to a request that hasn't been loaded yet (pagination)
-      if (selectedAiRequestId && !selectedAiRequest && profile) {
-        (async () => {
-          try {
-            const fetchedRequest = await getAiRequest(getAuthorizationHeader, {
-              userId: profile.id,
-              aiRequestId: selectedAiRequestId,
-            });
-            // Add it to the storage
-            updateAiRequest(selectedAiRequestId, () => fetchedRequest);
-          } catch (error) {
-            console.error(
-              'Error fetching AI request that is not in storage:',
-              error
-            );
-            // If fetch fails, reset the selected request to avoid staying stuck
-            setSelectedAiRequestId(null);
-          }
-        })();
-      }
-    },
-    [
-      selectedAiRequestId,
-      selectedAiRequest,
-      profile,
-      getAuthorizationHeader,
-      updateAiRequest,
-      setSelectedAiRequestId,
-    ]
-  );
+  // Selection-load is intentionally NOT reimplemented here. AiRequestProvider's
+  // loadAiRequest effect is the single path: it manages loading/error state,
+  // suspends work-in-progress chats, and works offline for local-ai-*/custom
+  // endpoint ids. A second fetch from this hook raced that path when a profile
+  // was present (double getAiRequest) and cleared the selection on failure
+  // instead of keeping the Context's retry UI.
 
   return {
     isFetchingSuggestions,
