@@ -424,6 +424,9 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
 
         const output = aiRequest.output || [];
         output.forEach((message, messageIndex) => {
+          // A persisted output is not shape-validated on load; a hole would
+          // throw on `message.type` and crash the whole chat render.
+          if (!message || typeof message !== 'object') return;
           const isLastMessage = messageIndex === output.length - 1;
 
           if (message.type === 'message' && message.role === 'user') {
@@ -456,6 +459,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
               return;
             }
             message.content.forEach((messageContent, messageContentIndex) => {
+              if (!messageContent || typeof messageContent !== 'object') return;
               if (messageContent.type === 'function_call') {
                 const existingFunctionCallOutput = functionCallToFunctionCallOutput.get(
                   messageContent
@@ -815,6 +819,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
           if (message.type === 'message' && message.role === 'assistant') {
             if (!Array.isArray(message.content)) return;
             message.content.forEach(messageContent => {
+              if (!messageContent || typeof messageContent !== 'object') return;
               if (
                 messageContent.type === 'function_call' &&
                 messageContent.taskId

@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 179,
+  "last_cycle": 180,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1048,14 +1048,19 @@
       "target": "Guard the polling splice scan against a hole in the cached output",
       "metric_delta": "mergeIncrementalAiRequest's splice findIndex walked previousOutput (a cached/persisted array, not shape-validated) and read .messageId off a null hole - the sibling cycle-140 guard covered only the FETCHED first element. A hole crashed the polling merge, stalling the chat's updates. 1 test red pre-fix, mutation-checked (note: prettier reformats the guard, so the revert string must match its output). 1601/1601 across 80 suites (was 1600), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): guard the polling splice scan against a cached hole"
+    },
+    {
+      "cycle": 180,
+      "target": "Guard the ChatMessages render loops against persisted output holes",
+      "metric_delta": "Three unguarded inner loops in ChatMessages' renderItems built the chat view and read message.type / messageContent.type over a persisted (load-unvalidated) output: a single hole crashed the whole chat render. All three now skip non-objects. Verified by the required production build (exit 0, no ChatMessages warning), eslint --max-warnings=0, prettier, and the full 1601-test suite; component-level render tests remain infeasible (ChatMessages needs the provider tree + ~15 props), so the guards rest on the class already reproduced and pinned in the sibling pure helpers (AiRequestUtils, CustomAIClient). Backlog refreshed: the reliability sweep items are done; remaining entries are the blocked WebUI audit and strategic upstream options.",
+      "commit": "fix(ai): guard the ChatMessages render loops against output holes"
     }
   ],
   "backlog": [
-    "#150 — remaining fork test gaps: the Utils.js dispatcher internals (spawn fan-out cap, loop-guard trip path, edit-approval batch labels), the useStudioRuntime hook itself, fork-modified SceneEditor/InstancesEditor (Delete key, image drop), and entitlement specs proving the UNLOCKED_HERETEK_* seeds keep the gates open. Role-policy filtering is already extracted to Studio/RoleToolPolicy.js (+7 tests); PlanStore.mergePlanResultOutput and isStudioPlanTaskStatus are now covered.",
-    "#162 — the malformed-data sweep is closed for the sites found, but re-grep the four throwing operations (spread, for..of, .map/.filter/.some callbacks, .join) over any newly added read of a persisted or network field. One fix at a choke point beats N local guards, provided the choke point runs for every path.",
-    "#163 — re-assert the fail-closed direction whenever a studio role is added: getRoleToolPolicy must keep returning an EMPTY allowed set for an unknown id, and isRoleReadOnly must keep returning true. Re-run the three-property credential check (never persisted / never in a URL / never logged) on any network-layer change.",
-    "#164 — watch for the `ubuntu-latest` → Ubuntu 26 runner migration notice (dated 2026-10-19) affecting the same workflow files. Workflows are restored from local master by upstream-sync, so upstream fixes never arrive; re-apply by hand.",
-    "customTestConnection still passes no onStreamDelta — it is a one-shot probe rather than a chat turn, so the cold-start hint deliberately does not cover it. Revisit only if the probe becomes interactive.",
+    "Phase 5 interactive WebUI audit (@feedback-loop via Chrome DevTools MCP) is BLOCKED by environment: no config.local.json, no dev server (:3000), no reachable AI endpoint. Run it when credentials/endpoint are supplied - it is the one objective gate this session could not exercise.",
+    "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
+    "Extract ChatMessages' renderItems classification into a pure leaf so the render-path guards become unit-testable (currently guarded by precedent, verified only by build/lint/suite).",
+    "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync, so upstream fixes never arrive.",
     "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued."
   ],
   "heuristics": [
