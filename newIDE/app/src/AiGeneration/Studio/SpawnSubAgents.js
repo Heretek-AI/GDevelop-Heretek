@@ -3,13 +3,69 @@
 import { makeSimplifiedProjectBuilder } from '../../EditorFunctions/SimplifiedProject/SimplifiedProject';
 import { customCreateSubAgentAiRequest } from '../../AI/CustomAIClient';
 import { isSpawnableRoleId, type StudioRoleId } from './Roles';
-import { type AiRequestMessageAssistantFunctionCall } from '../../Utils/GDevelopServices/Generation';
+import {
+  type AiRequest,
+  type AiRequestMessageAssistantFunctionCall,
+} from '../../Utils/GDevelopServices/Generation';
 import { truncateAtCodePointBoundary } from './SafeTruncation';
 
 const gd: libGDevelop = global.gd;
 
 /** Cap on live sub-agents one parent may have (W8). */
 export const MAX_SUB_AGENTS_PER_PARENT = 8;
+
+/**
+ * Live sub-agents of a parent: launched calls (stamped with
+ * `subAgentAiRequestId`) with no `function_call_output` for their call yet,
+ * whose child request still exists in storage.
+ *
+ * Finished children stay in storage (they are history), so counting every
+ * stored child turned the fan-out cap into a lifetime cap: after
+ * MAX_SUB_AGENTS_PER_PARENT spawns ever, no later task could ever be
+ * delegated again. Pruned or deleted children free their slot.
+ */
+export const countLiveSubAgentsForParent = (
+  parentAiRequest: AiRequest,
+  aiRequests: { [string]: AiRequest }
+): number => {
+  const output = (parentAiRequest && parentAiRequest.output) || [];
+  const answeredCallIds = new Set<string>();
+  const launchedChildren = new Map<string, string>();
+  output.forEach((message: any) => {
+    if (!message || typeof message !== 'object') return;
+    if (
+      message.type === 'function_call_output' &&
+      typeof message.call_id === 'string'
+    ) {
+      answeredCallIds.add(message.call_id);
+      return;
+    }
+    if (
+      message.type === 'message' &&
+      message.role === 'assistant' &&
+      Array.isArray(message.content)
+    ) {
+      message.content.forEach((entry: any) => {
+        if (!entry || typeof entry !== 'object') return;
+        if (
+          entry.type === 'function_call' &&
+          typeof entry.subAgentAiRequestId === 'string' &&
+          typeof entry.call_id === 'string'
+        ) {
+          launchedChildren.set(entry.subAgentAiRequestId, entry.call_id);
+        }
+      });
+    }
+  });
+  const requests = aiRequests || {};
+  let live = 0;
+  launchedChildren.forEach((callId, childId) => {
+    if (!requests[childId]) return;
+    if (answeredCallIds.has(callId)) return;
+    live++;
+  });
+  return live;
+};
 
 /** Whether a function call is the studio's delegation tool. */
 export const isSpawnAgentCall = (

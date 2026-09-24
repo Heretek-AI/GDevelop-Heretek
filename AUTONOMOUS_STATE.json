@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 157,
+  "last_cycle": 158,
   "completed_targets": [
     {
       "cycle": 75,
@@ -909,6 +909,12 @@
       "target": "Null-tolerate every output loop in the dispatch/render feed (AiRequestUtils + loop-guard filter)",
       "metric_delta": "Backlog #150 Tier-1 sweep found the same null-hole class in 8 output loops that run on every dispatch pass and chat render: getFunctionCallToFunctionCallOutputMap, getFunctionCallsToProcess, getAllSubAgentFunctionCalls, getPendingSubAgentFunctionCalls, getFunctionCallNameByCallId, getLatestActivePlan, getLastMessagesFromAiRequestOutput (message-level and inner content/find/filter reads), plus the loop-guard lastUserMessage filter in the Utils.js dispatcher. A single null hole threw out of the whole batch before any call dispatched and crashed the render feed. Fixed with skip-non-object guards; the dispatcher filter routes through a tested isUserMessage predicate in AiRequestUtils (Utils.js imports three.js so it cannot be loaded by a spec - same leaf rationale as RoleToolPolicy). 8 new tests, each proven red pre-fix (plan test needed null-last ordering since the search runs backward; helper body mutation-checked). 1500/1500 across 68 suites (was 1492), eslint clean, divergence clean.",
       "commit": "fix(ai): tolerate null holes in the dispatch output loops"
+    },
+    {
+      "cycle": 158,
+      "target": "Fan-out cap counts live children, not lifetime spawns (studio delegation)",
+      "metric_delta": "Backlog #150 Tier-1 defect: existingChildCount counted every stored child with the parent id, but finished sub-agents stay in storage (removeSubAgent only clears the watch list) - so the 'live children' cap was a lifetime cap: after 8 spawns ever, no later task could delegate. Failed spawns also consumed budget though spawnSubAgent creates no child on error (verified: error return precedes onStamped). Fixed: pure countLiveSubAgentsForParent in SpawnSubAgents.js (launched+stamped, unanswered, still stored; null-tolerant) wired into the dispatcher, and spawnedThisBatch++ moved to the success branch. 4 new tests, both filter guards mutation-checked individually (revert answered-check: finished counted; revert existence-check: pruned counted). 1504/1504 across 68 suites (was 1500), eslint clean, Flow 870 with-changes vs 870 stashed-HEAD (847 baseline drift is pre-existing), divergence clean. The increment move is contract-verified (error implies no child per spawnSubAgent 175-210), not unit-covered: the dispatcher lives in a hook whose module imports three.js.",
+      "commit": "fix(ai): count live sub-agents against the spawn fan-out cap"
     }
   ],
   "backlog": [
@@ -1089,6 +1095,7 @@
     "REMOTE TRACKING STATE (as of cycle 154): the repo's issues are the public tracker; AUTONOMOUS_STATE.json remains the private cross-session log. New issues this session: #162/#163/#164; #149 closed; #150 kept open with a progress comment. Before creating a tracking issue, grep the existing list for the theme — nothing covered this session's hardening work, but #149 (test-runner hygiene) and #150 (fork test gaps) were both partially satisfied and needed updating rather than duplicating. Verify an issue's claims yourself before closing it: #149's SSE criterion was re-run rather than taken from its own prior comment.",
     "EditorFunctionCallRunner strips meta from the model-visible output (only didModifyProject/newSceneNames are consumed) - anything the model must read (e.g. run_script guidance) must ride top-level on the return, not in meta. Caught pre-commit: guidance was computed but dropped.",
     "A guard on the container does not guard the elements: Array.isArray(msg.content) plus a msg null-check still throws when an ELEMENT is null (item.type, fc.id, fco.callId). normalizePersistedMessages passes inner entries through, so every inner loop over persisted/network arrays needs its own skip-non-object - and each guard needs its own mutation check, because one combined test stops at the first throw and proves only that guard.",
-    "When a search runs backward (getLatestActivePlan from the end), a null-hole test only discriminates if the hole is visited before the match - null-last, not null-first. More generally: place the poison where the code actually walks, or the test passes on broken code."
+    "When a search runs backward (getLatestActivePlan from the end), a null-hole test only discriminates if the hole is visited before the match - null-last, not null-first. More generally: place the poison where the code actually walks, or the test passes on broken code.",
+    "A cap over stored entities must define live vs dead explicitly: finished sub-agents stay in storage (history) while the watch list is what actually retires - counting the storage map bounds lifetime, not concurrency. Match the retirement condition (function_call_output for the call) when computing liveness."
   ]
 }

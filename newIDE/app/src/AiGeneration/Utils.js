@@ -70,6 +70,7 @@ import {
   isSpawnAgentCall,
   spawnSubAgent,
   buildGddContextNote,
+  countLiveSubAgentsForParent,
   MAX_SUB_AGENTS_PER_PARENT,
 } from './Studio/SpawnSubAgents';
 import { createLoopGuard } from './Studio/LoopGuard';
@@ -755,10 +756,13 @@ export const useProcessFunctionCalls = ({
         // Computed once per batch (W7), not once per spawn.
         const gddContextNote = buildGddContextNote(project);
         // Fan-out cap (W8): bound the live children one parent may have.
-        const existingChildCount = Object.keys(aiRequestsRef.current).filter(
-          id =>
-            (aiRequestsRef.current[id] || {}).parentAiRequestId === aiRequest.id
-        ).length;
+        // Finished children stay in storage (they are history) and failed
+        // spawns create no child, so neither may consume the cap — otherwise
+        // the cap becomes a lifetime limit and later tasks can never delegate.
+        const existingChildCount = countLiveSubAgentsForParent(
+          aiRequest,
+          aiRequestsRef.current
+        );
         let spawnedThisBatch = 0;
         for (const spawnCall of spawnCalls) {
           // The stand-alone view has no studio: sub-agents cannot be spawned.
@@ -790,7 +794,6 @@ export const useProcessFunctionCalls = ({
             addEditorFunctionCallResults(aiRequest.id, [capDenial]);
             continue;
           }
-          spawnedThisBatch++;
           let spawnResult;
           try {
             spawnResult = await spawnSubAgent({
@@ -828,6 +831,11 @@ export const useProcessFunctionCalls = ({
             };
             spawnFailureResults.push(failure);
             addEditorFunctionCallResults(aiRequest.id, [failure]);
+          } else {
+            // Only a created child consumes fan-out budget: a failed spawn
+            // created nothing, so counting it would ratchet the cap down on
+            // every transient failure until nothing can ever delegate.
+            spawnedThisBatch++;
           }
         }
       }

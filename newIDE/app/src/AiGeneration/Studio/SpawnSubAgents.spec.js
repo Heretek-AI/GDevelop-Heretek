@@ -3,6 +3,7 @@ import {
   isSpawnAgentCall,
   parseSpawnAgentArgs,
   buildGddContextNote,
+  countLiveSubAgentsForParent,
 } from './SpawnSubAgents';
 
 const makeCall = (name: string, args: any): any => ({
@@ -126,6 +127,75 @@ describe('SpawnSubAgents', () => {
       ).toBeNull();
       expect(parseSpawnAgentArgs(makeCall('spawn_agent', '[]'))).toBeNull();
       expect(parseSpawnAgentArgs(makeCall('spawn_agent', 'null'))).toBeNull();
+    });
+  });
+
+  describe('countLiveSubAgentsForParent', () => {
+    const parentWith = (output: Array<any>): any => ({
+      id: 'parent-1',
+      output,
+    });
+    const launched = (childId: string, callId: string): any => ({
+      type: 'function_call',
+      status: 'completed',
+      call_id: callId,
+      name: 'spawn_agent',
+      arguments: '{}',
+      subAgentAiRequestId: childId,
+    });
+    const assistantWith = (entries: Array<any>): any => ({
+      type: 'message',
+      status: 'completed',
+      role: 'assistant',
+      content: entries,
+    });
+    const answered = (callId: string): any => ({
+      type: 'function_call_output',
+      call_id: callId,
+      output: '{"report":"done"}',
+    });
+    const child = (id: string): any => ({ id, output: [] });
+
+    it('counts launched children with no answer yet', () => {
+      const parent = parentWith([
+        assistantWith([launched('child-1', 'call-1')]),
+      ]);
+      expect(
+        countLiveSubAgentsForParent(parent, { 'child-1': child('child-1') })
+      ).toBe(1);
+    });
+
+    it('excludes finished children (their call was answered)', () => {
+      // Finished children stay in storage (they are history): counting them
+      // turned the fan-out cap into a lifetime cap, so after 8 spawns ever no
+      // task could ever be delegated again.
+      const parent = parentWith([
+        assistantWith([launched('child-1', 'call-1')]),
+        answered('call-1'),
+      ]);
+      expect(
+        countLiveSubAgentsForParent(parent, { 'child-1': child('child-1') })
+      ).toBe(0);
+    });
+
+    it('excludes pruned children (stamped but no longer stored)', () => {
+      const parent = parentWith([
+        assistantWith([launched('child-1', 'call-1')]),
+      ]);
+      expect(countLiveSubAgentsForParent(parent, {})).toBe(0);
+    });
+
+    it('tolerates null holes and a missing output', () => {
+      const parent = parentWith([
+        null,
+        assistantWith([null, launched('child-1', 'call-1')]),
+        undefined,
+      ]);
+      expect(
+        countLiveSubAgentsForParent(parent, { 'child-1': child('child-1') })
+      ).toBe(1);
+      expect(countLiveSubAgentsForParent(({ output: null }: any), {})).toBe(0);
+      expect(countLiveSubAgentsForParent((null: any), {})).toBe(0);
     });
   });
 
