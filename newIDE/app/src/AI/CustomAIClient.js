@@ -1693,11 +1693,19 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
             type: 'string',
             description: 'Name of the behavior instance.',
           },
-          property_name: {
-            type: 'string',
-            description: 'Name of the behavior property to modify.',
+          changed_properties: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                property_name: { type: 'string' },
+                new_value: { type: 'string' },
+              },
+              required: ['property_name', 'new_value'],
+            },
+            description:
+              'Behavior properties to set. Each item names a property and its new value as a string.',
           },
-          new_value: { type: 'string', description: 'New value as a string.' },
           scene_name: {
             type: 'string',
             description: 'Scene name if scene object.',
@@ -1707,12 +1715,7 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
             description: 'Set to true to remove this behavior.',
           },
         },
-        required: [
-          'object_name',
-          'behavior_name',
-          'property_name',
-          'new_value',
-        ],
+        required: ['object_name', 'behavior_name'],
       },
     },
   },

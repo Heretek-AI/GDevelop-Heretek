@@ -527,6 +527,29 @@ describe('CustomAIClient', () => {
       expect(description).toContain('await');
       expect(description).toContain('never probe');
     });
+
+    it('advertises behavior changes as changed_properties, matching the implementation', () => {
+      // Observed failure (feedback-loop Run 4): the schema listed flat
+      // `property_name`/`new_value` while the tool reads `changed_properties`
+      // (like its sibling change_object_properties_effects). A model following
+      // the schema sent flat fields, `changed_properties` was always empty, and
+      // every call reported "Nothing changed. Issues: ...". Pin the array shape
+      // so schema and implementation cannot drift apart again.
+      const tool = GDEVELOP_OPENAI_TOOLS.find(
+        t => t.function.name === 'change_behavior_property'
+      );
+      expect(tool).toBeTruthy();
+      const parameters: any = tool && tool.function.parameters;
+      const properties: any = parameters.properties;
+      expect(properties.changed_properties.type).toBe('array');
+      expect(properties.changed_properties.items.required).toEqual([
+        'property_name',
+        'new_value',
+      ]);
+      expect(properties.property_name).toBeUndefined();
+      expect(properties.new_value).toBeUndefined();
+      expect(parameters.required).toEqual(['object_name', 'behavior_name']);
+    });
   });
 
   describe('testConnection', () => {

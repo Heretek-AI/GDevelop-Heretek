@@ -98,6 +98,15 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Harness fix: `change_behavior_property` schema matched to its implementation (cycle 256):
+  feedback-loop Run 4's developer could not change any behavior property. Root
+  cause: the OpenAI schema advertised flat `property_name`/`new_value`, while the
+  tool reads `changed_properties: [{property_name, new_value}]` (and so do every
+  spec - like the sibling `change_object_properties_effects`). A schema-conformant
+  call left `changed_properties` empty, so the tool always answered "Nothing
+  changed." Fixed the schema to advertise the array; a spec pins the shape so it
+  cannot drift again. Verified the served app chunk now exposes
+  `changed_properties` (and no flat `property_name`) for this tool.
 - Harness fix: live requests keep processing after losing selection (cycle 255):
   the dispatcher only processed `[selectedRequest, ...activeSubAgents]`, so a
   request deselected mid-run (e.g. by `initialize_project`; feedback-loop Run 4)

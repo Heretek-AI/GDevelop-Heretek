@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 255,
+  "last_cycle": 256,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1504,10 +1504,15 @@
       "target": "Tier 4 harness fix: keep a live local request processing after it loses selection",
       "metric_delta": "Fixed the stall found by feedback-loop Run 4: the dispatcher only processes [selectedRequest, ...activeSubAgents], so a request deselected mid-run (a mid-run initialize_project re-creates the project and drops the selection) had its pending function calls stall forever. Added the pure, tested getUnselectedActiveRequests (fresh <3min, local top-level, not suspended/error, with a pending call; capped at 4) and wired it into AskAiEditorContainer's aiRequestsToProcess from the client cache (an unselected request is not in React state). onSendMessage now falls back to customGetAiRequest for a local request not yet in state (it previously returned early, so results were 'not sent' and the loop guard tripped an error storm). +9 specs (1709 AI-surface / 83 suites, up from 1697). Verified live with a seeded UNselected request carrying a pending call: the console showed 'Automatically processing AI function calls for request local-ai-deselect-test', it planned, spawned a sub-agent (finalized), and reached 8 messages - all while a different chat was selected. Build green; ESLint/Prettier/divergence clean. Updated the skill's SKILL.md workaround to note the self-recovery.",
       "commit": "fix(ai): keep a live local request processing after it loses selection"
+    },
+    {
+      "cycle": 256,
+      "target": "Tier 4 harness fix: make change_behavior_property's schema match its implementation",
+      "metric_delta": "Root-caused feedback-loop Run 4's second finding. GDEVELOP_OPENAI_TOOLS advertised change_behavior_property with flat property_name/new_value, but the tool (renderForEditor + launchFunction) reads changed_properties: [{property_name, new_value}] - as does every spec (ChangeBehaviorProperty.spec) and the sibling change_object_properties_effects. A model following the schema sent flat fields, changed_properties was always empty, and the tool answered 'Nothing changed. Issues: ...' for every property-name variant. Fixed the schema to advertise the changed_properties array (required: object_name, behavior_name); added a spec pinning the shape so schema and implementation cannot drift. Verified the served app chunk exposes changed_properties (and no flat property_name) for this tool. Tests 1710 AI-surface / 83 suites; build green; ESLint/Prettier/divergence clean. Note: with the array shape the tool also lists the available property names when a name is wrong, so discoverability is covered too.",
+      "commit": "fix(ai): align change_behavior_property schema with its implementation"
     }
   ],
   "backlog": [
-    "Harness fix candidate (from feedback-loop Run 4): change_behavior_property reports 'nothing changed' for every property-name variant the developer tried; make the accepted property names discoverable (tool description / aliases / an error that lists valid names) + a spec.",
     "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
@@ -1720,6 +1725,7 @@
     "Sub-agent children need their own bounded persistence store: giving them the parent chat budget evicts real chats, but excluding them entirely makes the per-agent transcript unavailable after a reload. Keep the two budgets separate.",
     "A real-model run stalls at the first non-read-only sub-agent call when auto-edit is off (the edit-approval prompt suspends the request); this is the designed gate, not a stall, and the nudge correctly stays silent while the sub-agent is live. Enable auto-edit for unattended real-model runs.",
     "The fork's studio roles (manager/designer/developer/tester) map onto the objective's agents as: manager ~ orchestrator, designer ~ asset-curator/design, developer ~ scene-architect + logic-engineer, tester ~ qa-playtester. Splitting developer into the objective's three roles was deliberately not done (a weak local model routes better to fewer, broader roles).",
-    "Background processing for a request requires BOTH the dispatcher to include it in aiRequestsToProcess AND onSendMessage to find it: onSendMessage read aiRequests[state] and returned early for a request never fetched, silently failing the send ('results were not sent') and tripping the loop guard. Fall back to the client cache for local requests."
+    "Background processing for a request requires BOTH the dispatcher to include it in aiRequestsToProcess AND onSendMessage to find it: onSendMessage read aiRequests[state] and returned early for a request never fetched, silently failing the send ('results were not sent') and tripping the loop guard. Fall back to the client cache for local requests.",
+    "Audit a tool's OpenAI schema against its implementation/specs whenever an agent reports a tool 'does nothing': change_behavior_property advertised flat args while reading changed_properties, so every schema-conformant call was a silent no-op. Sibling tools' schemas are the quickest reference for the expected shape."
   ]
 }
