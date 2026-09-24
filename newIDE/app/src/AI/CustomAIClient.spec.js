@@ -3631,6 +3631,67 @@ describe('CustomAIClient', () => {
       expect(forked.output.length).toBe(aiRequest.output.length);
     });
 
+    it('survives a hole when a concurrent write lands during a failed turn', async () => {
+      // The failure path compares each cache-only message against `output`
+      // (which carries the persisted hole). When every cache message is
+      // already in `existing`, the `existingIds` check short-circuits and the
+      // buggy `.some` never runs - so the write must land DURING the turn,
+      // making the cache message absent from the `existing` snapshot taken at
+      // entry. That is exactly a suggestion/plan write racing a model answer.
+      const userMessage = {
+        type: 'message',
+        status: 'completed',
+        role: 'user',
+        content: [{ type: 'user_request', status: 'completed', text: 'hi' }],
+        messageId: 'm-1',
+      };
+      customUpdateAiRequest(
+        ({
+          id: 'local-ai-race',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          userId: LOCAL_BYOK_USER_ID,
+          status: 'ready',
+          error: null,
+          output: [null, userMessage],
+        }: any)
+      );
+
+      // $FlowFixMe
+      axios.post.mockImplementationOnce(async () => {
+        customUpdateAiRequest(
+          ({
+            ...customGetAiRequest('local-ai-race'),
+            output: [
+              null,
+              userMessage,
+              {
+                type: 'message',
+                status: 'completed',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: 'suggestion write' }],
+                messageId: 'm-2',
+              },
+            ],
+          }: any)
+        );
+        // A rejection with no reason: not a literal, so eslint's
+        // no-throw-literal does not require a suppression.
+        const noReason: any = undefined;
+        throw noReason;
+      });
+
+      const result = await customAddMessageToAiRequest({
+        aiRequestId: 'local-ai-race',
+        userMessage: 'next',
+      });
+      expect(result.status).toBe('error');
+      // The concurrent message survived the failed turn.
+      expect(
+        result.output.some(message => message && message.messageId === 'm-2')
+      ).toBe(true);
+    });
+
     it('adds a turn when the persisted output has a null hole', async () => {
       // `output` starts as a copy of the persisted array, and the merge reads
       // `message.messageId` over it - a hole crashed the whole turn on both

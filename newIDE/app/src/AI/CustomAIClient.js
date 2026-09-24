@@ -4141,7 +4141,12 @@ export const customAddMessageToAiRequest = async ({
           message &&
           typeof message === 'object' &&
           !existingIds.has(message.messageId) &&
-          !output.some(own => own.messageId === message.messageId)
+          !output.some(
+            own =>
+              own &&
+              typeof own === 'object' &&
+              own.messageId === message.messageId
+          )
       );
       const failed: AiRequest = {
         ...current,

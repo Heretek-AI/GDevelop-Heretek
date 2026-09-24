@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 174,
+  "last_cycle": 175,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1011,6 +1011,12 @@
       "target": "Null-tolerate the local turn merge (success and failure paths)",
       "metric_delta": "customAddMessageToAiRequest reads message.messageId over `output`, which starts as a copy of the persisted array: a hole crashed BOTH the success path (turnIds map) and the failure path (existingIds map), the latter replacing the real model error with a TypeError. Also the network-supplied functionCallOutputs loop read fcOutput.call_id unguarded. Three guards, each mutation-checked individually (reverting any one reproduces its exact TypeError); the fco guard was unproven until the test was extended to pass a null entry (a guard the test cannot reach is dead code). 1596/1596 across 80 suites (was 1595), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): null-tolerate the local turn merge paths"
+    },
+    {
+      "cycle": 175,
+      "target": "Guard the last latent crash: output.some over a persisted hole during a racy failed turn",
+      "metric_delta": "The failure path's cache-only filter compared each cache message against `output` (which carries the persisted hole) via output.some(own => own.messageId) - a crash that my cycle-174 test could NOT reach because the existingIds check short-circuits whenever every cache message is already in `existing`. Built the discriminating case: an axios.post mock that performs a concurrent cache write during the failed turn, so the cache message is absent from the entry snapshot and the `.some` runs over the hole. Red pre-fix (Cannot read messageId), mutation-checked. ESLint no-throw-literal flagged the mock's `throw undefined`; fixed with a variable. 1597/1597 across 80 suites (was 1596), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): guard the racy turn-merge comparison against a hole"
     }
   ],
   "backlog": [
