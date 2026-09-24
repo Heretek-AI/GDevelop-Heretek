@@ -1333,8 +1333,12 @@ export const AiRequestProvider = ({
         userId: activeUserId,
         aiRequestIds: statusOnlyIds,
       });
+      // `statuses` is a network response, so an entry may not be an object;
+      // destructuring it directly threw out of the whole watch tick.
       const statusById: Map<string, GenerationStatus> = new Map(
-        statuses.map(({ id, status }) => [id, status])
+        (Array.isArray(statuses) ? statuses : [])
+          .filter(entry => entry && typeof entry === 'object')
+          .map(({ id, status }) => [id, status])
       );
       await Promise.all(
         statusOnlyIds.map(async aiRequestId => {

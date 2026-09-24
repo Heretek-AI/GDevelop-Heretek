@@ -12,6 +12,7 @@ import {
   createResourceSearch,
   createAiGeneratedEvent,
   fetchAiSettings,
+  getAiRequestStatuses,
 } from './Generation';
 import {
   setCustomEndpointConfig,
@@ -466,6 +467,62 @@ describe('Generation local-ai lifecycle routing', () => {
       expect(post).toHaveBeenCalledTimes(1);
       expect(post.mock.calls[0][0]).toBe('/asset-search');
     }
+  });
+});
+
+describe('getAiRequestStatuses', () => {
+  it('keeps only object entries from an unvalidated hosted response', async () => {
+    // The response body is not validated: a truthy non-array made the spread
+    // throw, and a non-object element broke the consumer that destructures
+    // `{ id, status }`.
+    const axios = require('axios');
+    axios.get.mockResolvedValueOnce({
+      status: 200,
+      data: [
+        { id: 'hosted-1', status: 'working', userId: 'u1' },
+        null,
+        'not-an-object',
+        42,
+      ],
+    });
+
+    const statuses = await getAiRequestStatuses(authHeader, {
+      userId: 'u1',
+      aiRequestIds: ['hosted-1'],
+    });
+
+    expect(statuses).toEqual([
+      { id: 'hosted-1', status: 'working', userId: 'u1' },
+    ]);
+    // The consumer's destructure must be safe over this result.
+    expect(() => statuses.map(({ id, status }) => [id, status])).not.toThrow();
+  });
+
+  it('returns an empty list when the hosted response is not an array', async () => {
+    const axios = require('axios');
+    axios.get.mockResolvedValueOnce({ status: 200, data: { not: 'an array' } });
+
+    const statuses = await getAiRequestStatuses(authHeader, {
+      userId: 'u1',
+      aiRequestIds: ['hosted-2'],
+    });
+
+    expect(statuses).toEqual([]);
+  });
+
+  it('never calls the hosted API for local-ai-* ids', async () => {
+    const axios = require('axios');
+    axios.get.mockClear();
+
+    const statuses = await getAiRequestStatuses(authHeader, {
+      userId: 'u1',
+      aiRequestIds: ['local-ai-x'],
+    });
+
+    expect(axios.get).not.toHaveBeenCalled();
+    expect(statuses).toEqual([
+      { id: 'local-ai-x', status: 'ready', userId: 'local-byok-user' },
+    ]);
   });
 });
 

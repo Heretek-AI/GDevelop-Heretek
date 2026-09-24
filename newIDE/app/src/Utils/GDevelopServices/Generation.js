@@ -413,7 +413,16 @@ export const getAiRequestStatuses = async (
         },
       }
     );
-    results.push(...(response.data || []));
+    // The response body is unvalidated: a truthy non-array (an object, a
+    // number) makes the spread throw, and a non-object element breaks the
+    // consumer that destructures `{ id, status }`. Keep only object entries.
+    if (Array.isArray(response.data)) {
+      results.push(
+        ...response.data.filter(
+          item => item && typeof item === 'object' && !Array.isArray(item)
+        )
+      );
+    }
   }
   return results;
 };
