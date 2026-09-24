@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 195,
+  "last_cycle": 196,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1144,6 +1144,12 @@
       "target": "Run the entire editor Jest suite (broadest regression gate)",
       "metric_delta": "No code change. Ran the FULL newIDE/app suite (no path filter): 185 suites, 2351 passed, 1 skipped, 114 snapshots, 0 failures (~11s). This is stronger evidence than the per-cycle AI-surface pattern: it confirms the session's edits to shared files (ChatMessages, AiRequestChat/index, AiRequestContext, PreferencesProvider, EditorFunctions/index, ScriptExecution/CapScriptOutput) did not regress any upstream editor test. Noted: UseStudioRuntime.spec's createRoot render logs a React 'act environment' warning (a console warning, not a failure); harmless.",
       "commit": "chore(autonomous): record the full suite run"
+    },
+    {
+      "cycle": 196,
+      "target": "Live multi-turn studio run against local Ollama (Phase 5)",
+      "metric_delta": "Executed a real multi-turn agent loop live, no credentials: pointed the editor at local Ollama (saving/restoring the original Heretek config), opened the existing live chat, and sent a studio prompt (create_or_update_plan + spawn_agent). The turn completed: status ready, 10 messages, 5 assistant turns, 4 tool calls in order [create_or_update_plan, inspect_project_properties_resources, initialize_project, create_or_update_plan]; every POST to :11434 returned 200; no fork console errors (only benign iframe feature warnings) and no 5xx. The model chose to inspect/initialize/replan rather than spawn, so the run validated the plan tool + editor tool execution live but did not exercise spawn_agent (that branch remains covered by the unit tests + the persisted 12-spawn HarborTown run). Mechanism note for reliable automation: chrome-devtools fill() does NOT trigger React onChange (send stayed disabled); real key events (press_key/type_text) do.",
+      "commit": "chore(autonomous): record the live multi-turn studio run"
     }
   ],
   "backlog": [
@@ -1336,6 +1342,7 @@
     "Driving the Ask AI new-chat form via Chrome DevTools MCP is unreliable here: the drawer re-renders back to the history list between fill and send. For the multi-turn benchmark, use the @feedback-loop skill / interactive session rather than synthetic DOM driving; a single-turn live BYOK check is enough to validate the transport.",
     "Ollama's OpenAI-compatible SSE sends `delta.reasoning` (not `reasoning_content`) and streams it for many chunks before any `delta.content`; any UI signal derived from partial content (the cold-start hint, the streaming tail) must account for reasoning-only progress or it reports 'waiting for the first token' while the model is clearly working.",
     "Telemetry the console already prints should also be stored in a registry keyed by request id: 'inspectable' in this objective means readable from React state, not just visible in devtools. Thread a callback (onProviderTelemetry) through the client like onStreamDelta rather than having the client guess the request id.",
-    "Auditing revertibility with `git show <sha> | git apply --reverse --check` is wrong for a commit older than HEAD: git apply checks against the working tree, so any later commit touching the same lines makes it conflict regardless of true revertibility. Verify with `git revert --no-commit` on the tip or a newest-first range instead, and confirm the history is linear (no merges) first."
+    "Auditing revertibility with `git show <sha> | git apply --reverse --check` is wrong for a commit older than HEAD: git apply checks against the working tree, so any later commit touching the same lines makes it conflict regardless of true revertibility. Verify with `git revert --no-commit` on the tip or a newest-first range instead, and confirm the history is linear (no merges) first.",
+    "Driving a React controlled input via Chrome DevTools: fill() sets the DOM value but does not fire the input event React listens for (the send button stays disabled); use click to focus then press_key/type_text so real key events update state. This is why earlier new-chat sends failed intermittently."
   ]
 }
