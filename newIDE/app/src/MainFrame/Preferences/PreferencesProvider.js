@@ -35,6 +35,7 @@ import {
   PERIODIC_APP_UPDATES_TIMEOUT,
 } from '../../Utils/GlobalFetchTimeouts';
 import { setCustomEndpointConfig } from '../../AI/CustomAIClient';
+import { getPersistablePreferences } from './PreferencesStorage';
 const electron = optionalRequire('electron');
 const ipcRenderer = electron ? electron.ipcRenderer : null;
 
@@ -999,8 +1000,12 @@ export default class PreferencesProvider extends React.Component<Props, State> {
 
   _persistValuesToLocalStorage(preferences: Preferences): any {
     try {
-      const { aiCustomApiKey, ...persistableValues } = preferences.values;
-      localStorage.setItem(localStorageItem, JSON.stringify(persistableValues));
+      // The API key is never persisted in cleartext (see
+      // `getPersistablePreferences`).
+      localStorage.setItem(
+        localStorageItem,
+        JSON.stringify(getPersistablePreferences(preferences.values))
+      );
     } catch (e) {
       console.warn('Unable to persist preferences', e);
     }

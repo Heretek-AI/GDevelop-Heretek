@@ -1,6 +1,6 @@
 {
   "$comment": "Checked-in allowlist of every path this fork intentionally diverges from 4ian/GDevelop on. Regenerate with `node scripts/check-fork-divergence.js --update`. Enforced by `node scripts/check-fork-divergence.js` in CI. See MAINTENANCE.md.",
-  "updatedAt": "2026-09-23",
+  "updatedAt": "2026-09-24",
   "baselineCommit": "b9109cfbaaaf19c31b5af4d315317fb67d8903c3",
   "upstreamSource": "b9109cfbaaaf19c31b5af4d315317fb67d8903c3",
   "modified": [
@@ -171,6 +171,8 @@
     "newIDE/app/src/AiGeneration/Studio/SpawnSubAgents.js",
     "newIDE/app/src/AiGeneration/Studio/SpawnSubAgents.spec.js",
     "newIDE/app/src/AiGeneration/Studio/UseStudioRuntime.js",
+    "newIDE/app/src/MainFrame/Preferences/PreferencesStorage.js",
+    "newIDE/app/src/MainFrame/Preferences/PreferencesStorage.spec.js",
     "newIDE/app/src/Utils/Array.ts",
     "newIDE/app/src/Utils/Delay.ts",
     "newIDE/app/src/Utils/GDevelopServices/ApiConfigs.spec.js",
