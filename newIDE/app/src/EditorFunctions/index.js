@@ -7033,8 +7033,16 @@ const addSceneEvents: EditorFunction = {
         );
       }
 
-      const changes = aiGeneratedEvent.changes;
-      if (!changes || changes.length === 0) {
+      // `changes` is server- or model-supplied and only the event's `id` key is
+      // validated on fetch, so a truthy non-array — or an entry that is not an
+      // object — must not reach `.some`/`.map` below (which throw and lose the
+      // whole result). Treat anything that is not a non-empty array of objects
+      // as "no generated events".
+      const rawChanges = aiGeneratedEvent.changes;
+      const changes: Array<Object> = Array.isArray(rawChanges)
+        ? rawChanges.filter(change => change && typeof change === 'object')
+        : [];
+      if (changes.length === 0) {
         const resultMessage =
           aiGeneratedEvent.resultMessage ||
           'No generated events and no other info given.';
@@ -7055,7 +7063,12 @@ const addSceneEvents: EditorFunction = {
           `Generated events invalid: ${resultMessage}\nSee diagnostics; retry differently or use a different approach.`,
           {
             generatedEventsErrorDiagnostics: changes
-              .map(change => change.diagnosticLines.join('\n'))
+              .map(change =>
+                Array.isArray(change.diagnosticLines)
+                  ? change.diagnosticLines.join('\n')
+                  : ''
+              )
+              .filter(Boolean)
               .join('\n\n'),
           }
         );
@@ -7064,7 +7077,9 @@ const addSceneEvents: EditorFunction = {
       try {
         const extensionNames = new Set<string>();
         for (const change of changes) {
-          for (const extensionName of change.extensionNames || []) {
+          for (const extensionName of Array.isArray(change.extensionNames)
+            ? change.extensionNames
+            : []) {
             extensionNames.add(extensionName);
           }
         }
