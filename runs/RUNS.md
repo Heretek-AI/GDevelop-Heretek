@@ -73,6 +73,11 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 - **Reasoning progress (fixed)**: Ollama streams `delta.reasoning` first; progress now
   reports `content || reasoning`.
 - **Overflow recovery (fixed)**: one retry at a halved budget on create/continue/sub-agent.
+- **Deterministic multi-agent proof (cycle 207)**: the scripted mock
+  (`MOCK_SCRIPT`) drove plan -> spawn_agent -> child report -> write-back entirely
+  offline, no model and no credentials: a real child request was created and its
+  report was written to the parent's spawn call. This is the strongest harness
+  evidence for the orchestration loop and does not depend on model compliance.
 - **Model-behaviour**: the local model often stops after planning without delegating.
   The delegation path works (persisted run: 12 spawns; unit tests); this is model variance.
 
