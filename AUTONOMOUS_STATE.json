@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 208,
+  "last_cycle": 209,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1222,6 +1222,12 @@
       "target": "OSINT assessment: maintained library vs the bespoke tool-argument validator",
       "metric_delta": "No code change (Phase 2 research applied to the one bespoke utility a mature library solves). Invariant 2 asks that hand-rolled code be replaced by actively maintained open-source where it exists. validateToolCallArguments (JSON-Schema-ish validation of model tool calls against GDEVELOP_OPENAI_TOOLS) is the candidate; ajv is the standard maintained validator (8.x referenced in the lock, 6.14.0 installed transitively). Decision: KEEP the bespoke validator and NOT add a direct ajv dependency - reasons: it runs per tool call in a hot path, the editor bundle would grow for marginal benefit, ajv is only a transitive dep (using it directly would add a runtime dependency plus its compile/caching model), and the validator is small, schema-driven and pinned by tests. Recorded so the next session does not re-litigate. Also recorded: the standalone Ask AI form has no project, so create_or_update_plan fails with 'No project opened.'; the web Home screen in this build exposes no cheap blank-project control, so the full plan-flip run needs a project opened first.",
       "commit": "docs(autonomous): assess ajv vs the bespoke tool-argument validator"
+    },
+    {
+      "cycle": 209,
+      "target": "Attempt the full-loop run with a project created in-script",
+      "metric_delta": "No code change. Extended the scripted-mock run to create a project first (initialize_project {template_slug:'empty'}) so project-requiring tools could run: initialize_project DID succeed live ('Initialized empty project (1 scene).'), proving the scripted path reaches and executes project-creation tools. create_or_update_plan still failed because the standalone Ask AI form does not host a project for the editor function map (the same 'No project opened.' gate), and the turn ended after that call, so the spawn turn was never reached. Conclusion recorded: exercising create_or_update_plan / the plan-task flip needs a PROJECT OPEN in the full editor container, not the standalone form; the orchestration core (dispatch -> child -> report write-back) is already deterministically proven (cycle 207). Config restored; mock stopped.",
+      "commit": "chore(autonomous): record the in-script project-creation attempt"
     }
   ],
   "backlog": [
@@ -1418,6 +1424,7 @@
     "Driving a React controlled input via Chrome DevTools: fill() sets the DOM value but does not fire the input event React listens for (the send button stays disabled); use click to focus then press_key/type_text so real key events update state. This is why earlier new-chat sends failed intermittently.",
     "A find-based python splice is unsafe when the same anchor text appears in more than one turn path (three near-identical send blocks here): the restore matched the wrong occurrence and spliced a function body into another. After such an edit, run eslint immediately; if it reports variables 'not defined' in a region you did not touch, the splice is wrong - revert the file to HEAD and re-apply each edit with its own unique anchor + lint check.",
     "A browser client can only read custom response headers from a cross-origin endpoint if the server lists them in Access-Control-Expose-Headers; a proxy advertising x-omniroute-* must expose them or the telemetry is invisible to the editor (proven live in cycle 202).",
-    "Invariant-2 OSINT must be a real assessment, not a reflex swap: ajv is the maintained validator, but adopting it as a direct dependency for a hot-path per-tool-call check in the editor bundle costs more than the small, schema-driven, test-pinned bespoke validator it would replace. Record the reasoning so it is not re-opened each session."
+    "Invariant-2 OSINT must be a real assessment, not a reflex swap: ajv is the maintained validator, but adopting it as a direct dependency for a hot-path per-tool-call check in the editor bundle costs more than the small, schema-driven, test-pinned bespoke validator it would replace. Record the reasoning so it is not re-opened each session.",
+    "In this build the standalone Ask AI form does not host a project for the editor function map, so project-requiring tools (create_or_update_plan, create_scene, ...) fail there even after initialize_project creates one; the editor container with a project open is required for those. initialize_project itself works standalone (EditorFunctionWithoutProject)."
   ]
 }
