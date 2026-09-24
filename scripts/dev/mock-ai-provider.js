@@ -124,19 +124,11 @@ const json = (res, status, body, extraHeaders) => {
   res.end(JSON.stringify(body));
 };
 
-// A sub-agent request carries its role prompt ("... of a small game studio");
-// the top-level orchestrator does not. Distinguishing them lets a scripted run
-// give the PARENT the scripted turns (plan, spawn, spawn, ...) while each child
-// simply returns a report, so the interleaved parent/child request order does
-// not consume the script out of sequence.
-const isSubAgentRequest = messages =>
-  messages.some(
-    message =>
-      message &&
-      message.role === 'system' &&
-      typeof message.content === 'string' &&
-      message.content.includes('small game studio')
-  );
+// A sub-agent request carries a studio ROLE prompt ("... the developer of a
+// small game studio"). The top-level manager ALSO names "small game studio" (its
+// role prompt became the manager's in the editor's role fix), so the reliable
+// discriminator is a detected ROLE, not the shared phrase.
+const isSubAgentRequest = messages => detectRole(messages) !== null;
 
 const buildReply = (messages, rawBody) => {
   const lastUser = [...messages].reverse().find(m => m && m.role === 'user');

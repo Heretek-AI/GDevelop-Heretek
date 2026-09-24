@@ -81,6 +81,7 @@ import {
 } from './Studio/PlanStore';
 import { isSubAgentAtTurnCap } from './Studio/FinalizeSubAgents';
 import { getRoleToolPolicy, isRoleReadOnly } from './Studio/RoleToolPolicy';
+import { MUTATING_TOOL_NAMES } from './Studio/Roles';
 import { getEditApprovalLaunchingCall } from './Studio/EditApprovalLabel';
 import {
   createRequestWriteQueue,
@@ -692,6 +693,15 @@ export const useProcessFunctionCalls = ({
           });
         });
         guard.recordTurn();
+        // A sub-agent that only inspects turn after turn is stuck (the
+        // objective's "no project mods over N turns" signature). The manager is
+        // exempt: delegating without editing is exactly its job.
+        if (aiRequest.studioRoleId) {
+          const madeProgress = functionCallsToProcess.some(functionCall =>
+            MUTATING_TOOL_NAMES.includes(functionCall.name)
+          );
+          guard.recordProgress(madeProgress);
+        }
 
         const decision = guard.evaluate();
         if (decision.action === 'steer' || decision.action === 'constrain') {

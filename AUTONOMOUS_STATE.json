@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 262,
+  "last_cycle": 263,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1546,6 +1546,12 @@
       "target": "Tier 2 fallback routing: a secondary model used when the primary exhausts its provider retries",
       "metric_delta": "Implemented the objective's Tier 2 'fallback routing'. (1) CustomAIConfig gains fallbackModel (sanitized); (2) a 'Fallback model (optional)' field in the AI Settings Preferences, wired through PreferencesContext/Provider/Dialog exactly like aiCustomModel (PreferencesStorage strips only apiKey, so it persists); (3) the three turn paths (create/continue/sub-agent) now accept a per-attempt model override, and runTurnWithProviderRetry makes one final attempt with the fallback model after the 2 provider retries fail on a retryable 408/429/502/503/504. +1 spec (3x503 then a 4th call with the fallback model => ready, 4 posts, 4th uses 'fallback-model'). Full editor suite 187 suites / 2438 passed; build green; ESLint/Prettier/divergence clean. Live-verified with a model-aware provider: primary-model -> 503 x3 then fallback-model -> 200, request ended ready, console logged 'Provider still failing (503); falling back to model \"fallback-model\"', and the Preferences field renders.",
       "commit": "feat(ai): fallback to a secondary model when the provider keeps failing"
+    },
+    {
+      "cycle": 263,
+      "target": "Tier 4 progress-stall steer (the objective's 'zero project mods over N turns' signature) + mock parent/child detection fix",
+      "metric_delta": "Added a fourth loop-guard trip: a sub-agent that changes nothing for maxTurnsWithoutProgress (default 5) consecutive turns is steered. Progress is recorded per dispatched batch (any MUTATING_TOOL_NAMES call = progress) and applied ONLY when aiRequest.studioRoleId is set (sub-agents), never the manager (delegating without editing is its job), so the manager is not falsely flagged. +3 LoopGuard specs (trips at N, a project-changing turn resets, reset clears) and the defaults assertion updated. Full editor suite 187 suites / 2441 passed; build green; ESLint/Prettier/divergence clean. Live-verified with the mock: a developer scripted to only read_game_project_json was steered after its 5th no-progress turn ('stuck (no progress: 5 turns without changing the project)'). Also fixed scripts/dev/mock-ai-provider.js: after cycle 258 the manager prompt also contains 'small game studio', so child detection now requires a detected studio ROLE (designer/developer/tester); otherwise the manager was misclassified as a child and scripted sessions could not run.",
+      "commit": "feat(ai): steer a sub-agent that stops making progress"
     }
   ],
   "backlog": [
@@ -1768,6 +1774,7 @@
     "A fresh @feedback-loop run is the right validation for an orchestration fix: the deterministic spec pinned the tool subset, but only the real run proved the manager delegates (4 spawns, 0 direct edits) instead of building the project itself.",
     "Sub-agent failure recovery works (feedback-loop Run 6): an errored child is treated as finished, its failed report is delivered to the manager, and the manager spawned a replacement. The underlying 503 is now retried client-side, so a transient provider blip no longer kills a sub-agent turn. Keep 500 non-retryable (a genuine provider error should surface as-is).",
     "Periodically run the FULL newIDE/app suite (187 suites), not only the AI-surface subset: the fast per-cycle gate is a subset and cannot prove the wider app still passes after many edits. The full suite is ~10s here.",
-    "Fallback routing belongs after the provider retries, not instead of them: retry the same model (transient blips often clear), then switch models once. Keep the model list user-configurable (AI Settings) and persisted via the preferences store; only the apiKey is stripped before persistence."
+    "Fallback routing belongs after the provider retries, not instead of them: retry the same model (transient blips often clear), then switch models once. Keep the model list user-configurable (AI Settings) and persisted via the preferences store; only the apiKey is stripped before persistence.",
+    "The objective's thrash signature 'zero project mods across 5 turns' maps to a guard trip only for roles that CAN modify. Record progress per batch from the dispatched calls (a MUTATING_TOOL_NAMES call = progress) and exempt the manager, whose no-edit behaviour is correct. Also: the committed mock's child detection must key on a studio ROLE, not the 'small game studio' phrase, because the manager prompt now contains it too."
   ]
 }

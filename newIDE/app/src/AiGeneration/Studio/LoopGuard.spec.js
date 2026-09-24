@@ -259,12 +259,46 @@ describe('LoopGuard', () => {
     });
   });
 
+  describe('progress trip', () => {
+    it('trips after N consecutive turns with no project change', () => {
+      const guard = createLoopGuard({ maxTurnsWithoutProgress: 3 });
+      guard.recordProgress(false);
+      guard.recordProgress(false);
+      expect(guard.evaluate().level).toBe('healthy');
+      guard.recordProgress(false);
+      const decision = guard.evaluate();
+      expect(decision.level).toBe('steering');
+      expect(decision.reason).toContain('no progress');
+    });
+
+    it('a project-changing turn resets the streak', () => {
+      const guard = createLoopGuard({ maxTurnsWithoutProgress: 3 });
+      guard.recordProgress(false);
+      guard.recordProgress(false);
+      // The task wrote something: it is not stuck.
+      guard.recordProgress(true);
+      guard.recordProgress(false);
+      guard.recordProgress(false);
+      expect(guard.evaluate().level).toBe('healthy');
+    });
+
+    it('reset clears the progress streak', () => {
+      const guard = createLoopGuard({ maxTurnsWithoutProgress: 2 });
+      guard.recordProgress(false);
+      guard.recordProgress(false);
+      expect(guard.evaluate().level).toBe('steering');
+      guard.reset();
+      expect(guard.evaluate().level).toBe('healthy');
+    });
+  });
+
   it('defaults are the documented ones', () => {
     expect(DEFAULT_LOOP_GUARD_CONFIG).toEqual({
       enabled: true,
       repeatedToolLimit: 8,
       errorStormLimit: 5,
       maxTurnsWithoutUserInput: 60,
+      maxTurnsWithoutProgress: 5,
     });
   });
 });

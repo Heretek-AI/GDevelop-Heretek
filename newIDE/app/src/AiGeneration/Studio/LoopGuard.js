@@ -55,6 +55,13 @@ export const DEFAULT_LOOP_GUARD_CONFIG = {
    * of calls, a gameplay test) is not a loop.
    */
   maxTurnsWithoutUserInput: 60,
+  /**
+   * Trips on the Nth consecutive turn with no project-modifying tool call; N-1
+   * are tolerated. A sub-agent that only inspects is stuck (this is the
+   * objective's "zero project mods over N turns" thrash signature). Never
+   * applied to the manager, whose job is to delegate without editing.
+   */
+  maxTurnsWithoutProgress: 5,
 };
 
 export type LoopGuardConfig = {
@@ -62,6 +69,7 @@ export type LoopGuardConfig = {
   repeatedToolLimit: number,
   errorStormLimit: number,
   maxTurnsWithoutUserInput: number,
+  maxTurnsWithoutProgress: number,
 };
 
 const LEVELS: Array<LoopGuardLevel> = [
@@ -129,6 +137,8 @@ export type LoopGuard = {|
   recordSuccess: () => void,
   recordError: () => void,
   recordTurn: () => void,
+  /** Record whether the last turn changed the project (progress). */
+  recordProgress: (madeProgress: boolean) => void,
   reset: () => void,
   evaluate: () => LoopGuardDecision,
 |};
@@ -147,6 +157,7 @@ export const createLoopGuard = (
   let repeatCount = 0;
   let errorCount = 0;
   let turnCount = 0;
+  let noProgressTurns = 0;
   let actionEmittedForTrip = false;
 
   const evaluateTrips = (): {| tripping: boolean, reason: string |} => {
@@ -162,6 +173,12 @@ export const createLoopGuard = (
       return {
         tripping: true,
         reason: `error storm: ${errorCount} consecutive failures`,
+      };
+    }
+    if (noProgressTurns >= effectiveConfig.maxTurnsWithoutProgress) {
+      return {
+        tripping: true,
+        reason: `no progress: ${noProgressTurns} turns without changing the project`,
       };
     }
     if (turnCount >= effectiveConfig.maxTurnsWithoutUserInput) {
@@ -193,6 +210,11 @@ export const createLoopGuard = (
     recordTurn: () => {
       turnCount++;
     },
+    recordProgress: madeProgress => {
+      // Any project change resets the streak: a task that reads for a while,
+      // then writes, is not stuck. Only a stretch of pure inspection trips.
+      noProgressTurns = madeProgress ? 0 : noProgressTurns + 1;
+    },
     reset: () => {
       // A new user input: the counters start over, but the ladder is NOT
       // jumped back to healthy - it de-escalates one level per `evaluate`, so
@@ -202,6 +224,7 @@ export const createLoopGuard = (
       repeatCount = 0;
       errorCount = 0;
       turnCount = 0;
+      noProgressTurns = 0;
       actionEmittedForTrip = false;
     },
     evaluate: () => {

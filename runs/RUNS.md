@@ -98,6 +98,19 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Tier 4 progress-stall steer (cycle 263): the loop guard gains a fourth trip -
+  a sub-agent that changes nothing for `maxTurnsWithoutProgress` (5) consecutive
+  turns. It is recorded per turn from the dispatched batch (any
+  `MUTATING_TOOL_NAMES` call = progress) and is applied only to sub-agents
+  (`aiRequest.studioRoleId`), never the manager (delegating without editing is its
+  job). This is the objective's "zero project mods over N turns" thrash
+  signature. Verified live with the mock: a developer scripted to only
+  `read_game_project_json` was steered after its 5th no-progress turn
+  (`stuck (no progress: 5 turns without changing the project)`). +3 specs.
+  Also fixed the committed mock provider: after cycle 258 the manager prompt also
+  says "small game studio", so child detection now requires a detected studio
+  ROLE, not the shared phrase - otherwise the manager was misclassified and the
+  scripted session could not run.
 - Tier 2 fallback routing (cycle 262): a configurable secondary model used when
   the primary model exhausts its provider retries. `CustomAIConfig.fallbackModel`
   (sanitized), a "Fallback model (optional)" field in the AI Settings
