@@ -238,6 +238,54 @@ describe('CustomAIClient', () => {
       expect(openAiMessages.some(m => m.role === 'user')).toBe(true);
     });
 
+    it('skips null entries inside content and call arrays instead of throwing', () => {
+      // normalizePersistedMessages validates that `output` is an array but
+      // passes inner entries through unchanged, so a null inside a content,
+      // functionCalls or functionCallOutputs array reaches every `.type`/`.id`
+      // read below. All four threw `Cannot read properties of null`.
+      const messages: any = [
+        {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'user_request', text: 'hi' }, null, 'scalar'],
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          text: 'working',
+          content: [
+            {
+              type: 'function_call',
+              name: 'describe_instances',
+              call_id: 'c1',
+              arguments: '{}',
+            },
+            null,
+          ],
+          functionCalls: [null],
+        },
+        {
+          type: 'function_call_output',
+          functionCallOutputs: [null],
+        },
+      ];
+      let openAiMessages;
+      expect(
+        () => (openAiMessages = transformGDevelopMessagesToOpenAi(messages))
+      ).not.toThrow();
+      expect(
+        openAiMessages.some(m => m.role === 'user' && m.content === 'hi')
+      ).toBe(true);
+      expect(
+        openAiMessages.some(
+          m =>
+            m.role === 'assistant' &&
+            Array.isArray(m.tool_calls) &&
+            m.tool_calls[0].function.name === 'describe_instances'
+        )
+      ).toBe(true);
+    });
+
     it('formats user messages and system prompt', () => {
       const messages = [
         {
@@ -722,6 +770,38 @@ describe('CustomAIClient', () => {
       expect(reasoningEntry && reasoningEntry.summary.text).toBe(
         'Let me think about TileMap.'
       );
+    });
+
+    it('treats a non-string network content as empty instead of throwing', () => {
+      // A proxy may send content as an object or an array of blocks (both
+      // truthy): the old `openAiMessage.content || ''` passed it into
+      // extractThinkingAndContent, whose `.match` then threw out of the turn.
+      expect(() =>
+        parseAssistantMessage({
+          role: 'assistant',
+          content: ({ text: 'hi' }: any),
+        })
+      ).not.toThrow();
+      expect(() =>
+        parseAssistantMessage({
+          role: 'assistant',
+          content: ([{ type: 'text', text: 'hi' }]: any),
+        })
+      ).not.toThrow();
+    });
+
+    it('ignores a non-string reasoning field instead of rendering an object', () => {
+      // summary.text is rendered as chat text: an object there throws
+      // 'Objects are not valid as a React child' on the next render.
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: 'Hello',
+        reasoning: (({ text: 'deep thought' }: any): string),
+      });
+      const reasoningEntry = (message.content || []).find(
+        entry => entry.type === 'reasoning'
+      );
+      expect(reasoningEntry).toBeUndefined();
     });
 
     it('sanitizes schema-invalid tool calls in parseAssistantMessage', () => {

@@ -2628,7 +2628,12 @@ export const transformGDevelopMessagesToOpenAi = (
         (typeof msg.content === 'string' ? msg.content : '') ||
         (Array.isArray(msg.content)
           ? msg.content
-              .filter(item => item.type === 'user_request' || item.text)
+              .filter(
+                item =>
+                  item &&
+                  typeof item === 'object' &&
+                  (item.type === 'user_request' || item.text)
+              )
               .map(item => item.text)
               .join('\n')
           : '');
@@ -2647,6 +2652,7 @@ export const transformGDevelopMessagesToOpenAi = (
       // Extract function calls
       if (Array.isArray(msg.functionCalls)) {
         for (const fc of msg.functionCalls) {
+          if (!fc || typeof fc !== 'object') continue;
           toolCalls.push({
             id: fc.id || `call_${Date.now()}`,
             type: 'function',
@@ -2663,6 +2669,7 @@ export const transformGDevelopMessagesToOpenAi = (
 
       if (Array.isArray(msg.content)) {
         for (const item of msg.content) {
+          if (!item || typeof item !== 'object') continue;
           if (item.type === 'function_call') {
             toolCalls.push({
               id:
@@ -2700,6 +2707,7 @@ export const transformGDevelopMessagesToOpenAi = (
     } else if (msg.type === 'function_call_output' || msg.role === 'tool') {
       if (Array.isArray(msg.functionCallOutputs)) {
         for (const fco of msg.functionCallOutputs) {
+          if (!fco || typeof fco !== 'object') continue;
           openAiMessages.push({
             role: 'tool',
             tool_call_id: fco.callId || fco.call_id || fco.id,
@@ -3512,11 +3520,20 @@ export const parseAssistantMessage = (
       openAiMessageOrChoiceOrResponse.choices[0].message) ||
     openAiMessageOrChoiceOrResponse;
 
-  const rawContent = openAiMessage.content || '';
+  // `content` is network-supplied: a proxy may send an object or an array
+  // of blocks (both truthy), and the old `|| ''` passed it into
+  // extractThinkingAndContent, whose `.match` then threw out of the turn.
+  // Only a string is parsed; anything else reads as empty.
+  const rawContent =
+    typeof openAiMessage.content === 'string' ? openAiMessage.content : '';
   // OpenAI-style endpoints use `reasoning_content`; Ollama-style endpoints
-  // (and the OmniRoute proxy) use `reasoning`. Accept both.
+  // (and the OmniRoute proxy) use `reasoning`. Accept both. Either is
+  // network-supplied, so only a string is accepted: a non-string would land
+  // in `summary.text`, which the chat renders as text.
+  const reasoningCandidate =
+    openAiMessage.reasoning_content || openAiMessage.reasoning;
   const reasoningContent =
-    openAiMessage.reasoning_content || openAiMessage.reasoning || null;
+    typeof reasoningCandidate === 'string' ? reasoningCandidate : null;
 
   let { thinking, cleanContent } = extractThinkingAndContent(rawContent);
   if (!thinking && reasoningContent) {
