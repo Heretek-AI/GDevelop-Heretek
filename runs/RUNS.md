@@ -98,6 +98,13 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Orchestrator stall recovery, live end-to-end (cycle 250): a manager that
+  plans and then ends its turn without delegating is now nudged automatically
+  (bounded, once per plan state). Proven against the scriptable mock provider:
+  the request transcript went `user → plan output → user[NUDGE] → assistant
+  create_or_update_plan → assistant spawn_agent` - the nudge resumed the stalled
+  manager, which then delegated. Only one nudge was sent (no loop); screenshot
+  /tmp/opencode/cycle250-nudge.png.
 - Per-agent report on demand (cycle 249): a finished row in the per-agent
   dashboard is now clickable and reveals that sub-agent's own report (read by the
   pure, tested `extractFunctionCallReport`, handling the studio `{message}`

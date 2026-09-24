@@ -4273,7 +4273,6 @@ export const customAddMessageToAiRequest = async ({
     if (functionCallOutputs && functionCallOutputs.length > 0) {
       for (const fcOutput of functionCallOutputs) {
         // Network-supplied: a hole would throw on the property read.
-        // Network-supplied: a hole would throw on the property read.
         if (!fcOutput || typeof fcOutput !== 'object') continue;
         output.push({
           type: 'function_call_output',

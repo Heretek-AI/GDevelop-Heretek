@@ -85,6 +85,7 @@ import UrlStorageProvider from '../ProjectsStorage/UrlStorageProvider';
 import { prepareAiUserContent } from './PrepareAiUserContent';
 import { AiRequestContext } from './AiRequestContext';
 import { useStudioRuntime } from './Studio/UseStudioRuntime';
+import { useStudioNudge } from './Studio/UseStudioNudge';
 import { getAiConfigurationPresetsWithAvailability } from './AiConfiguration';
 import {
   setEditorHotReloadNeeded,
@@ -1202,6 +1203,18 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         updateAiRequest,
         onSendEditorFunctionCallResults,
         enqueueRequestWrite,
+      });
+
+      // Keeps the local manager moving when it plans, then ends its turn without
+      // delegating (BYOK-only, bounded, one nudge per plan state). A no-op for
+      // the hosted path and for sub-agent requests.
+      useStudioNudge({
+        selectedAiRequest,
+        aiRequests,
+        activeSubAgents,
+        getEditorFunctionCallResults,
+        isSendingAiRequest,
+        onSendMessage,
       });
 
       // Wrap onProcessFunctionCalls to bind the selected AI request for the chat UI.

@@ -866,10 +866,6 @@ export const getFunctionCallOutputsFromEditorFunctionCallResults = (
         // an array becomes {0:...}) corrupts the JSON the model receives, so
         // only a plain object is spread; anything else is nested under
         // `output` so its value survives without numeric keys.
-        // `output: any`: spreading a non-object (a string becomes {0:'a',...},
-        // an array becomes {0:...}) corrupts the JSON the model receives, so
-        // only a plain object is spread; anything else is nested under
-        // `output` so its value survives without numeric keys.
         const rawOutput = functionCallOutput.output;
         const outputFields =
           rawOutput &&

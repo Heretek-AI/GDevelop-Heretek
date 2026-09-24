@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 249,
+  "last_cycle": 250,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1468,10 +1468,16 @@
       "target": "Tier 1/2 multi-agent UI: reveal each finished sub-agent's report inline from the dashboard",
       "metric_delta": "A finished row in the per-agent dashboard is now clickable and expands to that sub-agent's own report - the 'what did each agent do' half of a multi-agent panel, using data already in the parent transcript (no child persistence). Added the pure, tested extractFunctionCallReport (reads the studio {message} object, a JSON-string payload's message/report, and a plain-text report; returns null for empty values and for machine JSON/scalar payloads with no message - so a generic tool blob is never shown as prose), added `report` to SubAgentActivityRow/listSubAgentActivity (first-output-wins, matching call de-duplication), and made the panel render a truncated (<4000 chars) report. +8 specs (report shapes, still-working null, extract edge cases). Live-verified: the real benchmark chat's finished designer row expanded to its report text; the working developer row stayed non-clickable. Tests 1670 AI-surface (up from 1662); build green; ESLint/Prettier/divergence clean.",
       "commit": "feat(ai): reveal each finished sub-agent's report inline in the dashboard"
+    },
+    {
+      "cycle": 250,
+      "target": "Tier 1 orchestrator reliability: resume a studio manager that stalls after planning (bounded, tested)",
+      "metric_delta": "Under BYOK nothing resumed a manager that produced a plan, then ended its turn without delegating - the multi-agent loop idled forever (the recurring 'local model plans then stops' gap). Added the fix end-to-end: (1) pure, tested NudgePolicy (shouldNudgeStudioManager + getActionablePlanSignature + buildStudioNudgeMessage, 13 specs) decides when to nudge; (2) useStudioNudge hook (8 specs with fake timers + react-test-renderer) arms a 5s grace timer, sends once per plan state, caps at 5 per request, only for the top-level non-role manager, only a recent (<=10min) request, skips suspended/error/sending/in-progress/live-or-pending-sub-agent; (3) wired beside useStudioRuntime in AskAiEditorContainer. Live end-to-end proof against the scriptable mock: transcript user -> plan output -> user[NUDGE] -> assistant create_or_update_plan -> assistant spawn_agent (the stalled manager resumed and delegated; exactly one nudge). Also deduplicated two merge-artifact comment blocks (CustomAIClient.js, AiRequestUtils.js). Tests 1691 AI-surface / 83 suites (up from 1670/81); build green; ESLint/Prettier/divergence clean (4 new forkOnly files recorded).",
+      "commit": "feat(ai): resume a stalled studio manager with a bounded nudge"
     }
   ],
   "backlog": [
-    "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent; a stronger model or an automatic continuation nudge (design as a small scheduler outside AI/CustomAIClient, which cannot import Studio/) would improve real-model completion.",
+    "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
     "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued.",
@@ -1677,6 +1683,8 @@
     "The agent loop's client guard (LoopGuard, repeatedToolLimit 8) and the harness's thrash signature (>=3 identical probes) are different things by design: the guard must avoid constraining legitimate long tasks, the audit flags early for human review. Do not 'align' them by lowering the guard.",
     "The sub-agent audit line is now an expandable dashboard; keep listSubAgentActivity the single source of truth for per-agent rows and derive summarizeSubAgentActivity/sumSubAgentTokens from it rather than re-walking the output.",
     "Run Jest through `npm test` only: the package's test script is `react-app-rewired test --env=node`, and invoking `npx react-app-rewired test` without `--env=node` makes 21 CustomAIClient streaming specs fail with 'TextEncoder is not defined'. A bare-invocation failure is environmental, not a regression.",
-    "For a multi-agent UI, the sub-agent's report is already in the parent's output as a function_call_output (written by useStudioRuntime); surface that instead of persisting child transcripts. extractFunctionCallReport handles both the {message} object and JSON-string shapes."
+    "For a multi-agent UI, the sub-agent's report is already in the parent's output as a function_call_output (written by useStudioRuntime); surface that instead of persisting child transcripts. extractFunctionCallReport handles both the {message} object and JSON-string shapes.",
+    "The CRA dev server may hold a stale bundle after long edit sessions; verify a new feature is actually served by fetching the loaded app chunk (the big src_ExportAndShare_* chunk contains the app under test) and grepping for a unique symbol, not the small bundle.js. To restart it, kill the `node .../react-app-rewired/scripts/start.js` PID (pkill on 'react-app-rewired start' misses it); wait for 'webpack compiled successfully' in its log.",
+    "A hook that sends through a timer must flush microtasks in its spec: after jest.advanceTimersByTime, `await TestRenderer.act(async () => { await Promise.resolve(); })`, or the deferred send has not run when the assertions execute."
   ]
 }
