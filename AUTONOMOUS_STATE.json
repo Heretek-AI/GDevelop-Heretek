@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 199,
+  "last_cycle": 200,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1168,6 +1168,12 @@
       "target": "Cover the backend-tool filter on the continue and sub-agent paths (Tier 4)",
       "metric_delta": "Cycle 169's filter (withhold get_game_starter_summary from local turns) had a turn test only for the create path; the continue (roleTools) and sub-agent paths were covered only by the pure filter, so a regression dropping the wrapper there would silently re-offer the always-failing tool. Added a turn test asserting both customAddMessageToAiRequest and customCreateSubAgentAiRequest send tools without get_game_starter_summary (and still include create_scene). Mutation-checked: reverting the roleTools wrapper reproduces the tool in the sent payload. 1635/1635 across 81 suites, eslint+prettier clean, divergence clean.",
       "commit": "test(ai): cover the backend-tool filter on continue and sub-agent paths"
+    },
+    {
+      "cycle": 200,
+      "target": "Recover a context-overflow turn with one retry at a smaller budget (Tier 2)",
+      "metric_delta": "The trimmer already fits most requests, but an over-window 400 (unknown model family defaulting high, a giant single message, or the tool schema filling a small window) lost the turn entirely. Added a shared CONTEXT_OVERFLOW_PATTERN + exported isContextOverflowError(error) (reused by the error-hint table so the two cannot disagree), and in customAddMessageToAiRequest a bounded recovery: on an over-window error, retry ONCE on the same endpoint with a halved message budget, never on abort. +2 tests: the retry drops the prompt from >4096 to <=2048 tokens and succeeds with exactly 2 POSTs; a 500 does NOT retry (and the predicate's true/false/null cases). Retry mutation-checked (removing it fails the retry test). 1637/1637 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. Scoped to the continue path; create/sub-agent paths keep their existing behavior (documented, not silently partial).",
+      "commit": "feat(ai): retry a context-overflow turn at a smaller budget"
     }
   ],
   "backlog": [

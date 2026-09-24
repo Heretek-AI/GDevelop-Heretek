@@ -41,6 +41,7 @@ import {
   getEffectiveConfigForRequest,
   parseProviderTelemetry,
   customGetAiRequestProviderTelemetry,
+  isContextOverflowError,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1571,6 +1572,121 @@ describe('CustomAIClient', () => {
       // Everything else is still offered: the filter removes one entry.
       expect(names).toHaveLength(GDEVELOP_OPENAI_TOOLS.length - 1);
       expect(names).toContain('create_scene');
+    });
+
+    it('retries once with a smaller prompt when the window overflows', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // Seed a long history: old messages are what a tighter trim can drop.
+      // The newest message is protected, so it must not be the overflow
+      // source.
+      const messages = [];
+      for (let i = 0; i < 80; i++) {
+        messages.push({
+          type: 'message',
+          status: 'completed',
+          role: i % 2 === 0 ? 'user' : 'assistant',
+          content: [
+            i % 2 === 0
+              ? {
+                  type: 'user_request',
+                  status: 'completed',
+                  text: `turn ${i} ` + 'x'.repeat(200),
+                }
+              : {
+                  type: 'output_text',
+                  status: 'completed',
+                  text: 'ok ' + 'y'.repeat(200),
+                  annotations: [],
+                },
+          ],
+          messageId: `m-${i}`,
+        });
+      }
+      customUpdateAiRequest(
+        ({
+          id: 'local-ai-overflow',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          userId: LOCAL_BYOK_USER_ID,
+          status: 'ready',
+          error: null,
+          output: messages,
+        }: any)
+      );
+
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: {
+            error: {
+              message:
+                "this model's maximum context length is 4096 tokens, however you requested 9000 tokens (the input is too large)",
+            },
+          },
+        },
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const result = await customAddMessageToAiRequest({
+        aiRequestId: 'local-ai-overflow',
+        userMessage: 'next',
+      });
+
+      expect(result.status).not.toBe('error');
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      const first = estimateMessagesTokens(
+        axios.post.mock.calls[0][1].messages
+      );
+      const second = estimateMessagesTokens(
+        axios.post.mock.calls[1][1].messages
+      );
+      expect(second).toBeLessThan(first);
+      expect(second).toBeLessThanOrEqual(2048 + 64);
+    });
+
+    it('does not retry a non-overflow provider error', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 500,
+          data: { error: { message: 'internal shuffle failure' } },
+        },
+      });
+      const result = await customAddMessageToAiRequest({
+        aiRequestId: 'local-ai-no-retry',
+        userMessage: 'next',
+      });
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(result.status).toBe('error');
+      expect(
+        isContextOverflowError({
+          response: { data: { error: { message: 'maximum context length' } } },
+        })
+      ).toBe(true);
+      expect(
+        isContextOverflowError({
+          response: { data: { error: { message: 'nope' } } },
+        })
+      ).toBe(false);
+      expect(isContextOverflowError(null)).toBe(false);
     });
 
     it('does not offer backend-only tools on later local turns or sub-agents', async () => {

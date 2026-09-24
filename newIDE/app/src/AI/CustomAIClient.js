@@ -2830,6 +2830,28 @@ Guidelines:
  * the hints point at the local machine or the endpoint config, never at a
  * GDevelop service.
  */
+// The context-overflow pattern is shared by the error-hint table and the
+// retry-with-a-tighter-budget path, so the two can never disagree.
+const CONTEXT_OVERFLOW_PATTERN = /context length|context window|context size|maximum context|exceeds the (maximum )?context|prompt is too long|input is too long|too many tokens/i;
+
+/**
+ * Whether an error is the server refusing an over-window request. Used to
+ * decide a single retry with a smaller message budget on the same endpoint.
+ */
+export const isContextOverflowError = (error: any): boolean => {
+  const haystacks: Array<string> = [];
+  const data = error && error.response && error.response.data;
+  if (data && data.error) {
+    haystacks.push(
+      typeof data.error === 'string'
+        ? data.error
+        : data.error.message || JSON.stringify(data.error)
+    );
+  }
+  if (error && error.message) haystacks.push(String(error.message));
+  return haystacks.some(haystack => CONTEXT_OVERFLOW_PATTERN.test(haystack));
+};
+
 const LOCAL_SERVER_ERROR_HINTS = [
   {
     // Context overflow, listed before the VRAM patterns: a local server
@@ -2839,7 +2861,7 @@ const LOCAL_SERVER_ERROR_HINTS = [
     // window — an unknown model family defaulting too high, a tool schema
     // that alone fills a small window, or a single oversized message. Nothing
     // here can retry the turn smaller, so the hint names what the user can do.
-    pattern: /context length|context window|context size|maximum context|exceeds the (maximum )?context|prompt is too long|input is too long|too many tokens/i,
+    pattern: CONTEXT_OVERFLOW_PATTERN,
     hint:
       'The request is larger than the model can accept at once. Start a new chat to send less history, or use a model with a larger context window.',
   },
@@ -4177,10 +4199,11 @@ export const customAddMessageToAiRequest = async ({
         ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
         : READ_ONLY_OPENAI_TOOLS
     );
-    const budgetedMessages = trimMessagesToBudget(
-      openAiMessages,
-      getMessageBudget(getEffectiveConfigForRequest(aiRequestId), roleTools)
+    const messageBudget = getMessageBudget(
+      getEffectiveConfigForRequest(aiRequestId),
+      roleTools
     );
+    let budgetedMessages = trimMessagesToBudget(openAiMessages, messageBudget);
     noteSystemCompactedIfChanged(aiRequestId, openAiMessages, budgetedMessages);
     if (budgetedMessages.length < openAiMessages.length) {
       const trimmedCount = openAiMessages.length - budgetedMessages.length;
@@ -4192,9 +4215,8 @@ export const customAddMessageToAiRequest = async ({
     }
 
     const abortController = registerTurnAbortController(aiRequestId);
-    let assistantResponse;
-    try {
-      assistantResponse = await sendChatCompletion({
+    const sendTurn = () =>
+      sendChatCompletion({
         messages: budgetedMessages,
         tools: roleTools,
         config: getEffectiveConfigForRequest(aiRequestId),
@@ -4209,6 +4231,30 @@ export const customAddMessageToAiRequest = async ({
           };
         },
       });
+    let assistantResponse;
+    try {
+      try {
+        assistantResponse = await sendTurn();
+      } catch (error) {
+        // A context-overflow 400 means the request still exceeded the window
+        // even after the standard trim (an unknown model family defaulting too
+        // high, a giant single message, or a tool schema filling a small
+        // window). Retry ONCE with a halved message budget on the same
+        // endpoint before surfacing the error — the alternative is losing the
+        // turn entirely. Not retried on abort, and only once.
+        if (!abortController.signal.aborted && isContextOverflowError(error)) {
+          budgetedMessages = trimMessagesToBudget(
+            openAiMessages,
+            Math.max(256, Math.floor(messageBudget / 2))
+          );
+          console.warn(
+            '[CustomAIClient] The request exceeded the context window; retrying once with a smaller prompt.'
+          );
+          assistantResponse = await sendTurn();
+        } else {
+          throw error;
+        }
+      }
     } catch (error) {
       releaseTurnAbortController(aiRequestId);
       delete localAiRequestPartialContent[aiRequestId];
