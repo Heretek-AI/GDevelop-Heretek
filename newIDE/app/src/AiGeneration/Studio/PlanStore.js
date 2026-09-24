@@ -71,7 +71,14 @@ export const areTaskDependenciesSatisfied = (
 ): boolean => {
   const doneIds = new Set(
     tasks
-      .filter(otherTask => otherTask.status === 'done')
+      // A null/scalar entry is reachable: plan tasks come from model-authored
+      // JSON and persisted output, neither shape-validated per element.
+      .filter(
+        otherTask =>
+          otherTask &&
+          typeof otherTask === 'object' &&
+          otherTask.status === 'done'
+      )
       .map(otherTask => otherTask.id)
   );
   return (task.dependsOn || []).every(dependencyId =>
@@ -85,7 +92,10 @@ export const getNextReadyTask = (
 ): ?StudioPlanTask =>
   tasks.find(
     task =>
-      task.status === 'pending' && areTaskDependenciesSatisfied(task, tasks)
+      task &&
+      typeof task === 'object' &&
+      task.status === 'pending' &&
+      areTaskDependenciesSatisfied(task, tasks)
   ) || null;
 
 /**

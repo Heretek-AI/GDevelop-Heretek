@@ -129,6 +129,20 @@ describe('PlanStore', () => {
       expect(readyA && readyA.id).toBe('a');
     });
 
+    it('tolerates a null hole in the task list', () => {
+      // Plan tasks come from model-authored JSON (function_call_output) and
+      // from persisted output, neither shape-validated per element: a null
+      // entry crashed the readiness scan while the studio finalized a child.
+      const ready = makeTask({ id: 'b', status: 'pending' });
+      expect(getNextReadyTask(([null, ready]: any))).toBe(ready);
+      expect(
+        areTaskDependenciesSatisfied(
+          makeTask({ dependsOn: ['a'] }),
+          ([null, { ...makeTask({ id: 'a' }), status: 'done' }]: any)
+        )
+      ).toBe(true);
+    });
+
     it('returns null when nothing is ready', () => {
       expect(
         getNextReadyTask([

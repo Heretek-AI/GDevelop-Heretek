@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 177,
+  "last_cycle": 178,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1036,6 +1036,12 @@
       "target": "Actionable hints for HTTP 429 and 502/503 provider failures",
       "metric_delta": "The objective names 429/502/timeout as errors to surface gracefully; 429 and 5xx had no guidance (a 429 said only 'AI Provider Error (429): ...'). Added status hints: 429 -> rate limiting / wait-and-retry, 502|503 -> temporarily unavailable / retry or check base URL. Deliberately left 500 untouched so the existing 'unmatched provider error' test still holds as evidence of pass-through. 2 new tests red pre-fix; mutation-checked (neutralizing the hint fails both). One wording fix: the first 429 hint said 'too frequent' while the test matched /rate/, so the hint now says 'rate limiting requests'. 1599/1599 across 80 suites (was 1597), eslint+prettier clean, divergence clean.",
       "commit": "feat(ai): hint at rate limiting and provider outages"
+    },
+    {
+      "cycle": 178,
+      "target": "Null-tolerate the plan readiness scan (model-authored plan tasks)",
+      "metric_delta": "PlanStore.areTaskDependenciesSatisfied and getNextReadyTask read otherTask.status / task.status over plan tasks, which come from model-authored function_call_output JSON and persisted output - neither shape-validated per element. A null entry crashed the readiness scan while the studio finalized a child (the exact pass that flips the next task to in_progress). Both scans now skip non-objects. 1 test covering both, each guard mutation-checked individually (reverting either reproduces the TypeError). 1600/1600 across 80 suites (was 1599), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): tolerate null plan tasks in the readiness scan"
     }
   ],
   "backlog": [
