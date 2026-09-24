@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 235,
+  "last_cycle": 236,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1384,6 +1384,12 @@
       "target": "Per-role child scripting in the mock (Tier 4)",
       "metric_delta": "The mock's parent/child routing gave every sub-agent the same plain reply, so a deterministic run could not script what each SPECIALIST does. Added MOCK_CHILD_SCRIPTS: a JSON object keyed by role (detected from the sub-agent's system prompt) with a per-role turn sequence, consumed per role; scripts/dev/mock-child-scripts.example.json shows a designer that calls read_game_project_json then reports, plus developer/tester reports. Verified deterministically by direct requests: designer#1 -> read_game_project_json tool call, designer#2 -> its report, developer -> its report, tester -> its report. This is the harness capability needed to script a full specialist flow offline. Divergence +1 forkOnly (the example).",
       "commit": "feat(scripts): script each sub-agent role separately in the mock"
+    },
+    {
+      "cycle": 236,
+      "target": "Deterministic per-role specialist flow with a project open (Tier 1/Tier 4)",
+      "metric_delta": "MAJOR EVIDENCE. Using the cycle-235 per-role child scripts with a project open (HarnessTown), the mock drove a full specialist run offline: the manager planned design->build with a dependency, spawned the DESIGNER (whose per-role script first CALLED a tool - read_game_project_json, executed in the child - then reported) and the DEVELOPER (its own report), and the plan ended with BOTH tasks 'done'. Parent output confirms the reports written back verbatim: 'Report from the Designer: GDD_Overview written: a small harbor town.' and 'Report from the Developer: Implementation done: HarborTown scene and objects built.'. This is the first deterministic proof of PER-ROLE specialist behaviour (including a child tool execution) plus the plan lifecycle, with no model and no credentials. (Children are not persisted per cycle 222, so the evidence is the parent's stamped spawn calls + written-back reports.) Config restored, mock stopped.",
+      "commit": "chore(autonomous): deterministic per-role specialist flow with a project open"
     }
   ],
   "backlog": [
