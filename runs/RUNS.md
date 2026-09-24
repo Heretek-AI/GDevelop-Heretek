@@ -78,6 +78,10 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   parent turns while sub-agents reply plainly.
 - **Fixed**: attribution-header CORS block; reasoning-stream progress; context-overflow
   recovery on all turn paths; the plan-flip clobber (messageId reconciliation).
+- **Real-model benchmark succeeded (cycle 215)**: prompt-city.md against local Ollama
+  with a project open -> 4-task plan, 2 sub-agents (designer wrote GDD_ variables;
+  developer ran create_scene/objects/effects), plan tracked task_1 `done`, task_2
+  `in_progress`. Offline, no credentials.
 - **Deterministically proven (cycle 213)**: 3-task plan -> 3 sequential spawns -> reports ->
   all tasks `done`, with no model or credentials.
 - **Model-behaviour**: the local model often stops after planning without delegating.
