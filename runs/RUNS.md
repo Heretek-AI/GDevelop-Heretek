@@ -34,27 +34,30 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 181 | Cover the security-relevant role resolution and role predicates (Tier 1) | `test(ai): cover role resolution and role predicates` | green (gates) |
 | 182 | Cover spawnSubAgent, the untested delegation glue (Tier 1) | `test(ai): cover spawnSubAgent delegation glue` | green (gates) |
 | 183 | Execute the Phase 5 WebUI audit (dev server + Chrome DevTools MCP) | `chore(autonomous): execute the Phase 5 WebUI audit` | green (WebUI-audited) |
-| 184 | WebUI-verify the studio transcript rendering (reasoning + tool flow) | `chore(autonomous): verify the studio transcript rendering` | green (gates) |
+| 184 | WebUI-verify the studio transcript rendering (reasoning + tool flow) | `chore(autonomous): verify the studio transcript rendering` | green (WebUI-audited) |
 | 185 | Harden the function-call-output builder (null entry + non-object spread) | `fix(ai): harden the function-call-output builder` | green (gates) |
 | 186 | Cover the prompt builder and per-chat config resolver (Tier 1) | `test(ai): cover the prompt builder and config resolver` | green (gates) |
 | 187 | Unit-test the preferences backfill by extracting it to the tested leaf | `refactor(preferences): extract the stored-preferences merge to the tested leaf` | green (gates) |
 | 188 | Sanitize plan tasks at the getLatestActivePlan chokepoint | `fix(ai): sanitize plan tasks at the getLatestActivePlan chokepoint` | green (gates) |
+| 189 | Live Phase 5 harness run vs local Ollama; fix the CORS preflight header | `fix(ai): stop sending attribution headers that break local CORS` | green (live local Ollama: preflight 204 + POST 200, real reply) |
+| 190 | Bounded live studio-run attempt (plan + sub-agent) via the WebUI | `chore(autonomous): record the bounded live studio-run attempt` | blocked (UI drawer flaky for new chat) |
+| 191 | Stream reasoning as progress so the cold-start hint clears (Tier 2) | `fix(ai): stream reasoning as progress before the first answer token` | green (gates; live endpoint verified) |
+| 192 | Make provider telemetry inspectable per request (Tier 2 audit data layer) | `feat(ai): expose per-request provider telemetry` | green (gates; live endpoint verified) |
 
-## Session context (cycles 155-188)
+## Session context (cycles 155-192)
 
 - **model**: `deepseek-v4.1-flash:cloud` (Ollama provider).
-- **endpoint**: `llm.heretek.one` reachable but answers 401 without a key; no
-  `config.local.json`, so a live model turn is blocked on credentials.
+- **endpoint**: local Ollama `:11434` is live and works (cycle 189 fixed a CORS
+  preflight bug that blocked every local request); hosted `llm.heretek.one` answers
+  401 without `config.local.json`.
 - **turns per phase**: Phase 1 ingest, Phase 2 scoring, Phase 3 implementation,
-  Phase 4 gates, Phase 6 consolidation; Phase 5 executed cycle 183.
-- **token efficiency**: fork AI suite 1489 -> 1627 passing tests across 81 suites.
-- **evidence**: cycle 183/184 loaded the editor via the dev server + Chrome DevTools MCP,
-  opened the Ask AI drawer, and read the persisted HarborTown run (114 messages, 35
-  assistant turns, 146 tool calls, 12 sub-agent spawns, status ready, no error); console
-  had only upstream MUI deprecation warnings; no 4xx/5xx requests.
+  Phase 4 gates, Phase 6 consolidation; Phase 5 executed cycles 183/184/189.
+- **token efficiency**: fork AI suite 1489 -> 1630 passing tests across 81 suites.
+- **evidence**: cycle 189 live BYOK round-trip (real model reply) after the CORS fix;
+  cycle 183/184 WebUI audit of the persisted HarborTown run (12 sub-agent spawns).
 - **gates every cycle**: `npm test` (react-app-rewired), `eslint --max-warnings=0`,
-  `prettier --list-different`, `check-fork-divergence.js`; `npm run build` twice,
-  `npm run flow` on Flow-relevant changes, dev-server compile live.
+  `prettier --list-different`, `check-fork-divergence.js`; `npm run build` x2;
+  `npm run flow` on Flow-relevant changes; dev-server compile live.
 
 ## Gate definitions
 
