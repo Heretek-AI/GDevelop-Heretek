@@ -95,6 +95,9 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 - Provider telemetry not cleared on delete; sub-agent children evicting real chats.
 
 ## Proven workflows
+- Per-role specialist flow offline with a project open (cycle 236): designer
+  scripted to call a tool then report, developer its own report, plan tasks
+  design+build both `done` - reproducible via scripts/dev/mock-script-specialists.json.
 - Deterministic 3-task lifecycle offline (cycle 213); real-model 4-task benchmark with
   2 sub-agents and correct plan tracking (cycle 215); per-agent audit line with roles and
   tokens (live, cycles 216-220); provider telemetry note (live, cycle 202).
