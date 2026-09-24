@@ -4792,15 +4792,16 @@ export const customCreateAiGeneratedEvent = async ({
   existingEventsAsText?: string,
   aiRequestId?: string | null,
 |}): Promise<CreateAiGeneratedEventResult> => {
-  const prompt = `You are the GDevelop Event Generation Engine.
-Generate the GDevelop events in JSON format matching GDevelop's internal event structure for scene "${sceneName}".
-Description of events to generate: "${eventsDescription || ''}"
-Available Objects: ${objectsList || 'None'}
-Available Extensions: ${extensionNamesList || 'Builtin'}
-Existing Events in Scene:
-${existingEventsAsText || 'None'}
-
-Return a valid JSON object with the following structure:
+  // The existing events are the only unbounded input: compact them to
+  // whatever the input budget leaves after the fixed template and the other
+  // inputs, keeping the head (setup and early logic are the structural
+  // context the model needs most). No tools ride this call, so the whole
+  // input budget is available. Without this, a big scene went over a small
+  // local model's window and the whole generation was lost.
+  const inputBudget = getTokenBudget(
+    getEffectiveConfigForRequest(aiRequestId || '')
+  );
+  const promptTail = `
 {
   "operationName": "insert",
   "operationTargetEvent": null,
@@ -4812,11 +4813,48 @@ Return a valid JSON object with the following structure:
   "missingResources": []
 }
 Ensure generatedEvents is a JSON string of standard GDevelop event objects (e.g. StandardEvent with conditions and actions).`;
+  const buildPrompt = (eventsBlock: string): string => {
+    return (
+      `You are the GDevelop Event Generation Engine.
+Generate the GDevelop events in JSON format matching GDevelop's internal event structure for scene "${sceneName}".
+Description of events to generate: "${eventsDescription || ''}"
+Available Objects: ${objectsList || 'None'}
+Available Extensions: ${extensionNamesList || 'Builtin'}
+Existing Events in Scene:
+${eventsBlock}
+
+Return a valid JSON object with the following structure:` + promptTail
+    );
+  };
+  const systemContent = 'You are a GDevelop 5 Event generator.';
+  const measurePrompt = (eventsBlock: string): number =>
+    estimateMessagesTokens([
+      { role: 'system', content: systemContent },
+      { role: 'user', content: buildPrompt(eventsBlock) },
+    ]);
+  let prompt = buildPrompt(existingEventsAsText || 'None');
+  if (
+    measurePrompt(existingEventsAsText || 'None') > inputBudget &&
+    existingEventsAsText
+  ) {
+    const marker = `\n[... ${
+      existingEventsAsText.length
+    } characters of existing events truncated to fit the model context window ...]`;
+    // Measured in the same estimator the turns use, with a margin for its
+    // ceiling rounding: token/character conversions are approximate by design.
+    const allowance = Math.max(
+      0,
+      inputBudget - measurePrompt('') - estimateTokens(marker) - 64
+    );
+    prompt = buildPrompt(
+      sliceToTokenBudget(existingEventsAsText, allowance) + marker
+    );
+  }
 
   try {
     const res = await sendChatCompletion({
       messages: [
-        { role: 'system', content: 'You are a GDevelop 5 Event generator.' },
+        { role: 'system', content: systemContent },
         { role: 'user', content: prompt },
       ],
       config: getEffectiveConfigForRequest(aiRequestId || ''),

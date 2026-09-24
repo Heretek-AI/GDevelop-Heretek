@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 170,
+  "last_cycle": 171,
   "completed_targets": [
     {
       "cycle": 75,
@@ -987,6 +987,12 @@
       "target": "Budget and harden the local suggestions call (history trim + null-hole attach)",
       "metric_delta": "Two defects in customGetAiRequestSuggestions: (1) replayed full untrimmed history - over-window 400s and wasted requests on small local models before falling back to defaults; now trimmed to the input budget (no tools ride the call). (2) null hole in persisted output threw lastMsg.type out of BOTH try and catch paths - suggestions lost entirely, possibly unhandled upstream. Both proven red pre-fix (over-budget send captured; TypeError on attach). Fix via python replacement only. 1590/1590 across 80 suites (was 1588), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): budget and harden the local suggestions call"
+    },
+    {
+      "cycle": 171,
+      "target": "Budget the event-generation prompt to the model context window",
+      "metric_delta": "Real defect, measured 7x over: customCreateAiGeneratedEvent sent unbounded scene text (28,684 tokens vs a 4,096 llama budget) with no trim - big scenes failed over-window and lost the whole generation. Existing events now compact to the input budget (head kept for structural context, omission marker, same message estimator the turns use, no tools ride the call). Two debugging finds en route: the tail instruction block sat outside the measured prompt (folded into buildPrompt), and the marker word didn't match the test's substring (then aligned to the codebase 'truncated' convention). Both tests red pre-fix (over-budget send; unmarked verbatim). 1592/1592 across 80 suites (was 1590), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): budget the event-generation prompt to the context window"
     }
   ],
   "backlog": [
@@ -1173,6 +1179,7 @@
     "A hook effect that reads persisted arrays is a render-crashing throw site, not just a logic bug: useStudioRuntime runs inside useEffect on every render, so the unguarded .some() broke the component tree, not only finalization. When a hook cannot load in a spec (three.js), extract its reads into the adjacent pure leaf and pin them there - the fifth use of this pattern (SafeTruncation, NonScriptableFunctionNames, RoleToolPolicy, PreferencesStorage, isUserMessage).",
     "This jest env (jest 27 node env) has no global Headers/TextDecoder-class web globals beyond what the existing mocks provide: model fetch-Headers fakes as index-opaque {get} objects rather than `new Headers(...)`, which throws ReferenceError and fails the test for the wrong reason.",
     "Verify platform APIs empirically before adopting (segmented ZWJ/flag/combining strings in node first); check the jest env for assumed globals (no Headers here, but Intl exists). When a test string's encoding matters (combining vs precomposed), assert codepoints in the file rather than trusting what the editor shows.",
-    "When two meters share inputs, change both or neither: adding tools to the occupancy numerator broke the cost-meter relational test, which exposed that the cost meter omitted the same term. A failing sibling test after a correct change is evidence of a second instance of the bug, not a bad test - read it before reverting."
+    "When two meters share inputs, change both or neither: adding tools to the occupancy numerator broke the cost-meter relational test, which exposed that the cost meter omitted the same term. A failing sibling test after a correct change is evidence of a second instance of the bug, not a bad test - read it before reverting.",
+    "Budget what you send, not what you built: the compaction measured the head template while the JSON instruction tail was appended after measurement - always measure the exact messages array the request sends (measurePrompt over system+user), the same way trimMessagesToBudget measures what it trims."
   ]
 }

@@ -4365,6 +4365,88 @@ describe('CustomAIClient', () => {
       }
     });
 
+    it('compacts oversized existing events to the model context budget', async () => {
+      // A big scene's event text alone can exceed a small local model's
+      // window: sent verbatim, the request fails over-window and the whole
+      // generation is lost. The existing events are compacted to fit.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  operationName: 'insert',
+                  generatedEvents: '[]',
+                }),
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Move player right when key pressed',
+        eventBatches: null,
+        extensionNamesList: '',
+        objectsList: 'Player',
+        existingEventsAsText: 'Condition: key pressed. Action: move.\n'.repeat(
+          3000
+        ),
+      });
+
+      expect(result.creationSucceeded).toBe(true);
+      const sentContent = axios.post.mock.calls[0][1].messages[1].content;
+      // llama3.2 input budget is 4096 tokens for the whole prompt.
+      expect(
+        estimateMessagesTokens([{ role: 'user', content: sentContent }])
+      ).toBeLessThanOrEqual(4096);
+      expect(sentContent).toContain('truncated to fit the model');
+    });
+
+    it('sends normal-size existing events untouched', async () => {
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  operationName: 'insert',
+                  generatedEvents: '[]',
+                }),
+              },
+            },
+          ],
+        },
+      });
+
+      await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Move player right when key pressed',
+        eventBatches: null,
+        extensionNamesList: '',
+        objectsList: 'Player',
+        existingEventsAsText: 'Condition: key pressed.',
+      });
+
+      const sentContent = axios.post.mock.calls[0][1].messages[1].content;
+      expect(sentContent).toContain('Condition: key pressed.');
+      expect(sentContent).not.toContain('truncat');
+    });
+
     it('coerces malformed array/object fields instead of passing them through', async () => {
       // The array-typed fields are model-authored, and the editor calls
       // `.join` on `diagnosticLines` and iterates `extensionNames`. A truthy
