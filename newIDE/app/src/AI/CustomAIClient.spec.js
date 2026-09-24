@@ -1311,6 +1311,81 @@ describe('CustomAIClient', () => {
         debugSpy.mockRestore();
       }
     });
+
+    it('reads headers exposed through .get (fetch Headers are index-opaque)', () => {
+      // fetch Headers expose nothing by index and AxiosHeaders.get is
+      // case-insensitive while index access is not: reading `headers[name]`
+      // saw no telemetry on either in production-shaped responses. The fake
+      // below is index-opaque like a real fetch Headers (only .get reads).
+      const store = {
+        'x-omniroute-model': 'qwen2.5-coder',
+        'x-omniroute-latency-ms': '812',
+      };
+      const headers = {
+        get: (name: string): ?string => store[name.toLowerCase()] || null,
+      };
+      expect(formatProviderTelemetry(headers)).toBe(
+        'model=qwen2.5-coder latencyMs=812'
+      );
+    });
+
+    it('logs per-turn telemetry for streamed turns too', async () => {
+      // The streaming path never logged: a session with streaming on (the
+      // local-model default) emitted no per-turn observability at all.
+      const debugSpy = jest
+        .spyOn(console, 'debug')
+        .mockImplementation(() => {});
+      const encoder = new TextEncoder();
+      const body =
+        'data: ' +
+        JSON.stringify({ choices: [{ delta: { content: 'hi' } }] }) +
+        '\n';
+      const reader = {
+        read: (() => {
+          let done = false;
+          return async () => {
+            if (done) return { done: true, value: undefined };
+            done = true;
+            return { done: false, value: encoder.encode(body) };
+          };
+        })(),
+      };
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        // Index-opaque like a real fetch Headers: only .get reads.
+        headers: {
+          get: (name: string): ?string =>
+            ({
+              'content-type': 'text/event-stream',
+              'x-omniroute-latency-ms': '812',
+              'x-omniroute-tokens-in': '120',
+              'x-omniroute-tokens-out': '3',
+            }[name.toLowerCase()] || null),
+        },
+        body: { getReader: () => reader },
+      });
+      try {
+        await sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: {
+            enabled: true,
+            baseUrl: 'http://localhost:11434/v1',
+            apiKey: '',
+            model: 'qwen2.5-coder',
+            temperature: 0.7,
+            streaming: true,
+          },
+        });
+
+        expect(debugSpy).toHaveBeenCalledTimes(1);
+        expect(debugSpy.mock.calls[0][0]).toContain('[BYOK]');
+        expect(debugSpy.mock.calls[0][0]).toContain('latencyMs=812');
+        expect(debugSpy.mock.calls[0][0]).toContain('tokens=120in/3out');
+      } finally {
+        debugSpy.mockRestore();
+      }
+    });
   });
 
   describe('create path context budget', () => {

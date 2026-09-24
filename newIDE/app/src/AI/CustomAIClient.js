@@ -2875,8 +2875,11 @@ const getErrorHint = (error: any): string => {
 export const formatProviderTelemetry = (headers: any): string | null => {
   if (!headers || typeof headers !== 'object') return null;
   const get = (name: string): ?string => {
-    const value = headers[name];
-    return typeof value === 'string' && value ? value : null;
+    // Prefer .get when present: fetch Headers expose nothing by index, and
+    // AxiosHeaders.get is case-insensitive while index access is not.
+    const raw =
+      typeof headers.get === 'function' ? headers.get(name) : headers[name];
+    return typeof raw === 'string' && raw ? raw : null;
   };
   const parts = [];
   const model = get('x-omniroute-model');
@@ -2967,6 +2970,13 @@ const streamChatCompletion = async ({
         data: { error: { message: errorMessage } },
       };
       throw error;
+    }
+    // Thrash forensics, same one-line format as the non-streaming path: a
+    // session with streaming on emitted no per-turn observability at all.
+    // Absent (or CORS-hidden) headers stay quiet via the null return.
+    const streamTelemetry = formatProviderTelemetry(response.headers);
+    if (streamTelemetry) {
+      console.debug(`[BYOK] ${endpointUrl} ${streamTelemetry}`);
     }
     // Some proxies and a few local servers ignore `stream: true` and answer
     // with an ordinary JSON completion. Reading that as SSE yields no `data:`
