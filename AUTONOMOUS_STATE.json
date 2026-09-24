@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 245,
+  "last_cycle": 246,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1444,6 +1444,12 @@
       "target": "Whole-surface lint + format verification (no change)",
       "metric_delta": "No code change. Ran ESLint (react-app, --max-warnings=0) and Prettier --list-different over the ENTIRE fork AI surface rather than only touched files: src/AI, src/AiGeneration, src/EditorFunctions/ScriptExecution, src/MainFrame/Preferences/PreferencesStorage*. Both exit 0 with zero output - no warning or formatting drift accumulated across the session's ~30 edits.",
       "commit": "chore(autonomous): whole-surface lint and format verification"
+    },
+    {
+      "cycle": 246,
+      "target": "Re-run the real-model prompt-city.md benchmark with the session's fixes (Phase 5)",
+      "metric_delta": "Ran the canonical benchmark against local Ollama (deepseek-v4.1-flash:cloud) with a project open, after all the session's fixes. The real model delegated and tracked correctly: 4-task plan with dependencies, TWO sub-agent spawns, real editor tools, and the plan read task_1 'done', task_2 'in_progress', task_3/4 'pending', with NO failed tool results. This reproduces cycle 215's result on the fixed client, confirming no regression from the ~30 AI-surface changes. Screenshot /tmp/opencode/cycle246-benchmark.png. Config restored and demo seed requests removed.",
+      "commit": "chore(autonomous): re-run the real-model benchmark with the session's fixes"
     }
   ],
   "backlog": [
