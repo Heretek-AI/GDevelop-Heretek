@@ -98,6 +98,18 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Tier 2 fallback routing (cycle 262): a configurable secondary model used when
+  the primary model exhausts its provider retries. `CustomAIConfig.fallbackModel`
+  (sanitized), a "Fallback model (optional)" field in the AI Settings
+  Preferences (context/provider/dialog wired like `aiCustomModel`; the key store
+  strips only the API key, so it persists), and `runTurnWithProviderRetry` now
+  makes one final attempt with the fallback model after the 2 provider retries
+  fail. The three turn paths (create/continue/sub-agent) accept a per-attempt
+  model override. Verified live with a model-aware provider: `primary-model →
+  503` ×3, then `fallback-model → 200`, the chat request ended `ready`, and the
+  console logged the retries then `Provider still failing (503); falling back to
+  model "fallback-model"`; the Preferences field renders. +1 spec (3×503 then a
+  fallback 200 ⇒ 4 posts, 4th uses the fallback model).
 - Adversarial-invariant audit, clean (cycle 261): repo-wide scan for hardcoded
   secrets (`sk-…`, `Bearer …`, long `api_key` literals), provider locks
   (openrouter/openai/deepseek/anthropic hostnames) in the fork AI surface, and

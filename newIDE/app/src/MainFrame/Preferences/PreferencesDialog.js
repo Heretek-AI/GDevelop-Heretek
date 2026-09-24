@@ -453,6 +453,7 @@ const PreferencesDialog = ({
     setAiCustomBaseUrl,
     setAiCustomApiKey,
     setAiCustomModel,
+    setAiCustomFallbackModel,
     setAiCustomTemperature,
     setAiCustomTimeoutMs,
     setAiCustomStreaming,
@@ -1416,6 +1417,15 @@ const PreferencesDialog = ({
             fullWidth
             value={values.aiCustomModel}
             onChange={(e, value) => setAiCustomModel(value)}
+          />
+          <TextField
+            floatingLabelText={<Trans>Fallback model (optional)</Trans>}
+            helperMarkdownText={i18n._(
+              t`Used once if the primary model keeps returning a transient provider error (502/503/429). Leave empty to disable.`
+            )}
+            fullWidth
+            value={values.aiCustomFallbackModel}
+            onChange={(e, value) => setAiCustomFallbackModel(value)}
           />
           <TextField
             type="number"

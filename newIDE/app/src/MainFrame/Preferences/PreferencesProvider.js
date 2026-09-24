@@ -421,6 +421,8 @@ export default class PreferencesProvider extends React.Component<Props, State> {
     // $FlowFixMe[method-unbinding]
     setAiCustomModel: (this._setAiCustomModel.bind(this): any),
     // $FlowFixMe[method-unbinding]
+    setAiCustomFallbackModel: (this._setAiCustomFallbackModel.bind(this): any),
+    // $FlowFixMe[method-unbinding]
     setAiCustomTemperature: (this._setAiCustomTemperature.bind(this): any),
     // $FlowFixMe[method-unbinding]
     setAiCustomTimeoutMs: (this._setAiCustomTimeoutMs.bind(this): any),
@@ -435,6 +437,7 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       baseUrl: this.state.values.aiCustomBaseUrl,
       apiKey: this.state.values.aiCustomApiKey,
       model: this.state.values.aiCustomModel,
+      fallbackModel: this.state.values.aiCustomFallbackModel,
       temperature: this.state.values.aiCustomTemperature,
       timeoutMs: this.state.values.aiCustomTimeoutMs,
       streaming: this.state.values.aiCustomStreaming,
@@ -1551,6 +1554,21 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       () => {
         this._persistValuesToLocalStorage(this.state);
         setCustomEndpointConfig({ model: newValue });
+      }
+    );
+  }
+
+  _setAiCustomFallbackModel(newValue: string) {
+    this.setState(
+      state => ({
+        values: {
+          ...state.values,
+          aiCustomFallbackModel: newValue,
+        },
+      }),
+      () => {
+        this._persistValuesToLocalStorage(this.state);
+        setCustomEndpointConfig({ fallbackModel: newValue });
       }
     );
   }

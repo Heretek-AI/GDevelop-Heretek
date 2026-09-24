@@ -46,6 +46,7 @@ import {
   isNetworkLevelError,
   isRetryableProviderError,
   getProviderErrorStatus,
+  _setProviderRetryDelayForTesting,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1850,6 +1851,42 @@ describe('CustomAIClient', () => {
       });
       expect(result.status).not.toBe('error');
       expect(axios.post).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to the secondary model when the primary keeps failing', async () => {
+      // Tier 2 fallback routing: after the provider retries are exhausted, a
+      // configured fallback model gets one more attempt.
+      _setProviderRetryDelayForTesting(0);
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'primary-model',
+        fallbackModel: 'fallback-model',
+        temperature: 0.7,
+      });
+      for (let i = 0; i < 3; i++) {
+        // $FlowFixMe
+        axios.post.mockRejectedValueOnce({
+          response: {
+            status: 503,
+            data: { error: { message: 'unavailable' } },
+          },
+        });
+      }
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const result = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      expect(result.status).not.toBe('error');
+      // initial + 2 retries + 1 fallback.
+      expect(axios.post).toHaveBeenCalledTimes(4);
+      expect(axios.post.mock.calls[3][1].model).toBe('fallback-model');
     });
 
     it('does not retry a real client error (400)', async () => {

@@ -35,6 +35,11 @@ export type CustomAIConfig = {|
   baseUrl: string,
   apiKey: string,
   model: string,
+  /**
+   * Optional secondary model used when the primary model exhausts its provider
+   * retries on a transient 5xx (fallback routing). Empty/absent disables it.
+   */
+  fallbackModel?: string,
   temperature: number,
   maxTokens?: number,
   customHeaders?: { [string]: string },
@@ -142,6 +147,10 @@ const sanitizeCustomAIConfig = (input: mixed): CustomAIConfig => {
     baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl : '',
     apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
     model: typeof parsed.model === 'string' ? parsed.model : '',
+    fallbackModel:
+      typeof parsed.fallbackModel === 'string'
+        ? parsed.fallbackModel.trim()
+        : undefined,
     temperature:
       typeof parsed.temperature === 'number' &&
       Number.isFinite(parsed.temperature)
@@ -1048,6 +1057,7 @@ export const trimMessagesToBudget = (
 
 /** Reset CustomAIClient state (for testing). */
 export const _resetCustomAiClientForTesting = () => {
+  providerRetryDelayMs = PROVIDER_RETRY_DELAY_MS;
   cachedConfig = null;
   for (const key of Object.keys(localAiRequestsCache)) {
     delete localAiRequestsCache[key];
@@ -3121,6 +3131,13 @@ const delay = (ms: number): Promise<void> =>
 const PROVIDER_RETRY_DELAY_MS = 1500;
 const MAX_PROVIDER_RETRIES = 2;
 
+// Overridable in tests so the retry/fallback path does not wait for real
+// backoff. Production never changes it.
+let providerRetryDelayMs = PROVIDER_RETRY_DELAY_MS;
+export const _setProviderRetryDelayForTesting = (ms: number): void => {
+  providerRetryDelayMs = ms;
+};
+
 /** The HTTP status of a thrown provider error, or null. */
 export const getProviderErrorStatus = (error: any): number | null => {
   const status = error && (error: any).providerStatus;
@@ -3141,33 +3158,50 @@ export const isRetryableProviderError = (error: any): boolean => {
 };
 
 /**
- * Run a turn, retrying a transient provider error (429/5xx) with backoff.
- * Aborted turns are never retried.
+ * Run a turn, retrying a transient provider error (429/5xx) with backoff, and
+ * finally falling back to an optional secondary model before giving up. Aborted
+ * turns are never retried.
  */
 const runTurnWithProviderRetry = async (
-  sendTurn: () => Promise<any>,
-  abortSignal: { aborted: boolean }
+  sendTurn: (?string) => Promise<any>,
+  abortSignal: { aborted: boolean },
+  fallbackModel?: string | null
 ): Promise<any> => {
   let attempt = 0;
+  let triedFallback = false;
   for (;;) {
     try {
-      return await sendTurn();
+      return await sendTurn(triedFallback ? fallbackModel : undefined);
     } catch (error) {
-      if (
-        abortSignal.aborted ||
-        !isRetryableProviderError(error) ||
-        attempt >= MAX_PROVIDER_RETRIES
-      ) {
+      if (abortSignal.aborted || !isRetryableProviderError(error)) {
         throw error;
       }
-      attempt++;
-      const delayMs = PROVIDER_RETRY_DELAY_MS * attempt;
-      console.warn(
-        `[CustomAIClient] Transient provider error (${getProviderErrorStatus(
-          error
-        )}); retrying in ${delayMs}ms (attempt ${attempt}/${MAX_PROVIDER_RETRIES}).`
-      );
-      await delay(delayMs);
+      if (attempt < MAX_PROVIDER_RETRIES) {
+        attempt++;
+        const delayMs = providerRetryDelayMs * attempt;
+        console.warn(
+          `[CustomAIClient] Transient provider error (${getProviderErrorStatus(
+            error
+          )}); retrying in ${delayMs}ms (attempt ${attempt}/${MAX_PROVIDER_RETRIES}).`
+        );
+        await delay(delayMs);
+        continue;
+      }
+      const canFallBack =
+        !triedFallback &&
+        typeof fallbackModel === 'string' &&
+        !!fallbackModel.trim();
+      if (canFallBack) {
+        triedFallback = true;
+        console.warn(
+          `[CustomAIClient] Provider still failing (${getProviderErrorStatus(
+            error
+          )}); falling back to model "${fallbackModel}".`
+        );
+        await delay(providerRetryDelayMs);
+        continue;
+      }
+      throw error;
     }
   }
 };
@@ -4359,11 +4393,13 @@ export const customCreateAiRequest = async ({
 
   const abortController = registerTurnAbortController(reqId);
   pendingCreateAiRequestIds[reqId] = true;
-  const sendTurn = () =>
+  const sendTurn = (modelOverride?: string) =>
     sendChatCompletion({
       messages: budgetedMessages,
       tools: createTools,
-      config: createConfig,
+      config: modelOverride
+        ? { ...createConfig, model: modelOverride }
+        : createConfig,
       signal: abortController.signal,
       // The first turn is the one most likely to hit a model still loading, so
       // it must publish partial content like addMessage does: the chat's
@@ -4386,7 +4422,8 @@ export const customCreateAiRequest = async ({
     try {
       assistantResponse = await runTurnWithProviderRetry(
         sendTurn,
-        abortController.signal
+        abortController.signal,
+        createConfig.fallbackModel
       );
     } catch (error) {
       // The first turn embeds the project structure, so it is the most likely
@@ -4628,11 +4665,14 @@ export const customAddMessageToAiRequest = async ({
     }
 
     const abortController = registerTurnAbortController(aiRequestId);
-    const sendTurn = () =>
+    const continueConfig = getEffectiveConfigForRequest(aiRequestId);
+    const sendTurn = (modelOverride?: string) =>
       sendChatCompletion({
         messages: budgetedMessages,
         tools: roleTools,
-        config: getEffectiveConfigForRequest(aiRequestId),
+        config: modelOverride
+          ? { ...continueConfig, model: modelOverride }
+          : continueConfig,
         signal: abortController.signal,
         onStreamDelta: partialContent => {
           localAiRequestPartialContent[aiRequestId] = partialContent;
@@ -4649,7 +4689,8 @@ export const customAddMessageToAiRequest = async ({
       try {
         assistantResponse = await runTurnWithProviderRetry(
           sendTurn,
-          abortController.signal
+          abortController.signal,
+          continueConfig.fallbackModel
         );
       } catch (error) {
         // A context-overflow 400 means the request still exceeded the window
@@ -4911,11 +4952,16 @@ export const customCreateSubAgentAiRequest = async ({
       reqId,
       parentAiRequestId
     );
-    const sendTurn = () =>
+    const subAgentConfig = getEffectiveConfigForRequest(
+      parentAiRequestId || reqId
+    );
+    const sendTurn = (modelOverride?: string) =>
       sendChatCompletion({
         messages: budgetedMessages,
         tools: subAgentTools,
-        config: getEffectiveConfigForRequest(parentAiRequestId || reqId),
+        config: modelOverride
+          ? { ...subAgentConfig, model: modelOverride }
+          : subAgentConfig,
         signal: abortController.signal,
         // Attribute the partial content to the parent chat, which is what the
         // UI polls while a sub-agent runs (the sub-agent request is internal).
@@ -4938,7 +4984,8 @@ export const customCreateSubAgentAiRequest = async ({
       try {
         assistantResponse = await runTurnWithProviderRetry(
           sendTurn,
-          abortController.signal
+          abortController.signal,
+          subAgentConfig.fallbackModel
         );
       } catch (error) {
         // Sub-agents receive the project JSON too, so they can overflow the

@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 261,
+  "last_cycle": 262,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1540,6 +1540,12 @@
       "target": "Phase 5: adversarial-invariant audit + full editor-suite gate (no change)",
       "metric_delta": "No code change. (1) Adversarial scan across the repo and the fork AI surface found no hardcoded secrets (sk-/Bearer/api_key literals), no provider-locked hostnames (openrouter/openai/deepseek/anthropic) in newIDE/app/src/AI or AiGeneration, and no key in the committed dev scripts (the mock only names the CORS 'authorization' header) - invariant 1 and the no-secrets rule hold at the tree level. (2) Ran the FULL editor suite, not just the AI surface: 187 suites, 2437 passed, 1 skipped, 114 snapshots - green, confirming the session's many AI-surface edits did not regress the wider app (previously only the 83-suite AI-surface subset was re-run each cycle).",
       "commit": "docs(autonomous): adversarial-invariant audit and full editor-suite gate"
+    },
+    {
+      "cycle": 262,
+      "target": "Tier 2 fallback routing: a secondary model used when the primary exhausts its provider retries",
+      "metric_delta": "Implemented the objective's Tier 2 'fallback routing'. (1) CustomAIConfig gains fallbackModel (sanitized); (2) a 'Fallback model (optional)' field in the AI Settings Preferences, wired through PreferencesContext/Provider/Dialog exactly like aiCustomModel (PreferencesStorage strips only apiKey, so it persists); (3) the three turn paths (create/continue/sub-agent) now accept a per-attempt model override, and runTurnWithProviderRetry makes one final attempt with the fallback model after the 2 provider retries fail on a retryable 408/429/502/503/504. +1 spec (3x503 then a 4th call with the fallback model => ready, 4 posts, 4th uses 'fallback-model'). Full editor suite 187 suites / 2438 passed; build green; ESLint/Prettier/divergence clean. Live-verified with a model-aware provider: primary-model -> 503 x3 then fallback-model -> 200, request ended ready, console logged 'Provider still failing (503); falling back to model \"fallback-model\"', and the Preferences field renders.",
+      "commit": "feat(ai): fallback to a secondary model when the provider keeps failing"
     }
   ],
   "backlog": [
@@ -1761,6 +1767,7 @@
     "A role-based agent must get BOTH its role prompt and its role tool subset at the top level too, not only for sub-agents. The BYOK orchestrator ran with every tool plus a generic prompt, so the 'manager' edited the project directly (feedback-loop Run 5); resolveStudioRoleId now maps orchestrator mode to the manager role while a stale role id still fails closed.",
     "A fresh @feedback-loop run is the right validation for an orchestration fix: the deterministic spec pinned the tool subset, but only the real run proved the manager delegates (4 spawns, 0 direct edits) instead of building the project itself.",
     "Sub-agent failure recovery works (feedback-loop Run 6): an errored child is treated as finished, its failed report is delivered to the manager, and the manager spawned a replacement. The underlying 503 is now retried client-side, so a transient provider blip no longer kills a sub-agent turn. Keep 500 non-retryable (a genuine provider error should surface as-is).",
-    "Periodically run the FULL newIDE/app suite (187 suites), not only the AI-surface subset: the fast per-cycle gate is a subset and cannot prove the wider app still passes after many edits. The full suite is ~10s here."
+    "Periodically run the FULL newIDE/app suite (187 suites), not only the AI-surface subset: the fast per-cycle gate is a subset and cannot prove the wider app still passes after many edits. The full suite is ~10s here.",
+    "Fallback routing belongs after the provider retries, not instead of them: retry the same model (transient blips often clear), then switch models once. Keep the model list user-configurable (AI Settings) and persisted via the preferences store; only the apiKey is stripped before persistence."
   ]
 }
