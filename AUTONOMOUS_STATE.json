@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 252,
+  "last_cycle": 253,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1486,6 +1486,12 @@
       "target": "Tier 1 multi-agent chat: view a sub-agent's own transcript inline from the per-agent dashboard",
       "metric_delta": "Completed the multi-agent chat surface: expanding an agent row now shows that agent's own conversation (its user request, assistant text and tool calls) via the pure, tested summarizeSubAgentTranscript (caps to 30 steps / 600 chars, tolerant of persisted null holes). Sub-agent requests were not reachable after a reload (children were deliberately excluded from the 20-chat parent budget), so they now persist in their own bounded store gd-custom-ai-subagent-requests (40, gameProjectJson stripped, corrupt/na-parent entries dropped) loaded at startup. +4 transcript specs, +3 persistence specs (1704 AI-surface / 83 suites, up from 1697). Live proof via the mock: the designer child persisted with a read_game_project_json call and the dashboard row expanded to the report + '▸ Task: Write GDD_Overview.', 'Reading the project to ground the design.', '⚙ read_game_project_json', 'GDD_Overview written: a small harbor town.'. Build green; ESLint/Prettier/divergence clean.",
       "commit": "feat(ai): show each sub-agent's transcript inline in the dashboard"
+    },
+    {
+      "cycle": 253,
+      "target": "Phase 5: real-model end-to-end run of the multi-agent flow with the session's fixes (no change)",
+      "metric_delta": "No code change. Ran the canonical city-builder benchmark against local Ollama (deepseek-v4.1-flash:cloud) with a project opened via initialize_project. Confirmed the recent features integrate with a REAL model: the manager read the project, made a 4-task plan, spawned the designer for task_1; the spawn carried taskId 'task_1' and the plan showed task_1 in_progress with agentCallId call_a0iex1p6 (cycle 251); the dashboard showed '1 sub-agent (1 designer): 0 finished, 1 working - 62,020 sub-agent tokens' (cycles 247-248); and expanding the row rendered the designer's own transcript, including read_game_project_json/inspect_variables/describe_instances/add_or_edit_variable and a self-correction after a schema error (cycle 252). The run then paused on the inline edit-approval prompt (the designer is not read-only and auto-edit was off); no nudge fired because a sub-agent was live - both correct. No regression from cycles 247-252.",
+      "commit": "docs(autonomous): real-model end-to-end run of the multi-agent flow"
     }
   ],
   "backlog": [
@@ -1698,6 +1704,8 @@
     "The CRA dev server may hold a stale bundle after long edit sessions; verify a new feature is actually served by fetching the loaded app chunk (the big src_ExportAndShare_* chunk contains the app under test) and grepping for a unique symbol, not the small bundle.js. To restart it, kill the `node .../react-app-rewired/scripts/start.js` PID (pkill on 'react-app-rewired start' misses it); wait for 'webpack compiled successfully' in its log.",
     "A hook that sends through a timer must flush microtasks in its spec: after jest.advanceTimersByTime, `await TestRenderer.act(async () => { await Promise.resolve(); })`, or the deferred send has not run when the assertions execute.",
     "The BYOK studio must stamp what the hosted server stamps on function calls/plan tasks (functionCall.taskId, planTask.agentCallId, planTask.status): the UI reads those fields and silently shows nothing when they are absent. Check the UI reader before assuming the studio writes a linkage field.",
-    "Sub-agent children need their own bounded persistence store: giving them the parent chat budget evicts real chats, but excluding them entirely makes the per-agent transcript unavailable after a reload. Keep the two budgets separate."
+    "Sub-agent children need their own bounded persistence store: giving them the parent chat budget evicts real chats, but excluding them entirely makes the per-agent transcript unavailable after a reload. Keep the two budgets separate.",
+    "A real-model run stalls at the first non-read-only sub-agent call when auto-edit is off (the edit-approval prompt suspends the request); this is the designed gate, not a stall, and the nudge correctly stays silent while the sub-agent is live. Enable auto-edit for unattended real-model runs.",
+    "The fork's studio roles (manager/designer/developer/tester) map onto the objective's agents as: manager ~ orchestrator, designer ~ asset-curator/design, developer ~ scene-architect + logic-engineer, tester ~ qa-playtester. Splitting developer into the objective's three roles was deliberately not done (a weak local model routes better to fewer, broader roles)."
   ]
 }

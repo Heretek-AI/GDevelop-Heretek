@@ -98,6 +98,20 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Real-model full-flow run with the session's fixes (cycle 253): local Ollama
+  (`deepseek-v4.1-flash:cloud`, `http://localhost:11434/v1`), project opened via
+  `initialize_project`. The manager read the project, created a 4-task plan,
+  spawned the designer with `related_task_id: task_1`, and the studio stamped the
+  linkage: the spawn carried `taskId: 'task_1'` and the plan read
+  `task_1 in_progress (agentCallId call_a0iex1p6)`. The dashboard showed
+  `1 sub-agent (1 designer): 0 finished, 1 working · ≈62,020 sub-agent tokens`,
+  and expanding the row rendered the designer's own transcript - its task,
+  reasoning, `read_game_project_json`/`inspect_variables`/`describe_instances`
+  and `add_or_edit_variable` calls, including a self-correction after a schema
+  error. The designer then paused on the inline edit-approval prompt (a
+  non-read-only role with auto-edit off), which is why the run stopped and no
+  nudge fired (a sub-agent was live) - both correct. Screenshot
+  /tmp/opencode/cycle253-real-transcript.png.
 - Sub-agent transcript view, live (cycle 252): expanding an agent row in the
   dashboard now reveals that agent's own conversation - its user request, its
   assistant text and the tools it called - via the pure, tested
