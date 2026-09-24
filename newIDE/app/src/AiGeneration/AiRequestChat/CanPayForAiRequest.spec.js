@@ -13,6 +13,7 @@ import {
   shouldShowSendAgainLabel,
   shouldShowLocalColdStartHint,
   useLocalColdStartHint,
+  hasModelResponded,
   COLD_START_HINT_DELAY_MS,
 } from './Utils';
 import {
@@ -378,8 +379,13 @@ describe('shouldShowLocalColdStartHint', () => {
   });
 });
 
-const Probe = ({ isLocalRequest, readHasBytes }) => {
-  const showHint = useLocalColdStartHint({ isLocalRequest, readHasBytes });
+const Probe = ({ isLocalRequest, readHasBytes, progressKey, hasResponded }) => {
+  const showHint = useLocalColdStartHint({
+    isLocalRequest,
+    readHasBytes,
+    progressKey,
+    hasResponded,
+  });
   return showHint ? <span>SHOWING</span> : null;
 };
 
@@ -457,6 +463,93 @@ describe('useLocalColdStartHint', () => {
       jest.advanceTimersByTime(10000);
     });
     expect(readHasBytes.mock.calls.length).toBe(callsWhileMounted);
+  });
+
+  it('re-arms the wait when the transcript advances, so tool progress clears a stale hint', () => {
+    // Non-streaming turns never record partial bytes, and a multi-turn agent
+    // run keeps the working row mounted: without re-arming, the hint fires
+    // once and then sticks for the rest of the run even while tool calls land.
+    const { container, root } = renderProbe({
+      isLocalRequest: true,
+      readHasBytes: () => false,
+      progressKey: 3,
+    });
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS);
+    });
+    expect(container.textContent).toBe('SHOWING');
+    // A new assistant message / tool call output advances the transcript.
+    act(() => {
+      root.render(
+        <Probe isLocalRequest readHasBytes={() => false} progressKey={4} />
+      );
+    });
+    // The stale hint clears immediately and the wait restarts from here.
+    expect(container.textContent).toBe('');
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS - 1000);
+    });
+    expect(container.textContent).toBe('');
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(container.textContent).toBe('SHOWING');
+  });
+
+  it('retires once the model has responded: later slow turns are not a cold start', () => {
+    const { container, root } = renderProbe({
+      isLocalRequest: true,
+      readHasBytes: () => false,
+      progressKey: 1,
+      hasResponded: false,
+    });
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS);
+    });
+    expect(container.textContent).toBe('SHOWING');
+    // The first assistant message lands.
+    act(() => {
+      root.render(
+        <Probe
+          isLocalRequest
+          readHasBytes={() => false}
+          progressKey={2}
+          hasResponded
+        />
+      );
+    });
+    expect(container.textContent).toBe('');
+    // Even a full further delay of silence on a later turn stays quiet: the
+    // thinking phrases narrate it, not the cold-start hint.
+    act(() => {
+      jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS * 3);
+    });
+    expect(container.textContent).toBe('');
+  });
+});
+
+describe('hasModelResponded', () => {
+  it('is false before the model produces anything', () => {
+    expect(hasModelResponded(null)).toBe(false);
+    expect(hasModelResponded(undefined)).toBe(false);
+    expect(hasModelResponded([])).toBe(false);
+    expect(
+      hasModelResponded([{ type: 'message', role: 'user', content: [] }])
+    ).toBe(false);
+  });
+
+  it('is true on an assistant message or a tool round-trip', () => {
+    expect(
+      hasModelResponded([
+        { type: 'message', role: 'user', content: [] },
+        { type: 'message', role: 'assistant', content: [] },
+      ])
+    ).toBe(true);
+    expect(
+      hasModelResponded([
+        { type: 'function_call_output', call_id: 'c1', output: '{}' },
+      ])
+    ).toBe(true);
   });
 });
 

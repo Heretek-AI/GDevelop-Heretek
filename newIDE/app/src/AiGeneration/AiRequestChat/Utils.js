@@ -206,6 +206,19 @@ export const shouldShowSendAgainLabel = ({
 |}): boolean => hasSendError && !isWorking;
 
 /**
+ * Whether the model has produced anything yet in this request: an assistant
+ * message or a tool round-trip. Used to gate the cold-start hint to the first
+ * turn — later slow turns are context-size slowness, not a model loading into
+ * memory, and narrating every one as a cold start is noise.
+ */
+export const hasModelResponded = (output: ?Array<Object>): boolean =>
+  !!(output || []).some(
+    message =>
+      message &&
+      (message.role === 'assistant' || message.type === 'function_call_output')
+  );
+
+/**
  * How long a local model may produce nothing before the chat explains why:
  * a cold Ollama/LM Studio start (loading weights into VRAM, or swapping a
  * model back in) is tens of seconds of silence on a stream that has not
@@ -249,13 +262,28 @@ export const shouldShowLocalColdStartHint = ({
  * Re-checks on a one-second interval instead of a one-shot timer: the wait that
  * matters is "how long since the first token should have arrived", so the hook
  * has to notice the tokens *arriving* and clear itself, not just fire once.
+ *
+ * `progressKey` re-arms the wait whenever the transcript advances (a new
+ * assistant message, tool call, or tool output proves the model is responding,
+ * so the "first token" wait starts over). Without this, a multi-turn agent run
+ * — or any non-streaming turn, where partial bytes are never recorded — keeps
+ * the hint up for the whole run, long after the model has answered.
  */
 export const useLocalColdStartHint = ({
   isLocalRequest,
   readHasBytes,
+  progressKey,
+  hasResponded,
 }: {|
   isLocalRequest: boolean,
   readHasBytes: () => boolean,
+  progressKey?: number,
+  /**
+   * True once the model has produced anything in this request. The hint
+   * describes a cold start (first turn); later slow turns are context-size
+   * slowness, narrated by the thinking phrases instead.
+   */
+  hasResponded?: boolean,
 |}): boolean => {
   const [showHint, setShowHint] = React.useState(false);
   // Callers pass `readHasBytes` inline (`() => !!customGet...`), so its identity
@@ -268,10 +296,13 @@ export const useLocalColdStartHint = ({
   readHasBytesRef.current = readHasBytes;
   React.useEffect(
     () => {
-      if (!isLocalRequest) {
+      if (!isLocalRequest || hasResponded) {
         setShowHint(false);
         return undefined;
       }
+      // A new effect run means a new turn segment: either the request became
+      // local or the transcript advanced. Measure from here and start hidden.
+      setShowHint(false);
       const startedAt = Date.now();
       const interval = setInterval(() => {
         setShowHint(
@@ -285,8 +316,11 @@ export const useLocalColdStartHint = ({
       return () => clearInterval(interval);
     },
     // `readHasBytes` is deliberately not a dependency: it is read through the
-    // ref so a new identity does not reset the elapsed measurement.
-    [isLocalRequest]
+    // ref so a new identity does not reset the elapsed measurement. Only a
+    // real transcript advance (`progressKey`) or the model responding at all
+    // (`hasResponded`) re-arms or retires the wait.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isLocalRequest, progressKey, hasResponded]
   );
   return showHint;
 };

@@ -1147,7 +1147,7 @@ export const AiRequestChat: React.ComponentType<{
           </ColumnStackLayout>
         </ScrollView>
         {isCustomEndpointEnabled() && !isForAnotherProject && (
-          <Line noMargin alignItems="center" justifyContent="flex-end" expand>
+          <Line noMargin alignItems="center" justifyContent="flex-end">
             <Text size="body-small" color="secondary" noMargin>
               <Trans>Model for this chat:</Trans>
             </Text>

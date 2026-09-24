@@ -241,6 +241,10 @@ export type EditorFunctionGenericOutput = {|
   functionCallRecords?: Array<Object>,
   consoleLogs?: Array<string>,
   returnValue?: any,
+  // Set only when a successful script called no editor functions: names the
+  // functions actually in scope so the next turn calls one instead of
+  // probing globals for another round trip.
+  guidance?: string,
   error?: {|
     message: string,
     lineNumber: number | null,
@@ -10984,7 +10988,10 @@ const runScript: EditorFunction = {
     });
 
     const result = await executeScript({ jsCode, exposedFunctions });
-    const capped = capScriptExecutionResult(result);
+    const capped = capScriptExecutionResult(
+      result,
+      exposedFunctions.map(({ name }) => name)
+    );
 
     return {
       success: capped.success,
@@ -10992,6 +10999,10 @@ const runScript: EditorFunction = {
       consoleLogs: capped.consoleLogs,
       returnValue: capped.returnValue,
       error: capped.error,
+      // A successful zero-call script is a discovery probe: surface the
+      // teaching in the model-visible output (meta is stripped by the
+      // runner, so it must ride top-level, not in meta).
+      ...(capped.guidance ? { guidance: capped.guidance } : {}),
       meta: {
         didModifyProject: capped.didModifyProject,
         // Forward the scenes and external layouts created inside the script

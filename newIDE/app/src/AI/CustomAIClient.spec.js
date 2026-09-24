@@ -35,6 +35,7 @@ import {
   customCreateResourceSearch,
   testConnection,
   sendChatCompletion,
+  formatProviderTelemetry,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -455,6 +456,18 @@ describe('CustomAIClient', () => {
       expect(toolNames).toContain('run_script');
       expect(toolNames).toContain('create_or_update_plan');
     });
+
+    it('documents the run_script sandbox so models call functions instead of probing globals', () => {
+      // Observed failure: ten turns enumerating `gd`/globals/webpack chunks
+      // because the description said only "project APIs". Pin the teaching.
+      const runScript = GDEVELOP_OPENAI_TOOLS.find(
+        t => t.function.name === 'run_script'
+      );
+      expect(runScript).toBeTruthy();
+      const description = runScript.function.description;
+      expect(description).toContain('await');
+      expect(description).toContain('never probe');
+    });
   });
 
   describe('testConnection', () => {
@@ -662,6 +675,53 @@ describe('CustomAIClient', () => {
         anything: 'goes',
       });
       expect(validation.valid).toBe(true);
+    });
+
+    it('accepts run_script with js_code (matching the editor implementation)', () => {
+      const validation = validateToolCallArguments('run_script', {
+        js_code: 'return 1;',
+      });
+      expect(validation.valid).toBe(true);
+      expect(validation.errors).toEqual([]);
+    });
+
+    it('accepts run_script with the legacy script alias via parseAssistantMessage', () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'call-alias',
+            function: {
+              name: 'run_script',
+              arguments: JSON.stringify({ script: 'return 1;' }),
+            },
+          },
+        ],
+      });
+      expect(message.functionCalls[0].callArguments).toEqual({
+        script: 'return 1;',
+        js_code: 'return 1;',
+      });
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('failed schema validation')
+      );
+      warn.mockRestore();
+    });
+
+    it('keeps Ollama-style reasoning field as thinking', () => {
+      const message = parseAssistantMessage({
+        role: 'assistant',
+        content: 'Hello',
+        reasoning: 'Let me think about TileMap.',
+      });
+      const reasoningEntry = (message.content || []).find(
+        entry => entry.type === 'reasoning'
+      );
+      expect(reasoningEntry && reasoningEntry.summary.text).toBe(
+        'Let me think about TileMap.'
+      );
     });
 
     it('sanitizes schema-invalid tool calls in parseAssistantMessage', () => {
@@ -1078,6 +1138,98 @@ describe('CustomAIClient', () => {
       expect(axiosOptions.timeout).toBe(MAX_TIMEOUT_MS);
       // Guard the premise: the raw value really would overflow.
       expect(3000000000).toBeGreaterThan(MAX_TIMEOUT_MS);
+    });
+  });
+
+  describe('provider telemetry logging', () => {
+    it('formats routing/proxy telemetry headers into one line', () => {
+      expect(
+        formatProviderTelemetry({
+          'x-omniroute-model': 'deepseek-v4.1-flash',
+          'x-omniroute-latency-ms': '3361',
+          'x-omniroute-tokens-in': '8856',
+          'x-omniroute-tokens-out': '90',
+          'x-omniroute-cache': 'MISS',
+        })
+      ).toBe(
+        'model=deepseek-v4.1-flash latencyMs=3361 tokens=8856in/90out cache=MISS'
+      );
+    });
+
+    it('returns null when no telemetry headers are present', () => {
+      expect(formatProviderTelemetry(undefined)).toBeNull();
+      expect(formatProviderTelemetry(null)).toBeNull();
+      expect(formatProviderTelemetry({})).toBeNull();
+      expect(
+        formatProviderTelemetry({ 'content-type': 'application/json' })
+      ).toBeNull();
+    });
+
+    it('logs per-turn telemetry to the dev console when the provider sends it', async () => {
+      const debugSpy = jest
+        .spyOn(console, 'debug')
+        .mockImplementation(() => {});
+      try {
+        axios.post.mockResolvedValueOnce({
+          status: 200,
+          headers: {
+            'x-omniroute-model': 'deepseek-v4.1-flash',
+            'x-omniroute-latency-ms': '3361',
+            'x-omniroute-tokens-in': '8856',
+            'x-omniroute-tokens-out': '90',
+          },
+          data: {
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+          },
+        });
+
+        await sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: {
+            enabled: true,
+            baseUrl: 'http://localhost:11434/v1',
+            apiKey: '',
+            model: 'llama3.2',
+            temperature: 0.7,
+          },
+        });
+
+        expect(debugSpy).toHaveBeenCalledTimes(1);
+        expect(debugSpy.mock.calls[0][0]).toContain('[BYOK]');
+        expect(debugSpy.mock.calls[0][0]).toContain('latencyMs=3361');
+        expect(debugSpy.mock.calls[0][0]).toContain('tokens=8856in/90out');
+      } finally {
+        debugSpy.mockRestore();
+      }
+    });
+
+    it('stays quiet when the provider sends no telemetry headers', async () => {
+      const debugSpy = jest
+        .spyOn(console, 'debug')
+        .mockImplementation(() => {});
+      try {
+        axios.post.mockResolvedValueOnce({
+          status: 200,
+          data: {
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+          },
+        });
+
+        await sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: {
+            enabled: true,
+            baseUrl: 'http://localhost:11434/v1',
+            apiKey: '',
+            model: 'llama3.2',
+            temperature: 0.7,
+          },
+        });
+
+        expect(debugSpy).not.toHaveBeenCalled();
+      } finally {
+        debugSpy.mockRestore();
+      }
     });
   });
 

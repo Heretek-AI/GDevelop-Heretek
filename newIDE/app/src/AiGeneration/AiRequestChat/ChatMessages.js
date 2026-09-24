@@ -52,6 +52,7 @@ import {
   canPayForAiRequest,
   getAvailableCredits,
   useLocalColdStartHint,
+  hasModelResponded,
 } from './Utils';
 import Text from '../../UI/Text';
 import { ColumnStackLayout, LineStackLayout } from '../../UI/Layout';
@@ -107,13 +108,19 @@ const PartialStreamText = ({ aiRequestId }: {| aiRequestId: string |}) => {
 const LocalColdStartHint = ({
   aiRequestId,
   isLocalRequest,
+  progressKey,
+  hasResponded,
 }: {|
   aiRequestId: string,
   isLocalRequest: boolean,
+  progressKey: number,
+  hasResponded: boolean,
 |}) => {
   const showHint = useLocalColdStartHint({
     isLocalRequest,
     readHasBytes: () => !!customGetAiRequestPartialContent(aiRequestId),
+    progressKey,
+    hasResponded,
   });
   if (!showHint) return null;
   return (
@@ -1462,6 +1469,8 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
             <LocalColdStartHint
               aiRequestId={aiRequest.id}
               isLocalRequest={aiRequest.id.startsWith('local-ai-')}
+              progressKey={(aiRequest.output || []).length}
+              hasResponded={hasModelResponded(aiRequest.output)}
             />
           </Line>
         ) : null}

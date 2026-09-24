@@ -2,7 +2,10 @@
 import { executeScript } from './ScriptRunner';
 import { buildExposedScriptFunctions } from './ExposedFunctions';
 import { NON_SCRIPTABLE_FUNCTION_NAMES } from './NonScriptableFunctionNames';
-import { capScriptExecutionResult } from './CapScriptOutput';
+import {
+  capScriptExecutionResult,
+  buildNoEditorCallsGuidance,
+} from './CapScriptOutput';
 
 // Deliberately gd-free (like ScriptRunner.spec.js): fake registries following
 // the EditorFunction contract, so the exposed-functions bridge and the output
@@ -164,5 +167,70 @@ describe('capScriptExecutionResult', () => {
     // 100 kept + 1 note line.
     expect(capped.consoleLogs.length).toBe(101);
     expect(capped.consoleLogs[100]).toContain('truncated');
+  });
+
+  it('teaches the API when a successful script called no editor functions', async () => {
+    // The observed thrash: a model probing `gd`/globals/webpack chunks for
+    // turns on end because nothing told it what IS in scope. A successful
+    // zero-call script is that probe - answer it once, here.
+    const result = await executeScript({
+      jsCode: `const keys = [1, 2, 3];\nreturn keys.length;`,
+      exposedFunctions: [],
+    });
+    expect(result.success).toBe(true);
+    expect(result.functionCallRecords).toEqual([]);
+    const capped = capScriptExecutionResult(result, [
+      'create_scene',
+      'describe_instances',
+    ]);
+    expect(capped.guidance).toContain('await create_or_replace_object');
+    expect(capped.guidance).toContain('create_scene, describe_instances');
+    expect(capped.guidance).toContain('do not probe');
+  });
+
+  it('omits the guidance once the script calls functions', async () => {
+    const editorFunctions = {
+      describe_instances: makeFakeEditorFunction({}),
+    };
+    const exposed = buildExposedScriptFunctions({
+      editorFunctions,
+      editorFunctionsWithoutProject: {},
+      launchOptions: asCollaborators({}),
+      project: asProject({}),
+    });
+    const result = await executeScript({
+      jsCode: `await describe_instances({ scene_name: 'L' });`,
+      exposedFunctions: exposed,
+    });
+    const capped = capScriptExecutionResult(result, ['describe_instances']);
+    expect(capped.guidance).toBeUndefined();
+  });
+
+  it('omits the guidance on failure (the error already names the functions)', async () => {
+    const result = await executeScript({
+      jsCode: `await no_such_function({});`,
+      exposedFunctions: [],
+    });
+    expect(result.success).toBe(false);
+    const capped = capScriptExecutionResult(result, ['create_scene']);
+    expect(capped.guidance).toBeUndefined();
+    expect(capped.error).not.toBeNull();
+  });
+
+  it('omits the guidance when no function names are given', async () => {
+    const result = await executeScript({
+      jsCode: `return 42;`,
+      exposedFunctions: [],
+    });
+    const capped = capScriptExecutionResult(result);
+    expect(capped.guidance).toBeUndefined();
+  });
+});
+
+describe('buildNoEditorCallsGuidance', () => {
+  it('lists exactly the exposed names and the calling convention', () => {
+    const guidance = buildNoEditorCallsGuidance(['b_fn', 'a_fn']);
+    expect(guidance).toContain('await');
+    expect(guidance).toContain('b_fn, a_fn');
   });
 });

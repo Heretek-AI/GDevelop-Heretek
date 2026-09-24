@@ -78,6 +78,8 @@
     "newIDE/app/src/AiGeneration/UseSearchAndInstallAsset.js",
     "newIDE/app/src/AiGeneration/UseSearchAndInstallResource.js",
     "newIDE/app/src/AiGeneration/Utils.js",
+    "newIDE/app/src/EditorFunctions/ScriptExecution/CapScriptOutput.js",
+    "newIDE/app/src/EditorFunctions/ScriptExecution/ExposedFunctions.spec.js",
     "newIDE/app/src/EditorFunctions/ScriptExecution/NonScriptableFunctionNames.js",
     "newIDE/app/src/EditorFunctions/ScriptExecution/ScriptRunner.js",
     "newIDE/app/src/EditorFunctions/ServerSideTools.spec.js",

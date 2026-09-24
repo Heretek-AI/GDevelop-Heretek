@@ -410,7 +410,8 @@ export const customGetAiRequestContextTokens = (aiRequestId: string): number =>
  */
 const completionOutputTokens = (response: Object): number =>
   estimateTokens(response && response.content) +
-  estimateTokens(response && response.reasoning_content);
+  estimateTokens(response && response.reasoning_content) +
+  estimateTokens(response && response.reasoning);
 
 const addTokenUsage = (
   aiRequestId: string,
@@ -1310,17 +1311,27 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
     function: {
       name: 'run_script',
       description:
-        'Execute a JavaScript script in the GDevelop editor to inspect or modify the project.',
+        'Execute a JavaScript script in the GDevelop editor to inspect or modify the project. Inside the script, the editor functions are plain async functions in scope: call them with `await`, e.g. `await create_or_replace_object({...})` (a `functions` namespace alias with the same functions also exists). `console.log` lines and the return value are reported back. Nothing else is in scope: browser and engine globals (window, document, gd, fetch, localStorage) are shadowed or cannot reach the open project, so never probe for them - call an exposed function directly. A ReferenceError names the functions available in the script.',
       parameters: {
         type: 'object',
         properties: {
-          script: {
+          js_code: {
             type: 'string',
             description:
               'JavaScript code to execute in the editor environment. Has access to exposed editor functions and project APIs.',
           },
+          title: {
+            type: 'string',
+            description:
+              'Short human-readable title for this script, shown in the chat.',
+          },
+          script: {
+            type: 'string',
+            description:
+              'Deprecated alias for js_code. Prefer js_code; script is accepted for compatibility and mapped to js_code.',
+          },
         },
-        required: ['script'],
+        required: ['js_code'],
       },
     },
   },
@@ -2847,6 +2858,33 @@ const getErrorHint = (error: any): string => {
 };
 
 /**
+ * One-line provider telemetry for the dev console, from routing/proxy headers
+ * (OmniRoute `x-omniroute-*`; other OpenAI-compatible servers send none).
+ * Makes per-turn latency and token burn visible while debugging slow or
+ * thrashing agent runs, without touching the request itself. Null when the
+ * response carries no telemetry headers.
+ */
+export const formatProviderTelemetry = (headers: any): string | null => {
+  if (!headers || typeof headers !== 'object') return null;
+  const get = (name: string): ?string => {
+    const value = headers[name];
+    return typeof value === 'string' && value ? value : null;
+  };
+  const parts = [];
+  const model = get('x-omniroute-model');
+  if (model) parts.push(`model=${model}`);
+  const latency = get('x-omniroute-latency-ms');
+  if (latency) parts.push(`latencyMs=${latency}`);
+  const tokensIn = get('x-omniroute-tokens-in');
+  const tokensOut = get('x-omniroute-tokens-out');
+  if (tokensIn || tokensOut)
+    parts.push(`tokens=${tokensIn || '?'}in/${tokensOut || '?'}out`);
+  const cache = get('x-omniroute-cache');
+  if (cache) parts.push(`cache=${cache}`);
+  return parts.length > 0 ? parts.join(' ') : null;
+};
+
+/**
  * Stream a chat completion via SSE (fetch + ReadableStream) and return the
  * same message shape as the non-streaming path. Skips malformed chunks; a
  * connection drop mid-stream surfaces as a stream error. Aborts on the
@@ -3028,10 +3066,14 @@ const streamChatCompletion = async ({
       if (typeof delta.content === 'string') content += delta.content;
       // Reasoning models (DeepSeek-R1, qwq, Ollama reasoning builds) stream
       // their chain of thought on `reasoning_content`, the same field the
-      // non-streaming path reads in parseAssistantMessage. Dropping it here
-      // meant the streamed answer lost the thinking the non-streamed one kept.
+      // non-streaming path reads in parseAssistantMessage. Ollama-style
+      // endpoints (and the OmniRoute proxy) use `reasoning` instead.
+      // Dropping either here meant the streamed answer lost the thinking
+      // the non-streamed one kept.
       if (typeof delta.reasoning_content === 'string') {
         reasoning += delta.reasoning_content;
+      } else if (typeof delta.reasoning === 'string') {
+        reasoning += delta.reasoning;
       }
       if (Array.isArray(delta.tool_calls)) {
         for (const toolCall of delta.tool_calls) {
@@ -3280,6 +3322,12 @@ export const sendChatCompletion = async ({
       timeout: timeoutMs,
     });
 
+    // Thrash forensics: per-turn latency/tokens from routing headers, if any.
+    const providerTelemetry = formatProviderTelemetry(response.headers);
+    if (providerTelemetry) {
+      console.debug(`[BYOK] ${endpointUrl} ${providerTelemetry}`);
+    }
+
     if (
       response.data &&
       response.data.choices &&
@@ -3465,7 +3513,10 @@ export const parseAssistantMessage = (
     openAiMessageOrChoiceOrResponse;
 
   const rawContent = openAiMessage.content || '';
-  const reasoningContent = openAiMessage.reasoning_content || null;
+  // OpenAI-style endpoints use `reasoning_content`; Ollama-style endpoints
+  // (and the OmniRoute proxy) use `reasoning`. Accept both.
+  const reasoningContent =
+    openAiMessage.reasoning_content || openAiMessage.reasoning || null;
 
   let { thinking, cleanContent } = extractThinkingAndContent(rawContent);
   if (!thinking && reasoningContent) {
@@ -3532,6 +3583,18 @@ export const parseAssistantMessage = (
             )}' had invalid arguments; executing with empty arguments.`
           );
         } else {
+          // run_script's editor implementation reads `js_code` (with an
+          // optional `title`); older prompts taught `script`. Accept the alias
+          // so either name validates and executes the same code.
+          if (
+            String(functionName) === 'run_script' &&
+            parsedArgs &&
+            typeof parsedArgs === 'object' &&
+            typeof parsedArgs.js_code !== 'string' &&
+            typeof parsedArgs.script === 'string'
+          ) {
+            parsedArgs.js_code = parsedArgs.script;
+          }
           const validation = validateToolCallArguments(
             String(functionName),
             parsedArgs

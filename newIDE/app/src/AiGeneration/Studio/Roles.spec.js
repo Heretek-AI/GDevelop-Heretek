@@ -124,6 +124,25 @@ describe('Studio roles', () => {
     });
   });
 
+  it('the manager forwards established facts so sub-agents do not re-derive them', () => {
+    // Observed failure: a developer re-probed the run_script sandbox and the
+    // texture constraints for ten turns after the designer had settled them,
+    // because the spawn instruction carried none of it.
+    expect(STUDIO_ROLES.manager.systemPrompt).toContain(
+      'facts already established'
+    );
+  });
+
+  it('the developer prompt documents the sandbox and the image-texture path', () => {
+    // Same failure from the developer side: without it, the first resort was
+    // enumerating `gd`/globals/webpack chunks, and the second was hunting a
+    // non-existent image upload.
+    const prompt = STUDIO_ROLES.developer.systemPrompt;
+    expect(prompt).toContain('never probe for project access');
+    expect(prompt).toContain('no tool uploads an image');
+    expect(prompt).toContain('search_object_asset_store');
+  });
+
   it('gives the developer every mutating tool the schema offers, and the tester none', () => {
     const mutatingNames = [
       'run_script',

@@ -94,7 +94,7 @@ export type PreferencesSectionName =
   | 'extensions'
   | 'developer';
 
-export type PreferencesTabName = 'preferences' | 'shortcuts';
+export type PreferencesTabName = 'preferences' | 'ai' | 'shortcuts';
 
 type GetIconFunction = ({
   color: string,
@@ -576,7 +576,7 @@ const PreferencesDialog = ({
       if (sectionNameAtTop && sectionNameAtTop !== currentSection) {
         setCurrentSection((sectionNameAtTop: any));
       }
-    } else {
+    } else if (currentTab === 'shortcuts') {
       const areaNameAtTop = getEntryKeyAtTop(
         shortcutAreas.map(area => area.name),
         getShortcutAreaElementId
@@ -585,6 +585,7 @@ const PreferencesDialog = ({
         setCurrentShortcutArea((areaNameAtTop: any));
       }
     }
+    // The 'ai' tab has a single section with no scroll-spy: nothing to update.
   };
 
   const hasCustomizedShortcuts = Object.keys(values.userShortcutMap).some(
@@ -1593,7 +1594,9 @@ const PreferencesDialog = ({
     setCurrentTab(tabName);
     // Start from the top of the new tab.
     if (tabName === 'preferences') setCurrentSection(visibleSections[0].name);
-    else setCurrentShortcutArea(shortcutAreas[0].name);
+    else if (tabName === 'shortcuts')
+      setCurrentShortcutArea(shortcutAreas[0].name);
+    // The 'ai' tab has no sub-navigation (no sections list on the left).
     pendingScrollElementIdRef.current = '';
   };
 
@@ -1611,6 +1614,7 @@ const PreferencesDialog = ({
 
   // The entries of the sections list, on the left of the content: the
   // preferences sections or the shortcut areas, depending on the current tab.
+  // The 'ai' tab is a single page with no sub-sections, so it has no entries.
   const sectionListEntries =
     currentTab === 'preferences'
       ? visibleSections.map(section => ({
@@ -1620,13 +1624,15 @@ const PreferencesDialog = ({
           isActive: !isSearching && highlightedSectionName === section.name,
           onSelect: () => onSelectSection(section.name),
         }))
-      : shortcutAreas.map(area => ({
+      : currentTab === 'shortcuts'
+      ? shortcutAreas.map(area => ({
           key: area.name,
           label: i18n._(commandAreas[area.name]),
           getIcon: area.getIcon,
           isActive: !isSearching && currentShortcutArea === area.name,
           onSelect: () => onSelectShortcutArea(area.name),
-        }));
+        }))
+      : [];
 
   return (
     <Dialog
@@ -1697,7 +1703,7 @@ const PreferencesDialog = ({
       }
     >
       <div style={styles.body}>
-        {!isMobile && (
+        {!isMobile && sectionListEntries.length > 0 && (
           <>
             <div style={styles.sectionsColumn}>
               <ColumnStackLayout noMargin>

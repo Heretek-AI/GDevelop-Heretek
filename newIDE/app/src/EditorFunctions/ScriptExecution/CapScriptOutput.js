@@ -74,10 +74,32 @@ export type CappedRunScriptOutput = {|
   didModifyProject: boolean,
   newSceneNames: Array<string>,
   newExternalLayoutNames: Array<string>,
+  /**
+   * Set only when a successful script called no editor functions at all (a
+   * pure probe): names the functions actually in scope so the next turn calls
+   * one instead of enumerating globals for another round trip. Failed scripts
+   * already name the available functions in `error`, and productive scripts
+   * need no teaching.
+   */
+  guidance?: string,
 |};
 
+/**
+ * Guidance appended when a successful script called no editor functions: the
+ * observed failure mode is a model probing `gd`/globals/webpack chunks for
+ * several turns because nothing told it what IS in scope. Name the exposed
+ * functions and the calling convention once, right where the probe lands.
+ */
+export const buildNoEditorCallsGuidance = (
+  exposedFunctionNames: Array<string>
+): string =>
+  'The script called no editor functions. Inside a script, the editor functions are async functions in scope: call them with `await`, e.g. `await create_or_replace_object({...})`. Available in this script: ' +
+  exposedFunctionNames.join(', ') +
+  '. Browser and engine globals (window, document, gd, fetch, localStorage) cannot reach the open project - do not probe for them.';
+
 export const capScriptExecutionResult = (
-  result: ScriptExecutionResult
+  result: ScriptExecutionResult,
+  exposedFunctionNames?: ?Array<string>
 ): CappedRunScriptOutput => {
   let totalArgChars = 0;
 
@@ -161,5 +183,13 @@ export const capScriptExecutionResult = (
     didModifyProject,
     newSceneNames: result.newSceneNames || [],
     newExternalLayoutNames: result.newExternalLayoutNames || [],
+    // A successful script that called nothing is a discovery probe: teach the
+    // API once, here, instead of letting it enumerate globals for ten turns.
+    ...(result.success &&
+    functionCallRecords.length === 0 &&
+    exposedFunctionNames &&
+    exposedFunctionNames.length > 0
+      ? { guidance: buildNoEditorCallsGuidance(exposedFunctionNames) }
+      : {}),
   };
 };
