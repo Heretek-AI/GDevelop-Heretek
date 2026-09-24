@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 205,
+  "last_cycle": 206,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1204,6 +1204,12 @@
       "target": "Full-suite regression + run-log refresh (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite at cycle 204's state: 185 suites, 2358 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 204 and rewrote the backlog to only the genuinely open items (the earlier list had accumulated a design idea now explicitly assessed as architecturally invasive).",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 206,
+      "target": "Make the mock provider scriptable for deterministic offline harness runs (Tier 4)",
+      "metric_delta": "The committed mock always answered with one canned reply, so the studio's multi-step flow (plan -> spawn -> report) could not be exercised offline. Added MOCK_SCRIPT support: a JSON array of turns (content and/or toolCalls) consumed one per request, emitted both non-streamed AND as SSE tool-call deltas. Added scripts/dev/mock-script.example.json (plan -> spawn_agent -> report) and documented it in scripts/README.md. Verified: node --check, the example is valid JSON, and a live 3-request smoke returned the exact scripted sequence (create_or_update_plan, spawn_agent, plain report). This lets @feedback-loop assert the studio loop without a real model or credentials. Divergence +1 forkOnly (the example).",
+      "commit": "feat(scripts): let the mock provider serve a scripted turn sequence"
     }
   ],
   "backlog": [

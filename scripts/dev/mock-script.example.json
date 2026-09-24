@@ -1,0 +1,40 @@
+[
+  {
+    "content": "Planning first.",
+    "toolCalls": [
+      {
+        "id": "call_plan_1",
+        "name": "create_or_update_plan",
+        "arguments": {
+          "tasks": [
+            {
+              "id": "design",
+              "title": "Design the town",
+              "description": "Write a one-sentence design.",
+              "status": "pending",
+              "dependsOn": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "content": "Delegating the design task.",
+    "toolCalls": [
+      {
+        "id": "call_spawn_1",
+        "name": "spawn_agent",
+        "arguments": {
+          "role": "designer",
+          "short_title": "Design the town",
+          "task": "Write GDD_Overview in one sentence.",
+          "related_task_id": "design"
+        }
+      }
+    ]
+  },
+  {
+    "content": "The designer reported back; the design task is done."
+  }
+]

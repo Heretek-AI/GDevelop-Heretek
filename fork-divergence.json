@@ -192,6 +192,7 @@
     "runs/RUNS.md",
     "scripts/check-fork-divergence.js",
     "scripts/dev/mock-ai-provider.js",
+    "scripts/dev/mock-script.example.json",
     "scripts/security/check-lockfiles.js",
     "scripts/sonarcloud-drift.js"
   ],

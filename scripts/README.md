@@ -37,7 +37,11 @@ See [MAINTENANCE.md](../MAINTENANCE.md) for how these fit together.
     `Access-Control-Expose-Headers`, because a browser client cannot read
     custom response headers from a cross-origin endpoint without the latter —
     the same requirement applies to any real telemetry proxy. Point the editor's
-    custom AI base URL at `http://localhost:11435/v1` to use it.
+    custom AI base URL at `http://localhost:11435/v1` to use it. Set
+    `MOCK_SCRIPT=<file>` to serve a fixed sequence of turns (content and/or
+    `toolCalls`) from a JSON array, one per request — see
+    `dev/mock-script.example.json` (plan -> spawn_agent -> report) — to drive a
+    deterministic multi-step studio run offline.
 
 ## Documentation and translations
 

@@ -39,6 +39,37 @@ const CORS = {
     'x-omniroute-model, x-omniroute-latency-ms, x-omniroute-tokens-in, x-omniroute-tokens-out, x-omniroute-cache',
 };
 
+/**
+ * Optional deterministic script: a JSON array of turns, consumed one per
+ * request (the last turn repeats). Each turn is either
+ *   { "content": "..." }                                  a plain answer, or
+ *   { "content": "...", "toolCalls": [ {"id","name","arguments"} ] }
+ * with `arguments` a JSON string (or object) as the OpenAI API expects. Set
+ * `MOCK_SCRIPT=/path/to/script.json` to drive a fixed multi-step run (e.g.
+ * plan -> spawn_agent -> report) through the harness without a real model.
+ */
+const loadScript = () => {
+  const path = process.env.MOCK_SCRIPT;
+  if (!path) return null;
+  try {
+    const parsed = JSON.parse(require('fs').readFileSync(path, 'utf8'));
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch (error) {
+    console.error('MOCK_SCRIPT could not be read:', error.message);
+    return null;
+  }
+};
+
+const script = loadScript();
+let requestCount = 0;
+
+const nextTurn = () => {
+  if (!script) return null;
+  const turn = script[Math.min(requestCount, script.length - 1)];
+  requestCount += 1;
+  return turn;
+};
+
 const json = (res, status, body, extraHeaders) => {
   res.writeHead(
     status,
@@ -93,7 +124,24 @@ const server = http.createServer((req, res) => {
         // A malformed body still gets a deterministic reply.
       }
       const messages = Array.isArray(payload.messages) ? payload.messages : [];
-      const reply = buildReply(messages, rawBody);
+      const turn = nextTurn();
+      const reply =
+        turn && typeof turn.content === 'string'
+          ? turn.content
+          : buildReply(messages, rawBody);
+      const scriptedToolCalls =
+        turn && Array.isArray(turn.toolCalls) ? turn.toolCalls : [];
+      const toolCalls = scriptedToolCalls.map((call, index) => ({
+        id: call.id || `call_${index}`,
+        type: 'function',
+        function: {
+          name: call.name,
+          arguments:
+            typeof call.arguments === 'string'
+              ? call.arguments
+              : JSON.stringify(call.arguments || {}),
+        },
+      }));
       const headers = telemetry(rawBody, reply);
 
       if (payload.stream === true) {
@@ -101,7 +149,7 @@ const server = http.createServer((req, res) => {
           200,
           Object.assign({ 'Content-Type': 'text/event-stream' }, CORS, headers)
         );
-        const chunks = reply.match(/.{1,24}/g) || [reply];
+        const chunks = reply.match(/.{1,24}/g) || (reply ? [reply] : []);
         for (const chunk of chunks) {
           res.write(
             'data: ' +
@@ -109,15 +157,43 @@ const server = http.createServer((req, res) => {
               '\n\n'
           );
         }
+        if (toolCalls.length > 0) {
+          res.write(
+            'data: ' +
+              JSON.stringify({
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: toolCalls.map((call, index) => ({
+                        index,
+                        id: call.id,
+                        function: call.function,
+                      })),
+                    },
+                  },
+                ],
+              }) +
+              '\n\n'
+          );
+        }
         res.write(
           'data: ' +
-            JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) +
+            JSON.stringify({
+              choices: [
+                {
+                  delta: {},
+                  finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
+                },
+              ],
+            }) +
             '\n\n'
         );
         res.write('data: [DONE]\n\n');
         return res.end();
       }
 
+      const message = { role: 'assistant', content: reply };
+      if (toolCalls.length > 0) message.tool_calls = toolCalls;
       return json(
         res,
         200,
@@ -128,8 +204,8 @@ const server = http.createServer((req, res) => {
           choices: [
             {
               index: 0,
-              message: { role: 'assistant', content: reply },
-              finish_reason: 'stop',
+              message,
+              finish_reason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
             },
           ],
         },
