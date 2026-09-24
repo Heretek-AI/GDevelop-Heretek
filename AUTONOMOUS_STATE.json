@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 243,
+  "last_cycle": 244,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1432,6 +1432,12 @@
       "target": "Pin the backend-only tool allowlist (every member must be a declared tool)",
       "metric_delta": "The coverage-gap sweep found BACKEND_ONLY_TOOL_NAMES (the allowlist that withholds backend-resolved tools from local turns) is used but never asserted. Because it is an ALLOWLIST, a typo silently stops filtering (or filters nothing). Added a test that every member is a declared GDEVELOP_OPENAI_TOOLS name and that get_game_starter_summary is present, mutation-checked (renaming the entry fails it). 1653/1653 across 81 suites (was 1652), eslint+prettier clean, divergence clean. Incident: a restore command ran from the wrong workdir leaving the mutation in place for one test run (4 failures) - restored from the absolute path and re-verified; the failures were the mutation, not a regression.",
       "commit": "test(ai): pin the backend-only tool allowlist"
+    },
+    {
+      "cycle": 244,
+      "target": "Assess the loop-guard thresholds vs the harness thrash signature; close the coverage sweep (no change)",
+      "metric_delta": "No code change. (1) The objective's Phase-5 thrash signature 'repeat identical tool probes >=3 turns' is an AUDIT criterion for OmniRoute telemetry, not the client guard's trigger: DEFAULT_LOOP_GUARD_CONFIG.repeatedToolLimit is 8 (7 tolerated) by design, to avoid constraining a legitimate long task (a run_script doing hundreds of calls). The two roles are deliberately different; recorded so a future session does not 'align' them by lowering the guard and reintroducing false trips. (2) Extended the export-vs-spec sweep to the fork-modified EditorFunctions files: only CapScriptOutput/NonScriptableFunctionNames/ScriptRunner/index.js are fork-modified; the first three are covered via ExposedFunctions.spec/ScriptRunner.spec (cross-file), and index.js is inline launchFunctions (untestable). The fork AI surface is now fully covered; the sweep found nothing actionable.",
+      "commit": "docs(autonomous): assess loop-guard thresholds and close the coverage sweep"
     }
   ],
   "backlog": [
@@ -1638,6 +1644,7 @@
     "Run scripts/check-fork-divergence.js BEFORE committing any edit to a file you have not confirmed is in the manifest: a correct fix in an upstream-identical file still creates new divergence (two paths here), and the policy is to revert it when production reachability is theoretical and the fix belongs upstream.",
     "The client normalizes a non-Error rejection to a generic 'AI request failed' Error (cycle 172), which drops axios-style `.code` - so any error-CLASSIFYING predicate (network vs provider) must be fed an Error instance in tests, and must not rely on `.code` for a non-Error rejection (message patterns are the fallback).",
     "When a defensive helper is extracted (cycle 160's parentHasOutputForCall), grep for DUPLICATED copies of the same check: AiRequestContext's watch loop kept its own unguarded version for 74 cycles. Extraction only closes the class if every copy is routed through it.",
-    "A recorded-but-unsent result is a loop: when a branch records an outcome with addEditorFunctionCallResults but the batch has no editor calls, it must also SEND it via onSendEditorFunctionCallResults, or the model never advances and the batch reprocesses until the loop guard trips. The harness caught this only through a role-denied-only batch (a case no spec covered)."
+    "A recorded-but-unsent result is a loop: when a branch records an outcome with addEditorFunctionCallResults but the batch has no editor calls, it must also SEND it via onSendEditorFunctionCallResults, or the model never advances and the batch reprocesses until the loop guard trips. The harness caught this only through a role-denied-only batch (a case no spec covered).",
+    "The agent loop's client guard (LoopGuard, repeatedToolLimit 8) and the harness's thrash signature (>=3 identical probes) are different things by design: the guard must avoid constraining legitimate long tasks, the audit flags early for human review. Do not 'align' them by lowering the guard."
   ]
 }
