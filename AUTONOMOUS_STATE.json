@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 214,
+  "last_cycle": 215,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1258,10 +1258,16 @@
       "target": "Post-fix full-suite regression + run-log refresh (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after the cycle-211 client fix: 185 suites, 2359 passed, 1 skipped, 114 snapshots, 0 failures. Confirms the messageId reconciliation did not regress any editor test. Refreshed runs/RUNS.md through cycle 213 including the deterministic multi-agent lifecycle proof.",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 215,
+      "target": "Real-model city-builder benchmark against local Ollama (Phase 5)",
+      "metric_delta": "MAJOR EVIDENCE. Ran the canonical prompt-city.md benchmark against local Ollama (deepseek-v4.1-flash:cloud) with a project open. The real model DID delegate: it created a 4-task plan with dependencies, spawned TWO sub-agents (one designer wrote GDD_ variables via add_or_edit_variable; one developer ran real editor tools: create_scene, create_or_replace_object, change_object_properties_effects, change_scene_properties_layers_effects_groups, search_object_asset_store / search_resource_store), and the plan lifecycle tracked correctly: task_1 done, task_2 in_progress, task_3/4 pending, 2 children, no failed tool results. This is the objective's Phase 5 benchmark succeeding offline (no credentials) - and it validates cycles 191/211 (reasoning progress, plan-flip fix) in a genuine run. Earlier runs stopped without delegating; this one complied because a project was open and the prompt was the canonical one. Screenshot /tmp/opencode/cycle215-real-benchmark.png. Config restored to Heretek.",
+      "commit": "chore(autonomous): record the real-model city-builder benchmark run"
     }
   ],
   "backlog": [
-    "Tier 1: with the plan lifecycle now correct end-to-end, run the full prompt-city.md benchmark offline via the scripted mock (project open) and capture the resulting plan/sub-agent artifacts, then with a real model/credentials.",
+    "Tier 1/2 UI build-out remains: a multi-agent chat switching panel and a per-agent audit dashboard (the telemetry data layer + chat note are live-verified). Needs product direction.",
     "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent, so the multi-agent delegation step needs either a stronger model or an automatic continuation nudge. A client-side nudge was assessed as architecturally invasive (the turn completes in AI/CustomAIClient, which cannot import Studio/ without a cycle) - design it as a small scheduler outside the client before implementing.",
     "UI build-out (Tier 1/2): a multi-agent chat switching panel and a per-agent audit dashboard. The data layer exists and is live-verified (customGetAiRequestProviderTelemetry + the chat's 'Provider response:' note); the dashboard still needs product direction and cannot be verified headless.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
