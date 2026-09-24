@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 180,
+  "last_cycle": 181,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1054,6 +1054,12 @@
       "target": "Guard the ChatMessages render loops against persisted output holes",
       "metric_delta": "Three unguarded inner loops in ChatMessages' renderItems built the chat view and read message.type / messageContent.type over a persisted (load-unvalidated) output: a single hole crashed the whole chat render. All three now skip non-objects. Verified by the required production build (exit 0, no ChatMessages warning), eslint --max-warnings=0, prettier, and the full 1601-test suite; component-level render tests remain infeasible (ChatMessages needs the provider tree + ~15 props), so the guards rest on the class already reproduced and pinned in the sibling pure helpers (AiRequestUtils, CustomAIClient). Backlog refreshed: the reliability sweep items are done; remaining entries are the blocked WebUI audit and strategic upstream options.",
       "commit": "fix(ai): guard the ChatMessages render loops against output holes"
+    },
+    {
+      "cycle": 181,
+      "target": "Cover the security-relevant role resolution and role predicates (Tier 1)",
+      "metric_delta": "The export-vs-spec sweep found getSubAgentRoleId (which decides whether a child is a studio sub-agent and thus its tool subset) and the isStudioRoleId/isSpawnableRoleId predicates had no direct coverage. +6 tests: role resolution from the launching call; hosted-child rejection; null for top-level/missing-parent/unlaunched; predicate truth tables incl. prototype keys and the manager-not-spawnable rule. The hosted test initially did NOT discriminate the isSpawnAgentCall gate (malformed args rejected the role anyway), so it was strengthened with valid spawn-shaped arguments - mutation-checked: removing the gate makes it return 'developer'; restoring it passes. 1606/1606 across 80 suites (was 1601), eslint+prettier clean, divergence clean.",
+      "commit": "test(ai): cover role resolution and role predicates"
     }
   ],
   "backlog": [

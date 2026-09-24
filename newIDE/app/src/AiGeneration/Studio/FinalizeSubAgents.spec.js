@@ -5,6 +5,7 @@ import {
   getSubAgentReportLabel,
   countAssistantTurns,
   isSubAgentAtTurnCap,
+  getSubAgentRoleId,
   parentHasOutputForCall,
   truncateReport,
   MAX_SUB_AGENT_REPORT_LENGTH,
@@ -674,6 +675,76 @@ describe('FinalizeSubAgents', () => {
       ]);
       expect(buildPlanStatusUpdateOutput(parent, 'unknown-call')).toBeNull();
     });
+  });
+});
+
+describe('getSubAgentRoleId', () => {
+  // Security-relevant: this decides whether a child is a studio sub-agent (and
+  // therefore which tool subset it may call). A wrong answer hands a hosted
+  // child the BYOK role policy, or skips the read-only restriction.
+  const parentWith = (entries: Array<any>): any => ({
+    id: 'parent-1',
+    output: [assistantMessage('delegating', entries)],
+  });
+  const child = (id: string, parentId: string | null): any => ({
+    id,
+    parentAiRequestId: parentId,
+  });
+
+  it('resolves the role from the launching spawn call', () => {
+    expect(
+      getSubAgentRoleId({
+        aiRequest: child('child-1', 'parent-1'),
+        aiRequests: {
+          'parent-1': parentWith([spawnCall('call-1', 'child-1', null)]),
+        },
+      })
+    ).toBe('developer');
+  });
+
+  it('returns null for a hosted child (run_edit_agent is not spawn_agent)', () => {
+    // Deliberately VALID spawn-shaped arguments: without the isSpawnAgentCall
+    // gate the role would resolve, so this pins the gate itself (not merely
+    // malformed-argument rejection).
+    const hostedCall = {
+      type: 'function_call',
+      status: 'completed',
+      call_id: 'call-1',
+      name: 'run_edit_agent',
+      arguments: JSON.stringify({
+        role: 'developer',
+        short_title: 'Build',
+        task: 'Build it.',
+      }),
+      subAgentAiRequestId: 'child-1',
+    };
+    expect(
+      getSubAgentRoleId({
+        aiRequest: child('child-1', 'parent-1'),
+        aiRequests: { 'parent-1': parentWith([hostedCall]) },
+      })
+    ).toBeNull();
+  });
+
+  it('returns null for a top-level, missing-parent or unlaunched child', () => {
+    expect(
+      getSubAgentRoleId({
+        aiRequest: child('child-1', null),
+        aiRequests: {},
+      })
+    ).toBeNull();
+    expect(
+      getSubAgentRoleId({
+        aiRequest: child('child-1', 'parent-1'),
+        aiRequests: {},
+      })
+    ).toBeNull();
+    expect(
+      getSubAgentRoleId({
+        aiRequest: child('child-1', 'parent-1'),
+        aiRequests: { 'parent-1': parentWith([]) },
+      })
+    ).toBeNull();
   });
 });
 

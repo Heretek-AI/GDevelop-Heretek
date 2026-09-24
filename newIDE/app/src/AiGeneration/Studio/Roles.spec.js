@@ -5,6 +5,9 @@ import {
   MUTATING_TOOL_NAMES,
   getStudioRole,
   getToolsForRole,
+  isStudioRoleId,
+  isSpawnableRoleId,
+  SPAWNABLE_ROLE_IDS,
 } from './Roles';
 import { GDEVELOP_OPENAI_TOOLS } from '../../AI/CustomAIClient';
 
@@ -44,6 +47,33 @@ describe('Studio roles', () => {
       // A role with no allowed tool could only talk - it would waste a turn.
       expect(role.allowedToolNames.length).toBeGreaterThan(0);
     });
+  });
+
+  it('isStudioRoleId accepts every declared role and nothing else', () => {
+    roleIds.forEach(roleId => expect(isStudioRoleId(roleId)).toBe(true));
+    // Prototype keys must not count as roles (hasOwnProperty guard).
+    expect(isStudioRoleId('toString')).toBe(false);
+    expect(isStudioRoleId('constructor')).toBe(false);
+    expect(isStudioRoleId('')).toBe(false);
+    expect(isStudioRoleId(null)).toBe(false);
+    expect(isStudioRoleId(42)).toBe(false);
+    expect(isStudioRoleId({})).toBe(false);
+  });
+
+  it('isSpawnableRoleId excludes the manager and non-roles', () => {
+    expect(SPAWNABLE_ROLE_IDS.slice().sort()).toEqual([
+      'designer',
+      'developer',
+      'tester',
+    ]);
+    // The manager plans; it is a role but never spawned as a sub-agent.
+    expect(isStudioRoleId('manager')).toBe(true);
+    expect(isSpawnableRoleId('manager')).toBe(false);
+    ['designer', 'developer', 'tester'].forEach(roleId =>
+      expect(isSpawnableRoleId(roleId)).toBe(true)
+    );
+    expect(isSpawnableRoleId('architect')).toBe(false);
+    expect(isSpawnableRoleId(undefined)).toBe(false);
   });
 
   it('throws on an unknown role', () => {
