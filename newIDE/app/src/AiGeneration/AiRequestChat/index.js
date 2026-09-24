@@ -77,9 +77,8 @@ import {
   customSetAiRequestModelOverride,
   customHasPendingCreateAiRequest,
   customGetAiRequestContextTokens,
-  getMessageBudget,
+  getTokenBudget,
   getEffectiveConfigForRequest,
-  GDEVELOP_OPENAI_TOOLS,
 } from '../../AI/CustomAIClient';
 import { getLocalAiRequestContextUsedRatio } from '../AiRequestUtils';
 import TextField from '../../UI/TextField';
@@ -548,8 +547,9 @@ export const AiRequestChat: React.ComponentType<{
           // The server reports this for a hosted chat; the local BYOK path
           // never sets contextStats, so its own token accounting is used
           // instead — otherwise the context gauge was always empty in the mode
-          // with the smallest windows. GDEVELOP_OPENAI_TOOLS is what the turn
-          // actually budgets against.
+          // with the smallest windows. The numerator already counts the whole
+          // prompt (messages plus the tools sent with the turn), so the
+          // denominator is the input budget itself, not the message budget.
           aiRequest && aiRequest.contextStats
             ? aiRequest.contextStats.usedPercentage
             : aiRequest
@@ -558,10 +558,7 @@ export const AiRequestChat: React.ComponentType<{
                 // gauge reports how full the window is now, and the cumulative
                 // total grows every turn without bound.
                 customGetAiRequestContextTokens(aiRequest.id),
-                getMessageBudget(
-                  getEffectiveConfigForRequest(aiRequest.id),
-                  GDEVELOP_OPENAI_TOOLS
-                )
+                getTokenBudget(getEffectiveConfigForRequest(aiRequest.id))
               )
             : null
         }

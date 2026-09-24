@@ -3896,12 +3896,14 @@ export const customCreateAiRequest = async ({
 
   // Same accounting as addMessage / sub-agent turns: the chat's local cost
   // meter must include the first turn, not only later continues.
-  localAiRequestContextTokens[reqId] = estimateMessagesTokens(budgetedMessages);
-  addTokenUsage(
-    reqId,
-    estimateMessagesTokens(budgetedMessages),
-    completionOutputTokens(assistantResponse)
-  );
+  // Both meters share one prompt size: messages plus the tools sent with the
+  // turn. The occupancy divides it by the input budget for the gauge; the
+  // cost meter adds it (a provider bills the schema like any prompt token).
+  const promptTokens =
+    estimateMessagesTokens(budgetedMessages) +
+    estimateToolsTokens(GDEVELOP_OPENAI_TOOLS);
+  localAiRequestContextTokens[reqId] = promptTokens;
+  addTokenUsage(reqId, promptTokens, completionOutputTokens(assistantResponse));
 
   const now = new Date().toISOString();
   const aiRequest: AiRequest = {
@@ -4110,12 +4112,15 @@ export const customAddMessageToAiRequest = async ({
     }
     releaseTurnAbortController(aiRequestId);
     delete localAiRequestPartialContent[aiRequestId];
-    localAiRequestContextTokens[aiRequestId] = estimateMessagesTokens(
-      budgetedMessages
-    );
+    // Occupancy is the whole prompt (messages + the role tools sent), over
+    // the input budget: the gauge reports how full the window is now. The
+    // cost meter shares the same prompt size.
+    const promptTokens =
+      estimateMessagesTokens(budgetedMessages) + estimateToolsTokens(roleTools);
+    localAiRequestContextTokens[aiRequestId] = promptTokens;
     addTokenUsage(
       aiRequestId,
-      estimateMessagesTokens(budgetedMessages),
+      promptTokens,
       completionOutputTokens(assistantResponse)
     );
 
@@ -4278,13 +4283,16 @@ export const customCreateSubAgentAiRequest = async ({
       delete localAiRequestPartialContent[parentAiRequestId || reqId];
     }
     // Sub-agent occupancy is attributed to the parent chat, which is what the
-    // UI reads (the same key its trims and partial content use).
-    localAiRequestContextTokens[
-      parentAiRequestId || reqId
-    ] = estimateMessagesTokens(budgetedMessages);
+    // UI reads (the same key its trims and partial content use) — counting
+    // the sub-agent tools actually sent, not the full schema. Shared with the
+    // cost meter like the other turn paths.
+    const promptTokens =
+      estimateMessagesTokens(budgetedMessages) +
+      estimateToolsTokens(subAgentTools);
+    localAiRequestContextTokens[parentAiRequestId || reqId] = promptTokens;
     addTokenUsage(
       parentAiRequestId || reqId,
-      estimateMessagesTokens(budgetedMessages),
+      promptTokens,
       completionOutputTokens(assistantResponse)
     );
 

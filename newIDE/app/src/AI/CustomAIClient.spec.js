@@ -5081,6 +5081,32 @@ describe('CustomAIClient', () => {
     it('is zero for a request with no turns', () => {
       expect(customGetAiRequestContextTokens('local-ai-never-ran')).toBe(0);
     });
+
+    it('counts the tool schema sent with the turn, not only the messages', async () => {
+      // The tool schema (~6.5k tokens) rides every request: a messages-only
+      // numerator understated occupancy ~2x on small windows, so the gauge
+      // stayed quiet while the trimmer silently compacted.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValue({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      expect(
+        customGetAiRequestContextTokens(created.id)
+      ).toBeGreaterThanOrEqual(estimateToolsTokens(GDEVELOP_OPENAI_TOOLS));
+    });
   });
 
   describe('local cost meter counts reasoning output', () => {
