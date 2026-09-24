@@ -1,0 +1,36 @@
+.summaryRow {
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.summaryRow:hover {
+  opacity: 0.8;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  opacity: 0.6;
+  padding: 0 2px;
+}
+
+/* Fixed-size wrapper so a check (14px) and a dot (6px) occupy the same height
+   and adjacent rows do not vary in height. Mirrors OrchestratorPlan. */
+.statusIconFixed {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filledCircle {
+  width: 6px;
+  height: 6px;
+  background-color: currentColor;
+  border-radius: 50%;
+  opacity: 0.7;
+}

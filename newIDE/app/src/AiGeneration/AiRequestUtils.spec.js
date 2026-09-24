@@ -28,6 +28,7 @@ import {
   getFunctionCallOutputsFromEditorFunctionCallResults,
   summarizeSubAgentActivity,
   sumSubAgentTokens,
+  listSubAgentActivity,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -1083,6 +1084,103 @@ describe('summarizeSubAgentActivity', () => {
       running: 0,
       roles: {},
     });
+  });
+});
+
+describe('listSubAgentActivity', () => {
+  const withArgs = (callId, subAgentId, args) => ({
+    type: 'function_call',
+    status: 'completed',
+    call_id: callId,
+    name: 'spawn_agent',
+    arguments: typeof args === 'string' ? args : JSON.stringify(args),
+    subAgentAiRequestId: subAgentId,
+  });
+
+  it('lists one row per sub-agent, in launch order, with role and status', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        withArgs('c1', 'sub-1', {
+          role: 'designer',
+          short_title: 'Write the GDD',
+          related_task_id: 'task_1',
+        }),
+        withArgs('c2', 'sub-2', {
+          role: 'developer',
+          short_title: 'Build the scene',
+          related_task_id: 'task_2',
+        }),
+      ]),
+      makeFunctionCallOutput('c1'),
+    ]);
+    const rows = listSubAgentActivity((request: any), () => 0);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual({
+      callId: 'c1',
+      childId: 'sub-1',
+      role: 'designer',
+      shortTitle: 'Write the GDD',
+      relatedTaskId: 'task_1',
+      status: 'finished',
+      tokens: 0,
+    });
+    expect(rows[1].status).toBe('working');
+    expect(rows[1].role).toBe('developer');
+    expect(rows[1].relatedTaskId).toBe('task_2');
+  });
+
+  it('reads each sub-agent token meter through the injected getter', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+        makeSubAgentFunctionCall('c2', 'spawn_agent', 'sub-2'),
+      ]),
+    ]);
+    const totals = { 'sub-1': 120, 'sub-2': 80 };
+    const rows = listSubAgentActivity((request: any), id => totals[id] || 0);
+    expect(rows.map(row => row.tokens)).toEqual([120, 80]);
+  });
+
+  it('tolerates malformed arguments: the row survives with no role', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        withArgs('c1', 'sub-1', 'not json'),
+        withArgs('c2', 'sub-2', JSON.stringify(['an', 'array'])),
+      ]),
+    ]);
+    const rows = listSubAgentActivity((request: any), () => 0);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].role).toBeNull();
+    expect(rows[0].shortTitle).toBe('');
+    expect(rows[0].relatedTaskId).toBeNull();
+    expect(rows[1].role).toBeNull();
+  });
+
+  it('counts a repeated spawn call once and keeps a null output safe', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+      ]),
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+      ]),
+      makeFunctionCallOutput('c1'),
+    ]);
+    expect(listSubAgentActivity((request: any), () => 0)).toHaveLength(1);
+    expect(
+      listSubAgentActivity((({ output: null }: any): any), () => 0)
+    ).toEqual([]);
+  });
+
+  it('treats a non-finite token total as zero', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+      ]),
+    ]);
+    expect(
+      listSubAgentActivity((request: any), () => (NaN: any))[0].tokens
+    ).toBe(0);
   });
 });
 

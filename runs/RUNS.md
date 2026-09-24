@@ -98,6 +98,13 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Per-agent audit dashboard (cycle 247): the chat's sub-agent summary is now an
+  expandable panel - one row per spawned agent (role, short title, linked plan
+  task, live/finished, its own token meter) - backed by the pure, tested
+  `listSubAgentActivity`. Verified live against the real-model benchmark chat
+  (two agents shown: `designer: Design city-builder GDD · task_1`,
+  `developer: Build HarborTown scene · task_2`); screenshot
+  /tmp/opencode/cycle247-subagent-dashboard.png.
 - Per-role specialist flow offline with a project open (cycle 236): designer
   scripted to call a tool then report, developer its own report, plan tasks
   design+build both `done` - reproducible via scripts/dev/mock-script-specialists.json.

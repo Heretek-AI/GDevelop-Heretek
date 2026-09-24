@@ -282,52 +282,18 @@ export const getLocalAiRequestContextUsedRatio = (
 export const summarizeSubAgentActivity = (aiRequest: {
   output?: Array<any>,
 }): { total: number, done: number, running: number, roles: Object } => {
-  const calls = getAllSubAgentFunctionCalls({ aiRequest: (aiRequest: any) });
-  // A spawn call is counted once per call_id: a transcript that repeats the
-  // same function_call (e.g. after a fork/merge) must not inflate the count.
-  const firstCallByCallId = new Map();
-  for (const call of calls) {
-    if (
-      typeof call.call_id === 'string' &&
-      !firstCallByCallId.has(call.call_id)
-    ) {
-      firstCallByCallId.set(call.call_id, call);
-    }
-  }
-  // Role breakdown for the audit summary, read from the spawn arguments. A
-  // malformed call simply counts as no role.
+  // Single source of truth: the per-agent rows carry the role and the
+  // finished/live status; the summary is just their aggregate.
+  const rows = listSubAgentActivity((aiRequest: any), () => 0);
   // Null-prototype so a model-authored role string like '__proto__' or
   // 'constructor' becomes a normal key instead of touching Object.prototype.
   const roles = Object.create(null);
-  firstCallByCallId.forEach(call => {
-    let role = null;
-    try {
-      const parsed =
-        typeof call.arguments === 'string'
-          ? JSON.parse(call.arguments)
-          : call.arguments;
-      if (parsed && typeof parsed.role === 'string' && parsed.role)
-        role = parsed.role;
-    } catch (ignored) {
-      // Malformed arguments: no role for this sub-agent.
-    }
-    if (role) roles[role] = (roles[role] || 0) + 1;
-  });
-  const answeredCallIds = new Set();
-  for (const message of aiRequest.output || []) {
-    if (
-      message &&
-      message.type === 'function_call_output' &&
-      typeof message.call_id === 'string'
-    ) {
-      answeredCallIds.add(message.call_id);
-    }
-  }
   let done = 0;
-  firstCallByCallId.forEach((call, callId) => {
-    if (answeredCallIds.has(callId)) done++;
+  rows.forEach(row => {
+    if (row.role) roles[row.role] = (roles[row.role] || 0) + 1;
+    if (row.status === 'finished') done++;
   });
-  const total = firstCallByCallId.size;
+  const total = rows.length;
   return { total, done, running: total - done, roles };
 };
 
@@ -341,17 +307,127 @@ export const sumSubAgentTokens = (
   aiRequest: { output?: Array<any> },
   getTokenTotal: string => number
 ): number => {
-  const calls = getAllSubAgentFunctionCalls({ aiRequest: (aiRequest: any) });
-  const seen = new Set();
-  let total = 0;
-  for (const call of calls) {
-    const childId = call.subAgentAiRequestId;
-    if (typeof childId !== 'string' || seen.has(childId)) continue;
-    seen.add(childId);
-    const tokens = getTokenTotal(childId);
-    if (typeof tokens === 'number' && Number.isFinite(tokens)) total += tokens;
+  const seen = new Set<string>();
+  return listSubAgentActivity((aiRequest: any), getTokenTotal).reduce(
+    (total, row) => {
+      // Token accounting is per sub-agent: a call repeated under one child id
+      // must not be counted twice.
+      if (!row.childId || seen.has(row.childId)) return total;
+      seen.add(row.childId);
+      return total + row.tokens;
+    },
+    0
+  );
+};
+
+/** One row of the per-agent audit dashboard. */
+export type SubAgentActivityRow = {|
+  callId: string,
+  childId: string | null,
+  role: string | null,
+  shortTitle: string,
+  relatedTaskId: string | null,
+  status: 'working' | 'finished',
+  tokens: number,
+|};
+
+/**
+ * Per-agent rows for the audit dashboard: one row per spawned sub-agent, in
+ * launch order, with its role, task link, live/finished status and its own
+ * token meter.
+ *
+ * `summarizeSubAgentActivity` answers "how many"; this answers "which ones" and
+ * is the data layer the dashboard (and any future multi-agent panel) reads.
+ * Derived purely from the parent's output plus an injected token getter, so it
+ * is testable without the React context or the token registry.
+ *
+ * A spawn call repeated under the same `call_id` (fork/merge) is counted once,
+ * matching `summarizeSubAgentActivity`.
+ */
+export const listSubAgentActivity = (
+  aiRequest: { output?: Array<any> },
+  getTokenTotal: string => number
+): Array<SubAgentActivityRow> => {
+  const output = (aiRequest && aiRequest.output) || [];
+  const answeredCallIds = new Set<string>();
+  const firstCallByCallId = new Map<string, any>();
+
+  for (const message of output) {
+    if (!message || typeof message !== 'object') continue;
+    if (
+      message.type === 'function_call_output' &&
+      typeof message.call_id === 'string'
+    ) {
+      answeredCallIds.add(message.call_id);
+      continue;
+    }
+    if (
+      message.type === 'message' &&
+      message.role === 'assistant' &&
+      Array.isArray(message.content)
+    ) {
+      for (const entry of message.content) {
+        if (
+          !entry ||
+          typeof entry !== 'object' ||
+          entry.type !== 'function_call' ||
+          typeof entry.subAgentAiRequestId !== 'string' ||
+          typeof entry.call_id !== 'string'
+        ) {
+          continue;
+        }
+        if (!firstCallByCallId.has(entry.call_id)) {
+          firstCallByCallId.set(entry.call_id, entry);
+        }
+      }
+    }
   }
-  return total;
+
+  const rows: Array<SubAgentActivityRow> = [];
+  firstCallByCallId.forEach((call, callId) => {
+    let role = null;
+    let shortTitle = '';
+    let relatedTaskId = null;
+    try {
+      const parsed =
+        typeof call.arguments === 'string'
+          ? JSON.parse(call.arguments || 'null')
+          : call.arguments;
+      if (parsed && typeof parsed === 'object') {
+        if (typeof parsed.role === 'string' && parsed.role) role = parsed.role;
+        if (typeof parsed.short_title === 'string')
+          shortTitle = parsed.short_title;
+        if (
+          typeof parsed.related_task_id === 'string' &&
+          parsed.related_task_id
+        )
+          relatedTaskId = parsed.related_task_id;
+      }
+    } catch (ignored) {
+      // Malformed arguments: the row still shows the child and its status.
+    }
+    const childId =
+      typeof call.subAgentAiRequestId === 'string'
+        ? call.subAgentAiRequestId
+        : null;
+    let tokens = 0;
+    if (childId) {
+      const candidate = getTokenTotal(childId);
+      if (typeof candidate === 'number' && Number.isFinite(candidate))
+        tokens = candidate;
+    }
+    rows.push({
+      callId,
+      childId,
+      role,
+      shortTitle,
+      relatedTaskId,
+      status: answeredCallIds.has(callId) ? 'finished' : 'working',
+      tokens,
+    });
+  });
+
+  return rows;
 };
 
 export const isUserMessage = (message: any): boolean =>

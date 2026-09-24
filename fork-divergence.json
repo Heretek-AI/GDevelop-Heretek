@@ -156,6 +156,8 @@
     "newIDE/app/src/AI/CustomAIClient.js",
     "newIDE/app/src/AI/CustomAIClient.spec.js",
     "newIDE/app/src/AiGeneration/AiConfiguration.spec.js",
+    "newIDE/app/src/AiGeneration/AiRequestChat/SubAgentActivityPanel.js",
+    "newIDE/app/src/AiGeneration/AiRequestChat/SubAgentActivityPanel.module.css",
     "newIDE/app/src/AiGeneration/AiRequestContext.selectionLoad.spec.js",
     "newIDE/app/src/AiGeneration/PrepareAiUserContent.spec.js",
     "newIDE/app/src/AiGeneration/Studio/EditApprovalLabel.js",

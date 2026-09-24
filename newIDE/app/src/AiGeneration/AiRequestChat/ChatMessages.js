@@ -15,8 +15,7 @@ import GDevelopThemeContext from '../../UI/Theme/GDevelopThemeContext';
 import {
   canRetryAiRequest,
   getFunctionCallToFunctionCallOutputMap,
-  summarizeSubAgentActivity,
-  sumSubAgentTokens,
+  listSubAgentActivity,
 } from '../AiRequestUtils';
 import { FunctionCallRow } from './FunctionCallRow';
 import { FunctionCallsGroup } from './FunctionCallsGroup';
@@ -46,6 +45,7 @@ import { type FileMetadata } from '../../ProjectsStorage';
 import UnsavedChangesContext from '../../MainFrame/UnsavedChangesContext';
 import { exceptionallyGuardAgainstDeadObject } from '../../Utils/IsNullPtr';
 import { OrchestratorPlan } from './OrchestratorPlan';
+import { SubAgentActivityPanel } from './SubAgentActivityPanel';
 import { type FunctionCallItem, type RenderItem } from './Utils';
 import { DislikeFeedbackDialog } from './DislikeFeedbackDialog';
 import { AiRequestErrorRow } from './AiRequestErrorRow';
@@ -1418,45 +1418,12 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
         ) : null}
 
         {(() => {
-          const subAgents = summarizeSubAgentActivity(aiRequest);
-          if (subAgents.total === 0) return null;
-          return (
-            <Line justifyContent="flex-start">
-              <Text
-                noMargin
-                displayInlineAsSpan
-                size="body-small"
-                color="secondary"
-              >
-                {`${subAgents.total} sub-agent${
-                  subAgents.total === 1 ? '' : 's'
-                }${
-                  Object.keys(subAgents.roles).length > 0
-                    ? ` (${Object.keys(subAgents.roles)
-                        .map(
-                          role =>
-                            `${subAgents.roles[role]} ${role}${
-                              subAgents.roles[role] === 1 ? '' : 's'
-                            }`
-                        )
-                        .join(', ')})`
-                    : ''
-                }: ${subAgents.done} finished${
-                  subAgents.running > 0 ? `, ${subAgents.running} working` : ''
-                }${(() => {
-                  // Per-agent usage: sum each sub-agent's own token meter
-                  // (recorded against the child id since cycle 220).
-                  const tokens = sumSubAgentTokens(
-                    aiRequest,
-                    customGetAiRequestTokenTotal
-                  );
-                  return tokens > 0
-                    ? ` · ≈${tokens.toLocaleString()} sub-agent tokens`
-                    : '';
-                })()}`}
-              </Text>
-            </Line>
+          const rows = listSubAgentActivity(
+            aiRequest,
+            customGetAiRequestTokenTotal
           );
+          if (rows.length === 0) return null;
+          return <SubAgentActivityPanel rows={rows} />;
         })()}
 
         {aiRequest.status === 'error' ? (
