@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 206,
+  "last_cycle": 207,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1210,6 +1210,12 @@
       "target": "Make the mock provider scriptable for deterministic offline harness runs (Tier 4)",
       "metric_delta": "The committed mock always answered with one canned reply, so the studio's multi-step flow (plan -> spawn -> report) could not be exercised offline. Added MOCK_SCRIPT support: a JSON array of turns (content and/or toolCalls) consumed one per request, emitted both non-streamed AND as SSE tool-call deltas. Added scripts/dev/mock-script.example.json (plan -> spawn_agent -> report) and documented it in scripts/README.md. Verified: node --check, the example is valid JSON, and a live 3-request smoke returned the exact scripted sequence (create_or_update_plan, spawn_agent, plain report). This lets @feedback-loop assert the studio loop without a real model or credentials. Divergence +1 forkOnly (the example).",
       "commit": "feat(scripts): let the mock provider serve a scripted turn sequence"
+    },
+    {
+      "cycle": 207,
+      "target": "Deterministic offline proof of the multi-agent loop via the scripted mock",
+      "metric_delta": "MAJOR EVIDENCE. Pointed the editor at the scripted mock (cycle 206) and sent one message; the script drove a full offline, credential-free studio loop. Result: the manager executed create_or_update_plan, then spawn_agent, which created a REAL child request (parent=manager); the child ran its scripted turn and produced a report; and the studio runtime wrote that report back to the parent's spawn call (call_spawn_1 -> {success:true, 'Report from the Designer:\\n\\nThe designer reported back; the design task is done.'}). All 4 POSTs returned 200. The plan tool failed only with 'No project opened.' (the standalone form has no project) - the orchestration, child lifecycle and report write-back are what this proves, deterministically and without a real model. Config restored; mock stopped. This satisfies the harness goal far more strongly than the model-dependent live runs and sidesteps the model-compliance variance entirely.",
+      "commit": "chore(autonomous): deterministic offline proof of the multi-agent loop"
     }
   ],
   "backlog": [
