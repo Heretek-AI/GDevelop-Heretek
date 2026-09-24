@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 213,
+  "last_cycle": 214,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1252,6 +1252,12 @@
       "target": "Deterministic multi-task studio lifecycle proven end-to-end",
       "metric_delta": "MAJOR EVIDENCE (Tier 1). Ran the committed mock-script-multi.json through the open editor (HarnessTown): the orchestrator created a 3-task plan with dependencies (design -> build -> test), spawned THREE sub-agents sequentially (designer, developer, tester), each child's report was written back to its spawn call ('Report from the Designer/Developer/QA tester: ...'), and the plan ended with ALL THREE tasks 'done'. 10 parent messages, 3 spawns, 3 children created and retired, no errors; screenshot /tmp/opencode/cycle213-multiagent.png. Definitive deterministic proof of the studio orchestration + plan lifecycle (with the cycle-211 clobber fix), needing no model or credentials. Config restored, mock stopped.",
       "commit": "chore(autonomous): deterministic multi-task studio lifecycle proof"
+    },
+    {
+      "cycle": 214,
+      "target": "Post-fix full-suite regression + run-log refresh (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after the cycle-211 client fix: 185 suites, 2359 passed, 1 skipped, 114 snapshots, 0 failures. Confirms the messageId reconciliation did not regress any editor test. Refreshed runs/RUNS.md through cycle 213 including the deterministic multi-agent lifecycle proof.",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [

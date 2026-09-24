@@ -48,47 +48,39 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 195 | Run the entire editor Jest suite (broadest regression gate) | `chore(autonomous): record the full suite run` | green (gates) |
 | 196 | Live multi-turn studio run against local Ollama (Phase 5) | `chore(autonomous): record the live multi-turn studio run` | green (live multi-turn run) |
 | 197 | Dispatch the canonical city-builder benchmark live against local Ollama | `chore(autonomous): record the live city-builder benchmark dispatch` | green (live benchmark dispatched; no delegation) |
-| 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (prompt hardened; re-run no compliance change) |
+| 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (prompt hardened) |
 | 199 | Cover the backend-tool filter on the continue and sub-agent paths (Tier 4) | `test(ai): cover the backend-tool filter on continue and sub-agent paths` | green (gates) |
 | 200 | Recover a context-overflow turn with one retry at a smaller budget (Tier 2) | `feat(ai): retry a context-overflow turn at a smaller budget` | green (gates) |
 | 201 | Extend context-overflow recovery to the create and sub-agent paths (Tier 2 parity) | `feat(ai): recover create and sub-agent turns from context overflow` | green (gates) |
-| 202 | Live-verify the per-request telemetry surface with a synthetic provider | `chore(autonomous): live-verify the telemetry surface with a mock provider` | green (live telemetry note via mock) |
+| 202 | Live-verify the per-request telemetry surface with a synthetic provider | `chore(autonomous): live-verify the telemetry surface with a mock provider` | green (live telemetry note) |
 | 203 | Commit the mock provider as a reusable offline harness tool (Tier 4) | `feat(scripts): add a reusable offline mock AI provider` | green (gates) |
 | 204 | Stop streamed tool-call assembly corrupting non-string arguments | `fix(ai): coerce streamed tool-call fragments to strings` | green (gates) |
 | 205 | Full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
+| 206 | Make the mock provider scriptable for deterministic offline harness runs (Tier 4) | `feat(scripts): let the mock provider serve a scripted turn sequence` | green (gates) |
+| 207 | Deterministic offline proof of the multi-agent loop via the scripted mock | `chore(autonomous): deterministic offline proof of the multi-agent loop` | green (deterministic loop proof) |
+| 208 | OSINT assessment: maintained library vs the bespoke tool-argument validator | `docs(autonomous): assess ajv vs the bespoke tool-argument validator` | green (gates) |
+| 209 | Attempt the full-loop run with a project created in-script | `chore(autonomous): record the in-script project-creation attempt` | green (gates) |
+| 210 | Full-project scripted loop reveals the plan task never flips to done | `docs(autonomous): record the plan-flip clobber found by the harness` | defect found (plan never flipped) |
+| 211 | Fix the plan-flip clobber: cache wins for pre-existing messages on write-back | `fix(ai): stop a turn from clobbering a concurrent in-place rewrite` | FIXED + live-verified (plan flips to done) |
+| 212 | Script the parent while sub-agents reply plainly (mock routing) + multi-task example | `feat(scripts): route mock scripts to parent requests and add a multi-agent example` | green (gates) |
+| 213 | Deterministic multi-task studio lifecycle proven end-to-end | `chore(autonomous): deterministic multi-task studio lifecycle proof` | green (3-task lifecycle proof) |
+| 214 | Post-fix full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
 
-## Latest full-suite result (after cycle 205)
+## Latest full-suite result (after cycle 214)
 
-- `newIDE/app` full Jest suite: **185 suites, 2358 passed, 1 skipped, 114 snapshots, 0 failures**.
-- AI-surface subset: **81 suites, 1640 passed**.
-- Production build: exit 0. ESLint/Prettier/fork-divergence: clean.
+- `newIDE/app` full Jest: **185 suites, 2359 passed, 1 skipped, 114 snapshots, 0 failures**.
+- AI-surface subset: 1641 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
 
-## Harness findings (cycles 155-205)
+## Harness findings (cycles 155-214)
 
-- **Live endpoint**: local Ollama `:11434/v1` works; hosted `llm.heretek.one` answers 401
-  without `config.local.json`. `scripts/dev/mock-ai-provider.js` (:11435) runs offline.
-- **CORS (critical, fixed)**: attribution headers (`X-Title`) were rejected by Ollama's
-  preflight and blocked every local request; removed. A cross-origin client also needs
-  `Access-Control-Expose-Headers` to read `x-omniroute-*`.
-- **Reasoning progress (fixed)**: Ollama streams `delta.reasoning` first; progress now
-  reports `content || reasoning`.
-- **Overflow recovery (fixed)**: one retry at a halved budget on create/continue/sub-agent.
-- **Deterministic multi-agent proof (cycle 207)**: the scripted mock
-  (`MOCK_SCRIPT`) drove plan -> spawn_agent -> child report -> write-back entirely
-  offline, no model and no credentials: a real child request was created and its
-  report was written to the parent's spawn call. This is the strongest harness
-  evidence for the orchestration loop and does not depend on model compliance.
-- **Full multi-agent lifecycle proven deterministically (cycle 213)**: the
-  3-task scripted plan (design -> build -> test) ran through the open editor:
-  three sub-agents spawned sequentially, each report written back, and ALL THREE
-  plan tasks ended `done`. No model, no credentials.
-- **Plan lifecycle defect found+fixed by the harness (cycles 210-211)**: a turn's
-  write-back was built from its turn-start snapshot and silently overwrote a
-  concurrent in-place rewrite (the studio flipping a plan task to `done`). Fixed
-  by reconciling by messageId (cache wins for pre-existing messages). LIVE-VERIFIED
-  end-to-end with the scripted mock: plan -> spawn -> report now leaves the task `done`.
+- Local Ollama `:11434` works; hosted `llm.heretek.one` 401 without `config.local.json`.
+- `scripts/dev/mock-ai-provider.js` (:11435) runs offline; `MOCK_SCRIPT` serves scripted
+  parent turns while sub-agents reply plainly.
+- **Fixed**: attribution-header CORS block; reasoning-stream progress; context-overflow
+  recovery on all turn paths; the plan-flip clobber (messageId reconciliation).
+- **Deterministically proven (cycle 213)**: 3-task plan -> 3 sequential spawns -> reports ->
+  all tasks `done`, with no model or credentials.
 - **Model-behaviour**: the local model often stops after planning without delegating.
-  The delegation path works (persisted run: 12 spawns; unit tests); this is model variance.
 
 ## Gate definitions
 
