@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 215,
+  "last_cycle": 216,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1264,6 +1264,12 @@
       "target": "Real-model city-builder benchmark against local Ollama (Phase 5)",
       "metric_delta": "MAJOR EVIDENCE. Ran the canonical prompt-city.md benchmark against local Ollama (deepseek-v4.1-flash:cloud) with a project open. The real model DID delegate: it created a 4-task plan with dependencies, spawned TWO sub-agents (one designer wrote GDD_ variables via add_or_edit_variable; one developer ran real editor tools: create_scene, create_or_replace_object, change_object_properties_effects, change_scene_properties_layers_effects_groups, search_object_asset_store / search_resource_store), and the plan lifecycle tracked correctly: task_1 done, task_2 in_progress, task_3/4 pending, 2 children, no failed tool results. This is the objective's Phase 5 benchmark succeeding offline (no credentials) - and it validates cycles 191/211 (reasoning progress, plan-flip fix) in a genuine run. Earlier runs stopped without delegating; this one complied because a project was open and the prompt was the canonical one. Screenshot /tmp/opencode/cycle215-real-benchmark.png. Config restored to Heretek.",
       "commit": "chore(autonomous): record the real-model city-builder benchmark run"
+    },
+    {
+      "cycle": 216,
+      "target": "Multi-agent audit summary in the chat (Tier 1 UI + Tier 2 audit)",
+      "metric_delta": "Added summarizeSubAgentActivity to AiRequestUtils (pure: counts spawned sub-agent calls and how many have a function_call_output, i.e. finished) and a small chat line in ChatMessages that renders it, so the multi-agent activity is visible without opening each sub-agent - the first Tier 1 multi-agent UI surface and a step toward the per-agent audit dashboard. +2 tests (3 spawned/2 answered -> {total:3,done:2,running:1}; none -> zeros), mutation-checked. LIVE-VERIFIED: with the scripted 3-spawn mock, the chat showed '3 sub-agents: 3 finished'; a first version rendered 'sub-agent s' (JSX whitespace split the plural suffix) - fixed by building the sentence as one string and re-verified live. 1643/1643 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
+      "commit": "feat(ai): show a multi-agent audit summary in the chat"
     }
   ],
   "backlog": [
@@ -1463,6 +1469,7 @@
     "A browser client can only read custom response headers from a cross-origin endpoint if the server lists them in Access-Control-Expose-Headers; a proxy advertising x-omniroute-* must expose them or the telemetry is invisible to the editor (proven live in cycle 202).",
     "Invariant-2 OSINT must be a real assessment, not a reflex swap: ajv is the maintained validator, but adopting it as a direct dependency for a hot-path per-tool-call check in the editor bundle costs more than the small, schema-driven, test-pinned bespoke validator it would replace. Record the reasoning so it is not re-opened each session.",
     "In this build the standalone Ask AI form does not host a project for the editor function map, so project-requiring tools (create_or_update_plan, create_scene, ...) fail there even after initialize_project creates one; the editor container with a project open is required for those. initialize_project itself works standalone (EditorFunctionWithoutProject).",
-    "Deterministic harness > model: scripted MOCK_SCRIPT turns exposed a studio defect (plan never flips to done) that model-dependent runs had hidden as 'model variance'. The write gate only serializes gated writes; the model turn writes the cache directly, so a gated write can still be clobbered by a turn's snapshot-based write."
+    "Deterministic harness > model: scripted MOCK_SCRIPT turns exposed a studio defect (plan never flips to done) that model-dependent runs had hidden as 'model variance'. The write gate only serializes gated writes; the model turn writes the cache directly, so a gated write can still be clobbered by a turn's snapshot-based write.",
+    "JSX splits a literal adjacent to an expression across lines into words: `<Trans>{n} sub-agent{n===1?'':'s'}</Trans>` rendered 'sub-agent s'. Build such a sentence as a single interpolated string, not adjacent text/expression nodes."
   ]
 }

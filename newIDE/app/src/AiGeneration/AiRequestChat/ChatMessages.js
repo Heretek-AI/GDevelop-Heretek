@@ -15,6 +15,7 @@ import GDevelopThemeContext from '../../UI/Theme/GDevelopThemeContext';
 import {
   canRetryAiRequest,
   getFunctionCallToFunctionCallOutputMap,
+  summarizeSubAgentActivity,
 } from '../AiRequestUtils';
 import { FunctionCallRow } from './FunctionCallRow';
 import { FunctionCallsGroup } from './FunctionCallsGroup';
@@ -1407,6 +1408,27 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
             </Text>
           </Line>
         ) : null}
+
+        {(() => {
+          const subAgents = summarizeSubAgentActivity(aiRequest);
+          if (subAgents.total === 0) return null;
+          return (
+            <Line justifyContent="flex-start">
+              <Text
+                noMargin
+                displayInlineAsSpan
+                size="body-small"
+                color="secondary"
+              >
+                {`${subAgents.total} sub-agent${
+                  subAgents.total === 1 ? '' : 's'
+                }: ${subAgents.done} finished${
+                  subAgents.running > 0 ? `, ${subAgents.running} working` : ''
+                }`}
+              </Text>
+            </Line>
+          );
+        })()}
 
         {aiRequest.status === 'error' ? (
           <Line justifyContent="flex-start">

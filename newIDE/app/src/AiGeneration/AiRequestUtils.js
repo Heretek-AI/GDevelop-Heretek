@@ -272,6 +272,34 @@ export const getLocalAiRequestContextUsedRatio = (
  * the dispatcher) so a spec can pin it: Utils.js pulls in three.js through
  * the editor-function map and cannot be loaded by a test.
  */
+/**
+ * How many sub-agents a request spawned and how many are finished (their call
+ * has a `function_call_output`). The chat shows this as a small audit line so
+ * the multi-agent activity is visible without opening each sub-agent. Derived
+ * purely from the request output, so it is also usable as the data layer for a
+ * per-agent dashboard.
+ */
+export const summarizeSubAgentActivity = (aiRequest: {
+  output?: Array<any>,
+}): { total: number, done: number, running: number } => {
+  const calls = getAllSubAgentFunctionCalls({ aiRequest: (aiRequest: any) });
+  const answeredCallIds = new Set();
+  for (const message of aiRequest.output || []) {
+    if (
+      message &&
+      message.type === 'function_call_output' &&
+      typeof message.call_id === 'string'
+    ) {
+      answeredCallIds.add(message.call_id);
+    }
+  }
+  let done = 0;
+  for (const call of calls) {
+    if (answeredCallIds.has(call.call_id)) done++;
+  }
+  return { total: calls.length, done, running: calls.length - done };
+};
+
 export const isUserMessage = (message: any): boolean =>
   !!message && message.type === 'message' && message.role === 'user';
 

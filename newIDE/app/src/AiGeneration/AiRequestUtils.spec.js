@@ -26,6 +26,7 @@ import {
   aiRequestHasWorkInProgress,
   getSubAgentKind,
   getFunctionCallOutputsFromEditorFunctionCallResults,
+  summarizeSubAgentActivity,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -967,6 +968,41 @@ describe('malformed message content never crashes the chat helpers', () => {
         ([malformedUser, malformedAssistant]: any)
       )
     ).toEqual({ lastUserMessage: null, lastAssistantMessages: [] });
+  });
+});
+
+describe('summarizeSubAgentActivity', () => {
+  it('counts spawned sub-agents and how many have reported', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+        makeSubAgentFunctionCall('c2', 'spawn_agent', 'sub-2'),
+        makeSubAgentFunctionCall('c3', 'spawn_agent', 'sub-3'),
+      ]),
+      makeFunctionCallOutput('c1'),
+      makeFunctionCallOutput('c2'),
+    ]);
+    expect(summarizeSubAgentActivity((request: any))).toEqual({
+      total: 3,
+      done: 2,
+      running: 1,
+    });
+  });
+
+  it('is all zero for a request with no sub-agents', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([makeFunctionCall('c1', 'create_scene')]),
+    ]);
+    expect(summarizeSubAgentActivity((request: any))).toEqual({
+      total: 0,
+      done: 0,
+      running: 0,
+    });
+    expect(summarizeSubAgentActivity((({ output: null }: any): any))).toEqual({
+      total: 0,
+      done: 0,
+      running: 0,
+    });
   });
 });
 
