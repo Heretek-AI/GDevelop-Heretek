@@ -1120,6 +1120,10 @@ export const saveLocalAiRequests = () => {
     // continuing an old chat could make a recent one disappear on reload.
     const recentKeys = Object.keys(localAiRequestsCache)
       .filter(key => localAiRequestsCache[key])
+      // Sub-agent children are internal and already excluded from the chat
+      // history; persisting them would consume the recency budget and evict
+      // real chats after a multi-agent run.
+      .filter(key => !localAiRequestsCache[key].parentAiRequestId)
       .sort((a, b) => {
         const aAt = new Date(localAiRequestsCache[a].updatedAt).getTime();
         const bAt = new Date(localAiRequestsCache[b].updatedAt).getTime();

@@ -3570,6 +3570,50 @@ describe('CustomAIClient', () => {
       output: [],
     });
 
+    it('does not let sub-agent children evict real chats from persistence', () => {
+      // Children are internal (excluded from history) but were persisted,
+      // consuming the 20-slot recency budget: after a multi-agent run the
+      // newest real chats could vanish on reload.
+      const base = Date.parse('2026-01-01T00:00:00.000Z');
+      const nowSpy = jest.spyOn(Date, 'now');
+      // 20 real chats, oldest first.
+      for (let i = 0; i < 20; i++) {
+        nowSpy.mockReturnValue(base + i * 1000);
+        customUpdateAiRequest(
+          makeRequest(
+            `local-ai-real-${i}`,
+            new Date(base + i * 1000).toISOString()
+          )
+        );
+      }
+      // 5 sub-agent children, newer than every real chat.
+      for (let i = 0; i < 5; i++) {
+        nowSpy.mockReturnValue(base + 100000 + i * 1000);
+        customUpdateAiRequest(
+          ({
+            ...makeRequest(
+              `local-ai-child-${i}`,
+              new Date(base + 100000 + i * 1000).toISOString()
+            ),
+            parentAiRequestId: 'local-ai-real-19',
+          }: any)
+        );
+      }
+      // Read what was actually PERSISTED: loadLocalAiRequests merges storage
+      // into the in-memory cache (which still holds the children), so it would
+      // mask the bug.
+      const persistedIds = Object.keys(
+        JSON.parse(memoryStorage['gd-custom-ai-requests'] || '{}')
+      );
+      expect(
+        persistedIds.filter(id => id.startsWith('local-ai-child-'))
+      ).toEqual([]);
+      expect(
+        persistedIds.filter(id => id.startsWith('local-ai-real-'))
+      ).toHaveLength(20);
+      nowSpy.mockRestore();
+    });
+
     it('drops the least recently updated chat, not the most recently created', () => {
       // Object key order is insertion order, so re-assigning an older chat
       // after a new turn does not move it. Pruning by key order would drop a

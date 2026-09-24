@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 221,
+  "last_cycle": 222,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1300,10 +1300,15 @@
       "target": "Clear a request's provider telemetry on delete (registry consistency)",
       "metric_delta": "customDeleteAiRequest cleared every per-request registry except localAiRequestProviderTelemetry (added in cycle 192), so a deleted chat left its telemetry entry behind. Now cleared like its siblings. +1 test (create with a telemetry header -> delete -> customGetAiRequestProviderTelemetry(id) is null), mutation-checked (the entry persisted without the delete). 1647/1647 across 81 suites, eslint+prettier clean, divergence clean. Noted for a future cycle: deleting a PARENT request does not delete its sub-agent child requests from the cache; assess whether that leaks orphans into history.",
       "commit": "fix(ai): clear a request's provider telemetry when deleted"
+    },
+    {
+      "cycle": 222,
+      "target": "Stop sub-agent children from evicting real chats from persistence",
+      "metric_delta": "REAL persistence bug: saveLocalAiRequests kept the 20 most-recently-updated entries WITHOUT excluding sub-agent children, so a multi-agent run's children consumed the recency budget and real chats vanished on reload (children are already excluded from history, so they never needed persisting). saveLocalAiRequests now filters out entries with parentAiRequestId before selecting the 20. +1 test that reads the PERSISTED JSON directly (the loader merges storage into the in-memory cache, which still holds children, so asserting on loadLocalAiRequests masked the bug - caught in this cycle): 20 real chats + 5 newer children -> only the 20 real chats persist; mutation-checked. This also answers the cycle-221 orphan question: children are never persisted, so no orphan leaks across reloads. 1648/1648 across 81 suites, eslint+prettier clean, divergence clean. Client-only change; build last verified at 220.",
+      "commit": "fix(ai): keep sub-agent children out of persisted chats"
     }
   ],
   "backlog": [
-    "Assess whether customDeleteAiRequest should also delete a request's sub-agent child requests (they stay in localAiRequestsCache after the parent is deleted). Confirm whether customGetAiRequests/history filters them out before treating it as a leak.",
     "Tier 1/2 UI build-out remains: a multi-agent chat switching panel and a per-agent audit dashboard (the telemetry data layer + chat note are live-verified). Needs product direction.",
     "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent, so the multi-agent delegation step needs either a stronger model or an automatic continuation nudge. A client-side nudge was assessed as architecturally invasive (the turn completes in AI/CustomAIClient, which cannot import Studio/ without a cycle) - design it as a small scheduler outside the client before implementing.",
     "UI build-out (Tier 1/2): a multi-agent chat switching panel and a per-agent audit dashboard. The data layer exists and is live-verified (customGetAiRequestProviderTelemetry + the chat's 'Provider response:' note); the dashboard still needs product direction and cannot be verified headless.",
@@ -1502,6 +1507,7 @@
     "In this build the standalone Ask AI form does not host a project for the editor function map, so project-requiring tools (create_or_update_plan, create_scene, ...) fail there even after initialize_project creates one; the editor container with a project open is required for those. initialize_project itself works standalone (EditorFunctionWithoutProject).",
     "Deterministic harness > model: scripted MOCK_SCRIPT turns exposed a studio defect (plan never flips to done) that model-dependent runs had hidden as 'model variance'. The write gate only serializes gated writes; the model turn writes the cache directly, so a gated write can still be clobbered by a turn's snapshot-based write.",
     "JSX splits a literal adjacent to an expression across lines into words: `<Trans>{n} sub-agent{n===1?'':'s'}</Trans>` rendered 'sub-agent s'. Build such a sentence as a single interpolated string, not adjacent text/expression nodes.",
-    "Adding a field to a summarizer's return breaks exact-equality tests: update the callers' expectations (here three tests) in the same change, or the suite goes red for a correct improvement."
+    "Adding a field to a summarizer's return breaks exact-equality tests: update the callers' expectations (here three tests) in the same change, or the suite goes red for a correct improvement.",
+    "loadLocalAiRequests MERGES persisted entries into the in-memory cache and never clears it, so a test asserting on its return value can pass/fail on in-memory state rather than what was persisted - assert on the storage JSON when testing persistence."
   ]
 }
