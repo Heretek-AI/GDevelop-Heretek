@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 244,
+  "last_cycle": 245,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1438,6 +1438,12 @@
       "target": "Assess the loop-guard thresholds vs the harness thrash signature; close the coverage sweep (no change)",
       "metric_delta": "No code change. (1) The objective's Phase-5 thrash signature 'repeat identical tool probes >=3 turns' is an AUDIT criterion for OmniRoute telemetry, not the client guard's trigger: DEFAULT_LOOP_GUARD_CONFIG.repeatedToolLimit is 8 (7 tolerated) by design, to avoid constraining a legitimate long task (a run_script doing hundreds of calls). The two roles are deliberately different; recorded so a future session does not 'align' them by lowering the guard and reintroducing false trips. (2) Extended the export-vs-spec sweep to the fork-modified EditorFunctions files: only CapScriptOutput/NonScriptableFunctionNames/ScriptRunner/index.js are fork-modified; the first three are covered via ExposedFunctions.spec/ScriptRunner.spec (cross-file), and index.js is inline launchFunctions (untestable). The fork AI surface is now fully covered; the sweep found nothing actionable.",
       "commit": "docs(autonomous): assess loop-guard thresholds and close the coverage sweep"
+    },
+    {
+      "cycle": 245,
+      "target": "Whole-surface lint + format verification (no change)",
+      "metric_delta": "No code change. Ran ESLint (react-app, --max-warnings=0) and Prettier --list-different over the ENTIRE fork AI surface rather than only touched files: src/AI, src/AiGeneration, src/EditorFunctions/ScriptExecution, src/MainFrame/Preferences/PreferencesStorage*. Both exit 0 with zero output - no warning or formatting drift accumulated across the session's ~30 edits.",
+      "commit": "chore(autonomous): whole-surface lint and format verification"
     }
   ],
   "backlog": [
