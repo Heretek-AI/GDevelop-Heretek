@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 225,
+  "last_cycle": 226,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1324,6 +1324,12 @@
       "target": "Assess an upstream-file guard and revert on policy (verification cycle)",
       "metric_delta": "No net code change. Auditing the QA/playtest path (GameplayTestTools.js) found the same 'catch reads error.message on a non-Error' class (a rejection with no reason throws a TypeError inside the handler). I implemented the guard + a reproducing test, but the divergence guard flagged BOTH files as upstream-identical (not in fork-divergence.json) - a 2-path new divergence for a defensive guard whose production reachability is only theoretical (our own runner rejecting with no reason). Per MAINTENANCE.md and the fork's standing heuristic (do not add merge surface to upstream-identical files for unreproduced-in-production failures), I reverted both files; divergence is clean and the suite is back to 12/12. Recorded as a candidate UPSTREAM contribution, not a fork edit. This is the policy-correct outcome even though the code was correct.",
       "commit": "docs(autonomous): assess an upstream-file guard and revert on policy"
+    },
+    {
+      "cycle": 226,
+      "target": "Flow type-check over the session's additions (no change)",
+      "metric_delta": "No code change. Ran `npm run flow` on the committed session state: 1039 errors total (the environment's current baseline - the previously recorded 870 was a different reading; the fork's CI does not gate app Flow). Crucially, verified the errors are NOT from this session's work: AiRequestUtils.js (where the per-agent summary/token data layer lives) has ZERO Flow errors, and no error mentions summarizeSubAgentActivity, localAiRequestProviderTelemetry or onProviderTelemetry. The CustomAIClient errors cited (lines 197/595/1052/1070) are in pre-existing code (e.g. normalizePersistedMessages' `entry.type === 'text'` from cycle 95). eslint/build remain the gating checks and pass.",
+      "commit": "docs(autonomous): verify Flow over the session additions"
     }
   ],
   "backlog": [
