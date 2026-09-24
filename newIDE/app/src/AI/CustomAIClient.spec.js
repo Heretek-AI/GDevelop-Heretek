@@ -550,6 +550,27 @@ describe('CustomAIClient', () => {
       expect(properties.new_value).toBeUndefined();
       expect(parameters.required).toEqual(['object_name', 'behavior_name']);
     });
+
+    it('advertises the array args the change tools actually read', () => {
+      // Second half of the change_behavior_property bug: several change tools
+      // read a top-level array/object arg the schema never advertised, so a
+      // schema-conformant model could never use the capability. Pin each.
+      const toolProps = (name: string): any => {
+        const tool = GDEVELOP_OPENAI_TOOLS.find(t => t.function.name === name);
+        expect(tool).toBeTruthy();
+        return tool ? tool.function.parameters.properties : {};
+      };
+      expect(
+        toolProps('change_object_properties_effects').changed_effects.type
+      ).toBe('array');
+      const groups = toolProps('change_scene_properties_layers_effects_groups');
+      expect(groups.changed_groups.type).toBe('array');
+      expect(groups.changed_layer_effects.type).toBe('array');
+      expect(groups.move_instances.type).toBe('object');
+      expect(
+        toolProps('change_project_properties_resources').changed_resources.type
+      ).toBe('array');
+    });
   });
 
   describe('testConnection', () => {

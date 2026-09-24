@@ -98,6 +98,15 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Harness fix: change-tool schemas audited and completed (cycle 257): a focused
+  audit (every top-level array/object arg an implementation reads must be
+  advertised in its OpenAI schema) found three more mismatches of the
+  cycle-256 class. Added `changed_effects` to `change_object_properties_effects`,
+  `changed_groups` + `changed_layer_effects` + `move_instances` to
+  `change_scene_properties_layers_effects_groups`, and `changed_resources` to
+  `change_project_properties_resources` - each with the item shape read from the
+  implementation. A spec pins all four; the audit now reports no remaining
+  top-level array/object mismatch. Verified the served bundle exposes them.
 - Harness fix: `change_behavior_property` schema matched to its implementation (cycle 256):
   feedback-loop Run 4's developer could not change any behavior property. Root
   cause: the OpenAI schema advertised flat `property_name`/`new_value`, while the

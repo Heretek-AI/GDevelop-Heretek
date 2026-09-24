@@ -1641,6 +1641,81 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
             },
             description: 'List of layers to modify, create or remove.',
           },
+          changed_layer_effects: {
+            type: 'array',
+            description:
+              'Effects of a layer to add, update, rename, move or remove.',
+            items: {
+              type: 'object',
+              properties: {
+                layer_name: { type: 'string' },
+                effect_name: { type: 'string' },
+                effect_type: { type: 'string' },
+                new_effect_name: { type: 'string' },
+                new_effect_position: { type: 'number' },
+                delete_this_effect: { type: 'boolean' },
+                changed_properties: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      property_name: { type: 'string' },
+                      new_value: { type: 'string' },
+                    },
+                    required: ['property_name', 'new_value'],
+                  },
+                },
+              },
+              required: ['layer_name', 'effect_name'],
+            },
+          },
+          changed_groups: {
+            type: 'array',
+            description:
+              'Object groups of the scene (or custom object) to create, rename, or change membership of.',
+            items: {
+              type: 'object',
+              properties: {
+                group_name: { type: 'string' },
+                new_group_name: { type: 'string' },
+                delete_this_group: { type: 'boolean' },
+                objects_to_add: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+                objects_to_remove: {
+                  type: 'array',
+                  items: { type: 'string' },
+                },
+              },
+              required: ['group_name'],
+            },
+          },
+          move_instances: {
+            type: 'object',
+            description:
+              'Move instances of this scene to another scene or external layout, optionally filtered.',
+            properties: {
+              to_scope: {
+                type: 'object',
+                description:
+                  'Target scope: { type: "scene", scene_name } or { type: "external_layout", external_layout_name }.',
+              },
+              filter_by_object_names: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              filter_by_layer_names: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              instance_ids: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+            },
+            required: ['to_scope'],
+          },
           delete_this_scene: {
             type: 'boolean',
             description: 'Set to true to delete this scene.',
@@ -1672,6 +1747,33 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
                 new_value: { type: 'string' },
               },
               required: ['property_name', 'new_value'],
+            },
+          },
+          changed_effects: {
+            type: 'array',
+            description:
+              'Visual effects of the object to add, update, rename, move or remove.',
+            items: {
+              type: 'object',
+              properties: {
+                effect_name: { type: 'string' },
+                effect_type: { type: 'string' },
+                new_effect_name: { type: 'string' },
+                new_effect_position: { type: 'number' },
+                delete_this_effect: { type: 'boolean' },
+                changed_properties: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      property_name: { type: 'string' },
+                      new_value: { type: 'string' },
+                    },
+                    required: ['property_name', 'new_value'],
+                  },
+                },
+              },
+              required: ['effect_name'],
             },
           },
           delete_this_object: { type: 'boolean' },
@@ -1743,6 +1845,20 @@ export const GDEVELOP_OPENAI_TOOLS: Array<{|
               required: ['property_name', 'new_value'],
             },
             description: 'List of project properties to update.',
+          },
+          changed_resources: {
+            type: 'array',
+            description:
+              'Project resources to rename or remove (e.g. an audio file).',
+            items: {
+              type: 'object',
+              properties: {
+                resource_name: { type: 'string' },
+                new_resource_name: { type: 'string' },
+                delete_this_resource: { type: 'boolean' },
+              },
+              required: ['resource_name'],
+            },
           },
         },
       },
