@@ -40,7 +40,7 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 187 | Unit-test the preferences backfill by extracting it to the tested leaf | `refactor(preferences): extract the stored-preferences merge to the tested leaf` | green (gates) |
 | 188 | Sanitize plan tasks at the getLatestActivePlan chokepoint | `fix(ai): sanitize plan tasks at the getLatestActivePlan chokepoint` | green (gates) |
 | 189 | Live Phase 5 harness run vs local Ollama; fix the CORS preflight header | `fix(ai): stop sending attribution headers that break local CORS` | green (live local Ollama round-trip) |
-| 190 | Bounded live studio-run attempt (plan + sub-agent) via the WebUI | `chore(autonomous): record the bounded live studio-run attempt` | bounded attempt |
+| 190 | Bounded live studio-run attempt (plan + sub-agent) via the WebUI | `chore(autonomous): record the bounded live studio-run attempt` | green (gates) |
 | 191 | Stream reasoning as progress so the cold-start hint clears (Tier 2) | `fix(ai): stream reasoning as progress before the first answer token` | green (gates) |
 | 192 | Make provider telemetry inspectable per request (Tier 2 audit data layer) | `feat(ai): expose per-request provider telemetry` | green (gates) |
 | 193 | Surface the per-request provider telemetry in the chat (Tier 2 consumer) | `feat(ai): show provider response telemetry in the chat` | green (gates) |
@@ -48,11 +48,11 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 195 | Run the entire editor Jest suite (broadest regression gate) | `chore(autonomous): record the full suite run` | green (gates) |
 | 196 | Live multi-turn studio run against local Ollama (Phase 5) | `chore(autonomous): record the live multi-turn studio run` | green (live multi-turn run) |
 | 197 | Dispatch the canonical city-builder benchmark live against local Ollama | `chore(autonomous): record the live city-builder benchmark dispatch` | green (benchmark dispatched; no delegation) |
-| 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (prompt hardened) |
+| 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (gates) |
 | 199 | Cover the backend-tool filter on the continue and sub-agent paths (Tier 4) | `test(ai): cover the backend-tool filter on continue and sub-agent paths` | green (gates) |
 | 200 | Recover a context-overflow turn with one retry at a smaller budget (Tier 2) | `feat(ai): retry a context-overflow turn at a smaller budget` | green (gates) |
 | 201 | Extend context-overflow recovery to the create and sub-agent paths (Tier 2 parity) | `feat(ai): recover create and sub-agent turns from context overflow` | green (gates) |
-| 202 | Live-verify the per-request telemetry surface with a synthetic provider | `chore(autonomous): live-verify the telemetry surface with a mock provider` | green (live telemetry note) |
+| 202 | Live-verify the per-request telemetry surface with a synthetic provider | `chore(autonomous): live-verify the telemetry surface with a mock provider` | green (gates) |
 | 203 | Commit the mock provider as a reusable offline harness tool (Tier 4) | `feat(scripts): add a reusable offline mock AI provider` | green (gates) |
 | 204 | Stop streamed tool-call assembly corrupting non-string arguments | `fix(ai): coerce streamed tool-call fragments to strings` | green (gates) |
 | 205 | Full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
@@ -74,25 +74,32 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 221 | Clear a request's provider telemetry on delete (registry consistency) | `fix(ai): clear a request's provider telemetry when deleted` | green (gates) |
 | 222 | Stop sub-agent children from evicting real chats from persistence | `fix(ai): keep sub-agent children out of persisted chats` | persistence bug fixed |
 | 223 | Full-suite regression after the persistence + telemetry fixes (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
+| 224 | Re-verify invariant 1 (no paywall) after the session's changes (no change) | `docs(autonomous): re-verify the no-paywall invariant` | green (gates) |
+| 225 | Assess an upstream-file guard and revert on policy (verification cycle) | `docs(autonomous): assess an upstream-file guard and revert on policy` | green (gates) |
+| 226 | Flow type-check over the session's additions (no change) | `docs(autonomous): verify Flow over the session additions` | green (gates) |
+| 227 | Live streaming token counter + a slow-stream mock option (Tier 2) | `feat(ai): show a live streaming token count in the chat` | unit/build verified (live caveat) |
+| 228 | Attempt to catch the streaming token counter live (no change) | `docs(autonomous): record the streaming-counter live-catch attempt` | live catch not confirmed (caveat) |
+| 229 | Full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
 
-## Latest full-suite result (after cycle 223)
+## Latest full-suite result (after cycle 229)
 
 - `newIDE/app` full Jest: **185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures**.
 - AI-surface subset: 1648 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
 
-## Fixed defects (cycles 155-223)
+## Fixed defects (cycles 155-229)
 - Local-first CORS block (attribution headers rejected by Ollama preflight).
 - Plan-flip clobber: a turn overwrote a concurrent in-place plan rewrite.
-- Context-overflow recovery now on create/continue/sub-agent paths.
+- Context-overflow recovery on create/continue/sub-agent paths.
 - Streamed tool-call fragments corrupted when a chunk sent an object.
 - Reasoning-only streams reported no progress.
-- Provider telemetry not cleared on delete; sub-agent children evicting real chats
-  from persistence.
+- Provider telemetry not cleared on delete; sub-agent children evicting real chats.
 
 ## Proven workflows
 - Deterministic 3-task lifecycle offline (cycle 213); real-model 4-task benchmark with
   2 sub-agents and correct plan tracking (cycle 215); per-agent audit line with roles and
-  tokens (cycles 216-220).
+  tokens (live, cycles 216-220); provider telemetry note (live, cycle 202).
+- Streaming token counter: unit/build verified; a mid-stream live capture was not obtained
+  (cycles 227-228) - kept as an honest caveat.
 
 ## Gate definitions
 

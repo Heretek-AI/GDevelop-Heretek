@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 228,
+  "last_cycle": 229,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1342,6 +1342,12 @@
       "target": "Attempt to catch the streaming token counter live (no change)",
       "metric_delta": "No code change. Retried the cycle-227 caveat with the slow-stream mock (MOCK_STREAM_DELAY_MS=800) and the transcript visible (hide the chats list first, as in cycle 184). The streaming path works - POSTs return 200 and the [BYOK] telemetry debug line is emitted - and after completion the transcript shows the reply, the token meter and the Provider response line. The 'streaming token counter' itself (a suffix on PartialStreamText) still could not be captured mid-stream: PartialStreamText only renders while partial content exists, and the CDP snapshot cadence / transcript visibility did not land inside that window. The feature remains verified by unit/build only - recorded honestly, not claimed as live-verified. Config restored; slow mock stopped.",
       "commit": "docs(autonomous): record the streaming-counter live-catch attempt"
+    },
+    {
+      "cycle": 229,
+      "target": "Full-suite regression + run-log refresh (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite at the current committed state: 185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 228 (including the streaming-counter caveat).",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [
