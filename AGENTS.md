@@ -350,10 +350,10 @@ clang-tidy, ASan/UBSan, visual tests).
 
 ## Fork Divergence
 
-**This fork differs from upstream in 180 paths out of ~6,700.** Expect merge conflicts there.
+**This fork differs from upstream in 186 paths out of ~6,700.** Expect merge conflicts there.
 
 **`fork-divergence.json` is the authoritative allowlist** of every path the fork intentionally diverges
-on, in three buckets (`modified` 116, `forkOnly` 57, `upstreamMissing` 7), measured against the
+on, in three buckets (`modified` 116, `forkOnly` 63, `upstreamMissing` 7), measured against the
 `baselineCommit` the manifest records — not against live `upstream/master`, so upstream's own pushes do
 not read as fork divergence. It is generated and enforced by
 `scripts/check-fork-divergence.js`: the `fork-divergence` job in `.github/workflows/ci.yml` fails when a
@@ -363,13 +363,43 @@ path diverges that is not listed, or when a listed path stops diverging. Run
 [MAINTENANCE.md](MAINTENANCE.md) for the full procedure and for why `upstreamMissing` is the bucket that
 silently breaks syncs.
 
-**BYOK / local AI** — `newIDE/app/src/AI/CustomAIClient.js` (fork-only directory; ~2145 lines: config in
-localStorage under `gd-custom-ai-config`, the `GDEVELOP_OPENAI_TOOLS` schema, `transformGDevelopMessagesToOpenAi`,
-`parseAssistantMessage`, `sendChatCompletion`, and `custom*` local implementations of the Generation API).
-Plus branch points in `AiGeneration/{AiConfiguration,AskAiEditorContainer,AskAiStandAloneForm,Use*}.js`,
+**BYOK / local AI** — `newIDE/app/src/AI/CustomAIClient.js` (fork-only; ~4900 lines: config in
+localStorage under `gd-custom-ai-config` / `gd-custom-ai-requests` / `gd-custom-ai-model-overrides`,
+the `GDEVELOP_OPENAI_TOOLS` schema, `transformGDevelopMessagesToOpenAi`, `parseAssistantMessage`,
+`sendChatCompletion` (SSE with a non-streaming fallback), and `custom*` local implementations of the
+Generation API). Plus branch points in `AiGeneration/{AiConfiguration,AskAiEditorContainer,AskAiStandAloneForm,Use*}.js`,
 `MainFrame/Preferences/{PreferencesContext,PreferencesProvider,PreferencesDialog}.js` (the `'ai'` preferences
-tab is a fork addition), `Utils/GDevelopServices/{Generation,Authentication,Usage}.js`. Only spec:
-`newIDE/app/src/AI/CustomAIClient.spec.js`.
+tab is a fork addition), `Utils/GDevelopServices/{Generation,Authentication,Usage}.js`.
+
+The local AI studio (`AiGeneration/Studio/**`) is entirely fork-authored: `Roles.js` (role → tool subset),
+`LoopGuard.js` (circuit breaker), `PlanStore.js`, `SpawnSubAgents.js`, `FinalizeSubAgents.js`,
+`RequestWriteGate.js`, `UseStudioRuntime.js`, plus the leaf modules below.
+
+**Leaf modules exist for a reason — keep them leaves.** `Studio/SafeTruncation.js`,
+`Studio/RoleToolPolicy.js` and `MainFrame/Preferences/PreferencesStorage.js` were each extracted so a pure
+helper could be unit-tested: their host files import React, Electron, three.js or the GDevelop core, which
+a Jest spec cannot load. Extend the leaf rather than re-inlining the logic.
+
+**Testing the fork's AI surface:**
+
+- **Use `npm test`, never a bare `npx jest`.** Bare jest cannot transform the repo's `.ts` files
+  (e.g. `Utils/UseForceUpdate.ts`) and reports a `SyntaxError` that looks like an environmental failure;
+  it also skips the CRA config that `react-app-rewired` supplies.
+- Run the fork surface with
+  `CI=true npm test -- --watchAll=false --ci --testPathPattern='src/(AI|AiGeneration|MainFrame/Preferences|EditorFunctions)'`.
+- 17 spec files cover the BYOK surface — `AI/CustomAIClient.spec.js`; `AiGeneration/`
+  (`AiConfiguration`, `AiRequestContext`, `AiRequestContext.selectionLoad`, `AiRequestUtils`,
+  `ExtensionsOutsideEditorChangesAccumulator`, `PrepareAiUserContent`) with
+  `AiRequestChat/{CanPayForAiRequest,RunScriptOutput}` and
+  `Studio/{FinalizeSubAgents,LoopGuard,PlanStore,RequestWriteGate,Roles,RoleToolPolicy,SpawnSubAgents}`;
+  and `MainFrame/Preferences/PreferencesStorage`. `Studio/SafeTruncation.js` has no spec of its own —
+  it is covered through `FinalizeSubAgents.spec.js`, its caller.
+- **Mutation-check every fix.** Temporarily revert the guard and confirm the new test fails — several
+  tests written for this fork passed against the *unfixed* code (a lock test that acquired the lock
+  after the throw rather than during it; a helper test that skipped the real caller). Assert the
+  substitution actually matched, and never combine the revert and the restore in one shell command.
+- `GDJS`-dependent specs (`SpawnSubAgents`, `AiRequestContext`) need the libGD test artifact, which
+  `npm run postinstall` installs as `node_modules/libGD.js-for-tests-only`; CI supplies it via `build-libgd`.
 
 **Unlocked client features** — the master switch is `hasValidSubscriptionPlan()` returning `true` in
 `newIDE/app/src/Utils/GDevelopServices/Usage.js`, with `UNLOCKED_HERETEK_SUBSCRIPTION` /
