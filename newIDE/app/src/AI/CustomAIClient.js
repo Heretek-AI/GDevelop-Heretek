@@ -70,7 +70,14 @@ const LOCAL_STORAGE_CONFIG_KEY = 'gd-custom-ai-config';
 const LOCAL_STORAGE_REQUESTS_KEY = 'gd-custom-ai-requests';
 const LOCAL_STORAGE_MODEL_OVERRIDES_KEY = 'gd-custom-ai-model-overrides';
 const LOCAL_STORAGE_TOKEN_TOTALS_KEY = 'gd-custom-ai-token-totals';
+const LOCAL_STORAGE_SUBAGENT_REQUESTS_KEY = 'gd-custom-ai-subagent-requests';
 const MAX_LOCAL_SAVED_REQUESTS = 20;
+/**
+ * Cap on persisted sub-agent requests. They cannot share the parent recency
+ * budget (20 chats would evict real conversations after one multi-agent run),
+ * so they get their own store. A run spawns a handful; 40 covers several.
+ */
+const MAX_LOCAL_SAVED_SUBAGENT_REQUESTS = 40;
 /**
  * Cap on persisted per-request token totals. The map is keyed by request id
  * (sub-agent children included, so it outgrows the 20 saved chats), and must
@@ -1213,13 +1220,84 @@ export const saveLocalAiRequests = () => {
       LOCAL_STORAGE_REQUESTS_KEY,
       JSON.stringify(persistableMap)
     );
+
+    // Sub-agent children get their own bounded store. They are internal
+    // (excluded from the history and from the parent recency budget), but the
+    // per-agent dashboard's transcript needs them after a reload.
+    const recentChildKeys = Object.keys(localAiRequestsCache)
+      .filter(key => {
+        const req = localAiRequestsCache[key];
+        return req && req.parentAiRequestId;
+      })
+      .sort((a, b) => {
+        const aAt = new Date(localAiRequestsCache[a].updatedAt).getTime();
+        const bAt = new Date(localAiRequestsCache[b].updatedAt).getTime();
+        const safeA = Number.isFinite(aAt) ? aAt : 0;
+        const safeB = Number.isFinite(bAt) ? bAt : 0;
+        return safeB - safeA;
+      })
+      .slice(0, MAX_LOCAL_SAVED_SUBAGENT_REQUESTS);
+    const persistableChildMap: { [id: string]: AiRequest } = {};
+    for (const key of recentChildKeys) {
+      const req = localAiRequestsCache[key];
+      if (req) {
+        const { gameProjectJson, ...persistableReq } = req;
+        persistableChildMap[key] = (persistableReq: any);
+      }
+    }
+    localStorage.setItem(
+      LOCAL_STORAGE_SUBAGENT_REQUESTS_KEY,
+      JSON.stringify(persistableChildMap)
+    );
   } catch (err) {
     console.warn('Error saving local AI requests to localStorage:', err);
   }
 };
 
+/**
+ * Load the persisted sub-agent requests into the same cache as their parents.
+ * Called at startup after `loadLocalAiRequests`; a corrupt entry is skipped by
+ * the same id/status check.
+ */
+export const loadLocalAiSubAgentRequests = (): void => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const persisted = localStorage.getItem(LOCAL_STORAGE_SUBAGENT_REQUESTS_KEY);
+    if (!persisted) return;
+    const parsed = JSON.parse(persisted);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+    const entries = Object.entries(parsed);
+    for (let i = 0; i < entries.length; i++) {
+      const key = entries[i][0];
+      const value = entries[i][1];
+      if (
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        typeof value.id === 'string' &&
+        typeof value.status === 'string' &&
+        typeof value.parentAiRequestId === 'string'
+      ) {
+        localAiRequestsCache[key] = (normalizePersistedMessages(
+          (value: any)
+        ): any);
+      }
+    }
+  } catch (err) {
+    console.warn(
+      'Error loading local AI sub-agent requests from localStorage:',
+      err
+    );
+  }
+};
+
+/** Exposed so a test can simulate a fresh session's load. */
+export const loadLocalAiSubAgentRequestsForTesting = (): void =>
+  loadLocalAiSubAgentRequests();
+
 // Initialize requests, per-chat model choices and token meters from localStorage
 loadLocalAiRequests();
+loadLocalAiSubAgentRequests();
 loadLocalAiRequestModelOverrides();
 loadLocalAiRequestTokenTotals();
 

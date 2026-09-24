@@ -6,7 +6,11 @@ import Check from '../../UI/CustomSvgIcons/Check';
 import ChevronArrowRight from '../../UI/CustomSvgIcons/ChevronArrowRight';
 import ChevronArrowBottom from '../../UI/CustomSvgIcons/ChevronArrowBottom';
 import GDevelopThemeContext from '../../UI/Theme/GDevelopThemeContext';
-import { type SubAgentActivityRow } from '../AiRequestUtils';
+import {
+  type SubAgentActivityRow,
+  summarizeSubAgentTranscript,
+} from '../AiRequestUtils';
+import { customGetAiRequest } from '../../AI/CustomAIClient';
 import classes from './SubAgentActivityPanel.module.css';
 
 type Props = {|
@@ -100,8 +104,14 @@ export const SubAgentActivityPanel = ({ rows }: Props): React.Node => {
       {isExpanded && (
         <Column noMargin>
           {rows.map(row => {
-            const hasReport = row.status === 'finished' && !!row.report;
-            const isReportExpanded = expandedCallId === row.callId;
+            const child = row.childId ? customGetAiRequest(row.childId) : null;
+            const steps = summarizeSubAgentTranscript(child);
+            const hasContent = !!row.report || steps.length > 0;
+            const isRowExpanded = expandedCallId === row.callId;
+            const toggle = () =>
+              setExpandedCallId(current =>
+                current === row.callId ? null : row.callId
+              );
             return (
               <Column noMargin key={row.callId}>
                 <Line noMargin>
@@ -117,26 +127,17 @@ export const SubAgentActivityPanel = ({ rows }: Props): React.Node => {
                   </div>
                   <div
                     className={
-                      hasReport ? classes.rowClickable : classes.rowStatic
+                      hasContent ? classes.rowClickable : classes.rowStatic
                     }
-                    onClick={
-                      hasReport
-                        ? () =>
-                            setExpandedCallId(current =>
-                              current === row.callId ? null : row.callId
-                            )
-                        : undefined
-                    }
-                    role={hasReport ? 'button' : undefined}
-                    tabIndex={hasReport ? 0 : undefined}
+                    onClick={hasContent ? toggle : undefined}
+                    role={hasContent ? 'button' : undefined}
+                    tabIndex={hasContent ? 0 : undefined}
                     onKeyDown={
-                      hasReport
+                      hasContent
                         ? e => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
-                              setExpandedCallId(current =>
-                                current === row.callId ? null : row.callId
-                              );
+                              toggle();
                             }
                           }
                         : undefined
@@ -158,11 +159,31 @@ export const SubAgentActivityPanel = ({ rows }: Props): React.Node => {
                     </Text>
                   </div>
                 </Line>
-                {isReportExpanded && row.report && (
+                {isRowExpanded && (
                   <div className={classes.reportContainer}>
-                    <Text noMargin size="body-small" color="secondary">
-                      {truncateReport(row.report)}
-                    </Text>
+                    {row.report && (
+                      <Text noMargin size="body-small" color="secondary">
+                        {truncateReport(row.report)}
+                      </Text>
+                    )}
+                    {steps.length > 0 && (
+                      <div className={classes.transcriptContainer}>
+                        {steps.map((step, index) => (
+                          <Text
+                            key={`${step.kind}-${index}`}
+                            noMargin
+                            size="body-small"
+                            color="secondary"
+                          >
+                            {step.kind === 'tool'
+                              ? `⚙ ${step.text}`
+                              : step.kind === 'user'
+                              ? `▸ ${step.text}`
+                              : step.text}
+                          </Text>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </Column>

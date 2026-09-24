@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 251,
+  "last_cycle": 252,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1480,14 +1480,19 @@
       "target": "Tier 1 multi-agent UI: link a spawn call to its plan task so the chat renders the delegation inside the task row",
       "metric_delta": "A spawn_agent call was never linked to its plan task: ChatMessages' functionCallItemsByTaskId reads functionCall.taskId, but nothing in the BYOK path stamped it (the hosted server does), so delegated calls were shown only at the top level and never under their task. Added: (1) spawnSubAgent now returns relatedTaskId (the plan task the call named); (2) Utils stamps spawnCall.taskId and, in the same write, lifts the plan task to in_progress + agentCallId via new pure PlanStore helpers patchPlanTaskAsDelegated/replacePlanMessage (the status flip is required: a pending task does not render its linked calls, so the spawn would be hidden otherwise); (3) refactored UseStudioRuntime's plan rewrite onto the shared replacePlanMessage (one implementation). Tests +5 PlanStore +1 SpawnSubAgents (1697 AI-surface / 83 suites, up from 1692). Live proof via the mock: spawn carried taskId 'design'; plan became design done (agentCallId c_design), build in_progress; WebUI rendered the 'Design' call row under the 'Design the city-builder GDD' task. Build green; ESLint/Prettier/divergence clean.",
       "commit": "feat(ai): link spawn calls to their plan task in the chat"
+    },
+    {
+      "cycle": 252,
+      "target": "Tier 1 multi-agent chat: view a sub-agent's own transcript inline from the per-agent dashboard",
+      "metric_delta": "Completed the multi-agent chat surface: expanding an agent row now shows that agent's own conversation (its user request, assistant text and tool calls) via the pure, tested summarizeSubAgentTranscript (caps to 30 steps / 600 chars, tolerant of persisted null holes). Sub-agent requests were not reachable after a reload (children were deliberately excluded from the 20-chat parent budget), so they now persist in their own bounded store gd-custom-ai-subagent-requests (40, gameProjectJson stripped, corrupt/na-parent entries dropped) loaded at startup. +4 transcript specs, +3 persistence specs (1704 AI-surface / 83 suites, up from 1697). Live proof via the mock: the designer child persisted with a read_game_project_json call and the dashboard row expanded to the report + '▸ Task: Write GDD_Overview.', 'Reading the project to ground the design.', '⚙ read_game_project_json', 'GDD_Overview written: a small harbor town.'. Build green; ESLint/Prettier/divergence clean.",
+      "commit": "feat(ai): show each sub-agent's transcript inline in the dashboard"
     }
   ],
   "backlog": [
     "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
-    "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued.",
-    "Tier 1 UI (remaining): true multi-agent chat switching (open a sub-agent's full transcript). The audit dashboard now shows per-agent role/status/tokens/report (cycles 247-249); a full transcript view still needs child-request persistence plus a retention policy, deliberately avoided so far. Reassess only if a user asks for the verbatim sub-agent conversation."
+    "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued."
   ],
   "heuristics": [
     {
@@ -1692,6 +1697,7 @@
     "For a multi-agent UI, the sub-agent's report is already in the parent's output as a function_call_output (written by useStudioRuntime); surface that instead of persisting child transcripts. extractFunctionCallReport handles both the {message} object and JSON-string shapes.",
     "The CRA dev server may hold a stale bundle after long edit sessions; verify a new feature is actually served by fetching the loaded app chunk (the big src_ExportAndShare_* chunk contains the app under test) and grepping for a unique symbol, not the small bundle.js. To restart it, kill the `node .../react-app-rewired/scripts/start.js` PID (pkill on 'react-app-rewired start' misses it); wait for 'webpack compiled successfully' in its log.",
     "A hook that sends through a timer must flush microtasks in its spec: after jest.advanceTimersByTime, `await TestRenderer.act(async () => { await Promise.resolve(); })`, or the deferred send has not run when the assertions execute.",
-    "The BYOK studio must stamp what the hosted server stamps on function calls/plan tasks (functionCall.taskId, planTask.agentCallId, planTask.status): the UI reads those fields and silently shows nothing when they are absent. Check the UI reader before assuming the studio writes a linkage field."
+    "The BYOK studio must stamp what the hosted server stamps on function calls/plan tasks (functionCall.taskId, planTask.agentCallId, planTask.status): the UI reads those fields and silently shows nothing when they are absent. Check the UI reader before assuming the studio writes a linkage field.",
+    "Sub-agent children need their own bounded persistence store: giving them the parent chat budget evicts real chats, but excluding them entirely makes the per-agent transcript unavailable after a reload. Keep the two budgets separate."
   ]
 }

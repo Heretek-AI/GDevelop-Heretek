@@ -474,6 +474,74 @@ export const listSubAgentActivity = (
   return rows;
 };
 
+/** One step of a sub-agent's own transcript. */
+export type SubAgentTranscriptStep = {|
+  kind: 'user' | 'text' | 'tool',
+  text: string,
+|};
+
+/** Cap one step's text so a verbose agent cannot flood the chat. */
+const MAX_TRANSCRIPT_STEP_LENGTH = 600;
+
+/**
+ * A compact, ordered view of a sub-agent's own conversation: its user request,
+ * its assistant text and the tools it called. This is the "multi-agent chat"
+ * half of the per-agent dashboard - what the agent actually did - without
+ * rendering the full, tool-heavy transcript.
+ *
+ * `maxSteps` bounds the list (the last step then marks the truncation). Derived
+ * purely from a request's output, so it is testable and safe on persisted,
+ * unvalidated data (null holes, non-array content).
+ */
+export const summarizeSubAgentTranscript = (
+  aiRequest: ?{ output?: Array<any> },
+  maxSteps?: number
+): Array<SubAgentTranscriptStep> => {
+  const output = (aiRequest && aiRequest.output) || [];
+  if (!Array.isArray(output)) return [];
+  const limit = typeof maxSteps === 'number' && maxSteps > 0 ? maxSteps : 30;
+  const steps: Array<SubAgentTranscriptStep> = [];
+  const truncate = (text: string): string =>
+    text.length > MAX_TRANSCRIPT_STEP_LENGTH
+      ? `${text.slice(0, MAX_TRANSCRIPT_STEP_LENGTH)}…`
+      : text;
+
+  for (const message of output) {
+    if (!message || typeof message !== 'object') continue;
+    if (message.type !== 'message' || !Array.isArray(message.content)) continue;
+    for (const content of message.content) {
+      if (!content || typeof content !== 'object') continue;
+      if (
+        message.role === 'user' &&
+        content.type === 'user_request' &&
+        typeof content.text === 'string' &&
+        content.text.trim()
+      ) {
+        steps.push({ kind: 'user', text: truncate(content.text) });
+      } else if (
+        message.role === 'assistant' &&
+        typeof content.text === 'string' &&
+        content.text.trim()
+      ) {
+        steps.push({ kind: 'text', text: truncate(content.text) });
+      } else if (
+        message.role === 'assistant' &&
+        content.type === 'function_call' &&
+        typeof content.name === 'string' &&
+        content.name
+      ) {
+        steps.push({ kind: 'tool', text: content.name });
+      }
+    }
+  }
+
+  if (steps.length <= limit) return steps;
+  return [
+    ...steps.slice(0, limit),
+    { kind: 'text', text: `… ${steps.length - limit} more step(s)` },
+  ];
+};
+
 export const isUserMessage = (message: any): boolean =>
   !!message && message.type === 'message' && message.role === 'user';
 

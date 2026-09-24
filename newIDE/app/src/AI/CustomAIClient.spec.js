@@ -65,6 +65,7 @@ import {
   loadLocalAiRequestModelOverridesForTesting,
   loadLocalAiRequestTokenTotalsForTesting,
   recordLocalAiRequestTokenUsageForTesting,
+  loadLocalAiSubAgentRequestsForTesting,
   saveLocalAiRequests,
   _resetCustomAiClientForTesting as _resetForStreamTests,
 } from './CustomAIClient';
@@ -3562,6 +3563,87 @@ describe('CustomAIClient', () => {
       // The oldest entries are the ones dropped.
       expect(persisted['local-ai-0']).toBeUndefined();
       expect(persisted['local-ai-519']).toBe(1);
+    });
+  });
+
+  describe('sub-agent requests survive a reload', () => {
+    const memoryStorage = {};
+    const fakeStorage = {
+      getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+      setItem: (key, value) => {
+        memoryStorage[key] = String(value);
+      },
+      removeItem: key => {
+        delete memoryStorage[key];
+      },
+    };
+    beforeEach(() => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+      global.localStorage = fakeStorage;
+      _resetCustomAiClientForTesting();
+    });
+    afterEach(() => {
+      delete global.localStorage;
+    });
+
+    const makeChild = async (parentId, roleId) => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      return customCreateSubAgentAiRequest({
+        parentAiRequestId: parentId,
+        roleId,
+        userRequest: 'do it',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+    };
+
+    it('persists a child in its own store, not the parent chat list', async () => {
+      const child = await makeChild('local-ai-parent-1', 'developer');
+      const childStore = JSON.parse(
+        memoryStorage['gd-custom-ai-subagent-requests'] || '{}'
+      );
+      expect(Object.keys(childStore)).toContain(child.id);
+      const parentStore = JSON.parse(
+        memoryStorage['gd-custom-ai-requests'] || '{}'
+      );
+      expect(Object.keys(parentStore)).not.toContain(child.id);
+    });
+
+    it('reloads the child in a fresh session', async () => {
+      const child = await makeChild('local-ai-parent-2', 'tester');
+      _resetCustomAiClientForTesting();
+      // Gone from memory: the fallback carries no parent link.
+      expect(customGetAiRequest(child.id).parentAiRequestId).toBeUndefined();
+      loadLocalAiRequests();
+      loadLocalAiSubAgentRequestsForTesting();
+      const reloaded = customGetAiRequest(child.id);
+      expect(reloaded.parentAiRequestId).toBe('local-ai-parent-2');
+      expect(reloaded.studioRoleId).toBe('tester');
+    });
+
+    it('ignores a corrupt child store payload without throwing', () => {
+      memoryStorage['gd-custom-ai-subagent-requests'] = '{not json';
+      expect(() => loadLocalAiSubAgentRequestsForTesting()).not.toThrow();
+      // An entry without a parent link is not a child and is dropped.
+      memoryStorage['gd-custom-ai-subagent-requests'] = JSON.stringify({
+        'local-ai-orphan': { id: 'local-ai-orphan', status: 'ready' },
+      });
+      loadLocalAiSubAgentRequestsForTesting();
+      expect(
+        customGetAiRequest('local-ai-orphan').parentAiRequestId
+      ).toBeUndefined();
     });
   });
 

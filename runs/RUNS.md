@@ -98,6 +98,16 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Sub-agent transcript view, live (cycle 252): expanding an agent row in the
+  dashboard now reveals that agent's own conversation - its user request, its
+  assistant text and the tools it called - via the pure, tested
+  `summarizeSubAgentTranscript`. A sub-agent's request was not accessible after a
+  reload, so children are now persisted in their own bounded store
+  (`gd-custom-ai-subagent-requests`, 40, separate from the 20-chat parent
+  budget). Verified through the mock: the designer child persisted with its
+  `read_game_project_json` call, and the row expanded to `▸ Task: …`,
+  `Reading the project…`, `⚙ read_game_project_json`, `GDD_Overview written…`;
+  screenshot /tmp/opencode/cycle252-transcript.png.
 - Delegations linked to their plan task, live (cycle 251): a successful
   `spawn_agent` now stamps `functionCall.taskId` and lifts its plan task to
   `in_progress` with `agentCallId`, so the chat renders the spawn inside that

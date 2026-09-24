@@ -30,6 +30,7 @@ import {
   sumSubAgentTokens,
   listSubAgentActivity,
   extractFunctionCallReport,
+  summarizeSubAgentTranscript,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -1214,6 +1215,100 @@ describe('listSubAgentActivity', () => {
       ]),
     ]);
     expect(listSubAgentActivity((request: any), () => 0)[0].report).toBeNull();
+  });
+});
+
+describe('summarizeSubAgentTranscript', () => {
+  const userMessage = (text: string) => ({
+    type: 'message',
+    role: 'user',
+    content: [{ type: 'user_request', status: 'completed', text }],
+  });
+  const assistantMessage = (contents: Array<any>) => ({
+    type: 'message',
+    role: 'assistant',
+    content: contents,
+  });
+  const outputText = (text: string) => ({
+    type: 'output_text',
+    status: 'completed',
+    text,
+  });
+  const functionCall = (name: string) => ({
+    type: 'function_call',
+    status: 'completed',
+    call_id: `c-${name}`,
+    name,
+    arguments: '{}',
+  });
+
+  it('lists the user request, the assistant text and the tools, in order', () => {
+    const steps = summarizeSubAgentTranscript(
+      (({
+        output: [
+          userMessage('Build the grid.'),
+          assistantMessage([
+            outputText('Reading the project.'),
+            functionCall('read_game_project_json'),
+          ]),
+          {
+            type: 'function_call_output',
+            call_id: 'c-read_game_project_json',
+            output: '{}',
+          },
+          assistantMessage([outputText('Done.')]),
+        ],
+      }: any): any)
+    );
+    expect(steps).toEqual([
+      { kind: 'user', text: 'Build the grid.' },
+      { kind: 'text', text: 'Reading the project.' },
+      { kind: 'tool', text: 'read_game_project_json' },
+      { kind: 'text', text: 'Done.' },
+    ]);
+  });
+
+  it('tolerates null holes and non-array content', () => {
+    const steps = summarizeSubAgentTranscript(
+      (({
+        output: [
+          null,
+          { type: 'message', role: 'assistant', content: 'a string' },
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [null, { type: 'output_text' }],
+          },
+        ],
+      }: any): any)
+    );
+    expect(steps).toEqual([]);
+    expect(summarizeSubAgentTranscript(null)).toEqual([]);
+    expect(
+      summarizeSubAgentTranscript((({ output: 'nope' }: any): any))
+    ).toEqual([]);
+  });
+
+  it('caps the list and marks the truncation', () => {
+    const output = [];
+    for (let i = 0; i < 10; i++) {
+      output.push(assistantMessage([outputText(`step ${i}`)]));
+    }
+    const steps = summarizeSubAgentTranscript((({ output }: any): any), 3);
+    expect(steps).toHaveLength(4);
+    expect(steps[2].text).toBe('step 2');
+    expect(steps[3].text).toContain('7 more step');
+  });
+
+  it('truncates a very long step', () => {
+    const steps = summarizeSubAgentTranscript(
+      (({
+        output: [assistantMessage([outputText('x'.repeat(900))])],
+      }: any): any)
+    );
+    expect(steps).toHaveLength(1);
+    expect(steps[0].text.length).toBeLessThanOrEqual(601);
+    expect(steps[0].text.endsWith('…')).toBe(true);
   });
 });
 
