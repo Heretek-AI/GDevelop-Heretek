@@ -62,6 +62,24 @@ export const isSubAgentAtTurnCap = ({
 };
 
 /**
+ * Whether the parent request already carries a `function_call_output` for a
+ * call: the child is on its way out (`removeSubAgentIfDone` retires it) and
+ * must not be finalized again. The studio runtime checks this on every pass,
+ * so like the turn-cap counter it tolerates a null hole in the persisted
+ * output instead of throwing out of the hook effect.
+ */
+export const parentHasOutputForCall = (
+  parentRequest: AiRequest,
+  callId: string
+): boolean =>
+  (parentRequest.output || []).some(
+    message =>
+      !!message &&
+      message.type === 'function_call_output' &&
+      message.call_id === callId
+  );
+
+/**
  * A sub-agent is finished when it has nothing left to do locally: it is not
  * working, it has no unexecuted function calls, and it has no pending sub-agent
  * of its own.

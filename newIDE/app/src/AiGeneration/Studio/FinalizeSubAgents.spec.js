@@ -5,6 +5,7 @@ import {
   getSubAgentReportLabel,
   countAssistantTurns,
   isSubAgentAtTurnCap,
+  parentHasOutputForCall,
   truncateReport,
   MAX_SUB_AGENT_REPORT_LENGTH,
 } from './FinalizeSubAgents';
@@ -673,5 +674,33 @@ describe('FinalizeSubAgents', () => {
       ]);
       expect(buildPlanStatusUpdateOutput(parent, 'unknown-call')).toBeNull();
     });
+  });
+});
+
+describe('parentHasOutputForCall', () => {
+  // The studio runtime checks this on every pass before finalizing a child:
+  // a null hole in the parent output threw out of the hook effect, killing
+  // finalization and the render it runs in.
+  const parentWith = (output: Array<any>): any => ({ id: 'p', output });
+
+  it('finds the answered call among null holes', () => {
+    expect(
+      parentHasOutputForCall(
+        parentWith([null, functionCallOutput('c1', true), undefined]),
+        'c1'
+      )
+    ).toBe(true);
+  });
+
+  it('returns false when nothing was answered, without throwing', () => {
+    expect(parentHasOutputForCall(parentWith([null]), 'c1')).toBe(false);
+    expect(parentHasOutputForCall(parentWith([]), 'c1')).toBe(false);
+    expect(parentHasOutputForCall(({ output: null }: any), 'c1')).toBe(false);
+  });
+
+  it('does not match a different call id', () => {
+    expect(
+      parentHasOutputForCall(parentWith([functionCallOutput('c2', true)]), 'c1')
+    ).toBe(false);
   });
 });

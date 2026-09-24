@@ -12,6 +12,7 @@ import {
   buildSubAgentReport,
   getSubAgentReportLabel,
   getSubAgentRoleId,
+  parentHasOutputForCall,
 } from './FinalizeSubAgents';
 import {
   buildPlanOutput,
@@ -184,11 +185,9 @@ export const useStudioRuntime = ({
 
         // The parent already carries this call's output: the child is on its way
         // out (`removeSubAgentIfDone` is what removes it). Stay compatible.
-        const parentOutput = parentRequest.output || [];
-        const parentAlreadyHasOutput = parentOutput.some(
-          message =>
-            message.type === 'function_call_output' &&
-            message.call_id === subAgentInfo.callId
+        const parentAlreadyHasOutput = parentHasOutputForCall(
+          parentRequest,
+          subAgentInfo.callId
         );
         if (parentAlreadyHasOutput) continue;
 

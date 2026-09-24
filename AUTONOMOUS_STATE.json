@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 159,
+  "last_cycle": 160,
   "completed_targets": [
     {
       "cycle": 75,
@@ -921,6 +921,12 @@
       "target": "Pin the BYOK unlock net: hasValidSubscriptionPlan + UNLOCKED seeds spec",
       "metric_delta": "Backlog #150 invariant-1 gap: zero spec coverage on the fork's existential unlock - an upstream sync restoring a real check in hasValidSubscriptionPlan would silently re-paywall everything with no test signal. Added a BYOK-unlock describe to the existing Usage.spec.js (restored after a write-tool clobber of the canBenefitFromSocialRole suite - appended instead): unconditional grant across 6 subscription shapes incl. the no-arg call, seed identity (local-byok-user/gdevelop_startup/HERETEK_UNLOCKED), and the boolean/enum capability gates downstream reads. Mutation-checked: upstream-style `!!subscription && !!subscription.planId` fails the grant test; source restored byte-identical. 1565/1565 across 77 suites (was 1504/68-pattern; +3 net new here, +61 from widened GDevelopServices pattern), eslint+prettier clean, divergence +1 modified (Usage.spec.js, surgical --update, baseline unchanged). Context wiring (seeds as initial+logged-out defaults, 999999 credits) verified by inspection - that file imports React and cannot load in a spec.",
       "commit": "test(paywall): pin the BYOK unlock grant and seeds"
+    },
+    {
+      "cycle": 160,
+      "target": "Null-tolerate the studio runtime finalization check (parentHasOutputForCall leaf)",
+      "metric_delta": "Backlog #150 Tier-1 find: useStudioRuntime's every-pass check read message.type/message.call_id over the parent output with no null guard - a persisted hole threw out of the hook effect, killing finalization and the render it runs in (same class as cycles 157/158, the last unguarded output read on the studio path; verified the sibling reads in the hook are guarded or delegate to tested helpers). Fixed: parentHasOutputForCall leaf in FinalizeSubAgents.js (same !!message style as countAssistantTurns) wired into the hook; hook itself untestable (three.js via editor map) so the leaf carries the contract. 3 new tests, mutation-checked (unguarded body fails both hole tests, matching-semantics test unaffected by design). 1568/1568 across 77 suites (was 1565), eslint+prettier clean, divergence clean (no new paths).",
+      "commit": "fix(ai): tolerate null holes in the studio finalization check"
     }
   ],
   "backlog": [
@@ -1103,6 +1109,7 @@
     "A guard on the container does not guard the elements: Array.isArray(msg.content) plus a msg null-check still throws when an ELEMENT is null (item.type, fc.id, fco.callId). normalizePersistedMessages passes inner entries through, so every inner loop over persisted/network arrays needs its own skip-non-object - and each guard needs its own mutation check, because one combined test stops at the first throw and proves only that guard.",
     "When a search runs backward (getLatestActivePlan from the end), a null-hole test only discriminates if the hole is visited before the match - null-last, not null-first. More generally: place the poison where the code actually walks, or the test passes on broken code.",
     "A cap over stored entities must define live vs dead explicitly: finished sub-agents stay in storage (history) while the watch list is what actually retires - counting the storage map bounds lifetime, not concurrency. Match the retirement condition (function_call_output for the call) when computing liveness.",
-    "The write tool overwrites: it clobbered an existing Usage.spec.js (canBenefitFromSocialRole suite) that a name-grep had suggested did not exist - the grep only proved no spec MENTIONED the unlock strings. Always `git status`/read before writing a 'new' spec file; when burned, restore from git and append via edit."
+    "The write tool overwrites: it clobbered an existing Usage.spec.js (canBenefitFromSocialRole suite) that a name-grep had suggested did not exist - the grep only proved no spec MENTIONED the unlock strings. Always `git status`/read before writing a 'new' spec file; when burned, restore from git and append via edit.",
+    "A hook effect that reads persisted arrays is a render-crashing throw site, not just a logic bug: useStudioRuntime runs inside useEffect on every render, so the unguarded .some() broke the component tree, not only finalization. When a hook cannot load in a spec (three.js), extract its reads into the adjacent pure leaf and pin them there - the fifth use of this pattern (SafeTruncation, NonScriptableFunctionNames, RoleToolPolicy, PreferencesStorage, isUserMessage)."
   ]
 }
