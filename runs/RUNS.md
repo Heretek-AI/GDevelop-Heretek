@@ -78,6 +78,11 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   offline, no model and no credentials: a real child request was created and its
   report was written to the parent's spawn call. This is the strongest harness
   evidence for the orchestration loop and does not depend on model compliance.
+- **Plan lifecycle defect found+fixed by the harness (cycles 210-211)**: a turn's
+  write-back was built from its turn-start snapshot and silently overwrote a
+  concurrent in-place rewrite (the studio flipping a plan task to `done`). Fixed
+  by reconciling by messageId (cache wins for pre-existing messages). LIVE-VERIFIED
+  end-to-end with the scripted mock: plan -> spawn -> report now leaves the task `done`.
 - **Model-behaviour**: the local model often stops after planning without delegating.
   The delegation path works (persisted run: 12 spawns; unit tests); this is model variance.
 
