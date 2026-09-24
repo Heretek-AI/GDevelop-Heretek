@@ -3175,27 +3175,39 @@ const streamChatCompletion = async ({
         for (const toolCall of delta.tool_calls) {
           const index = resolveStreamToolCallIndex(toolCall);
           const existing = toolCalls[index];
+          const fragmentName = toolCall.function && toolCall.function.name;
+          const fragmentArgs = toolCall.function && toolCall.function.arguments;
           if (!existing) {
+            // Arguments are normally a string, but a proxy may send the whole
+            // object on one chunk: stringify it so a later string fragment
+            // cannot concatenate as '[object Object]'. Names and ids are
+            // coerced to strings for the same reason.
             toolCalls[index] = {
-              id: toolCall.id,
+              id: typeof toolCall.id === 'string' ? toolCall.id : undefined,
               type: toolCall.type || 'function',
               function: {
-                name: (toolCall.function && toolCall.function.name) || '',
+                name: typeof fragmentName === 'string' ? fragmentName : '',
                 arguments:
-                  (toolCall.function && toolCall.function.arguments) || '',
+                  typeof fragmentArgs === 'string'
+                    ? fragmentArgs
+                    : fragmentArgs && typeof fragmentArgs === 'object'
+                    ? JSON.stringify(fragmentArgs)
+                    : '',
               },
             };
           } else {
-            if (toolCall.id) existing.id = toolCall.id;
-            if (toolCall.function && toolCall.function.name) {
+            if (typeof toolCall.id === 'string') existing.id = toolCall.id;
+            if (typeof fragmentName === 'string') {
               existing.function.name =
-                (existing.function.name || '') + toolCall.function.name;
+                (typeof existing.function.name === 'string'
+                  ? existing.function.name
+                  : '') + fragmentName;
             }
-            if (
-              toolCall.function &&
-              typeof toolCall.function.arguments === 'string'
-            ) {
-              existing.function.arguments += toolCall.function.arguments;
+            if (typeof fragmentArgs === 'string') {
+              existing.function.arguments =
+                (typeof existing.function.arguments === 'string'
+                  ? existing.function.arguments
+                  : '') + fragmentArgs;
             }
           }
         }

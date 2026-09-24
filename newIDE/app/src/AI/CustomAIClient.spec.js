@@ -2369,6 +2369,50 @@ describe('CustomAIClient', () => {
       _resetForStreamTests();
     });
 
+    it('does not corrupt arguments when a chunk sends them as an object', async () => {
+      // Streaming fragments are strings by spec, but a proxy may send a whole
+      // object on one chunk; the old `arguments || ''` kept the object and a
+      // later string fragment then concatenated as '[object Object]...'.
+      const sse =
+        'data: ' +
+        JSON.stringify({
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'c1',
+                    function: {
+                      name: 'create_scene',
+                      arguments: { scene_name: 'Town' },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }) +
+        '\n' +
+        'data: ' +
+        JSON.stringify({
+          choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+        }) +
+        '\n' +
+        'data: [DONE]\n';
+      global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(sse));
+
+      const message = await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+      });
+
+      expect(message.tool_calls).toHaveLength(1);
+      const args = message.tool_calls[0].function.arguments;
+      expect(args).not.toContain('[object Object]');
+      expect(JSON.parse(args)).toEqual({ scene_name: 'Town' });
+    });
+
     it('reports reasoning as streaming progress before any answer token', async () => {
       // Live finding (Ollama, deepseek-v4.1-flash): a reasoning model streams
       // many `delta.reasoning` chunks before the first `delta.content`, so the

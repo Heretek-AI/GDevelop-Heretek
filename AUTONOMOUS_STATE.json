@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 203,
+  "last_cycle": 204,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1192,6 +1192,12 @@
       "target": "Commit the mock provider as a reusable offline harness tool (Tier 4)",
       "metric_delta": "The cycle-202 mock lived in /tmp and would be lost. Added scripts/dev/mock-ai-provider.js (dependency-free OpenAI-compatible provider: SSE + non-streamed, x-omniroute-* telemetry, permissive CORS AND Access-Control-Expose-Headers so the browser can read the headers), with a usage header and a scripts/README.md section under a new 'Development harness' heading. This lets the @feedback-loop harness run end-to-end without credentials. Verified: node --check, a live smoke (GET /v1/models + POST with Expose-Headers and telemetry present), and the divergence guard (forkOnly +1, scripts/README.md already in modified).",
       "commit": "feat(scripts): add a reusable offline mock AI provider"
+    },
+    {
+      "cycle": 204,
+      "target": "Stop streamed tool-call assembly corrupting non-string arguments",
+      "metric_delta": "The SSE accumulator stored the first chunk's `arguments` as-is (`|| ''`) and later appended string fragments, so a chunk carrying the whole arguments object produced '[object Object]...' - unparseable JSON, losing the tool call. Now arguments are stringified when the first chunk is an object (or dropped when neither string nor object), and names/ids are coerced to strings before concatenation/assignment. +1 test (object-arguments chunk then finish -> assembled JSON parses to the object, no '[object Object]'), mutation-checked. 1640/1640 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
+      "commit": "fix(ai): coerce streamed tool-call fragments to strings"
     }
   ],
   "backlog": [
