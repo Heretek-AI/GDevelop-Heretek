@@ -27,6 +27,18 @@ See [MAINTENANCE.md](../MAINTENANCE.md) for how these fit together.
     known-malicious or critically vulnerable version of the packages listed in
     the script. Runs in `ci.yml` (`lockfile-guard` job).
 
+## Development harness
+
+-   **dev/mock-ai-provider.js**: a dependency-free OpenAI-compatible mock
+    provider (`node scripts/dev/mock-ai-provider.js`, default `:11435`) so the
+    editor's BYOK / multi-agent path can be exercised end-to-end without
+    credentials. It streams SSE, answers non-streamed requests, and emits
+    `x-omniroute-*` telemetry headers. It sets permissive CORS **and**
+    `Access-Control-Expose-Headers`, because a browser client cannot read
+    custom response headers from a cross-origin endpoint without the latter —
+    the same requirement applies to any real telemetry proxy. Point the editor's
+    custom AI base URL at `http://localhost:11435/v1` to use it.
+
 ## Documentation and translations
 
 -   **GenerateAllDocs.[bat|sh]**: Calls doxygen to generate all documentation into _docs_ folder.

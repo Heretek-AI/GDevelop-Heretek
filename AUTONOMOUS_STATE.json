@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 202,
+  "last_cycle": 203,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1186,6 +1186,12 @@
       "target": "Live-verify the per-request telemetry surface with a synthetic provider",
       "metric_delta": "No code change. Cycles 192/193 (telemetry data layer + chat note) could not be verified live because Ollama sends no x-omniroute-* headers. Built a small CORS-enabled OpenAI-compatible mock on :11435 emitting telemetry headers, pointed the editor at it, and sent a live message: the chat rendered 'Provider response: mock-city-builder . 42 ms . ~7707 in / 40 out tokens . cache MISS', confirming the callback is threaded through the create path, the parser reads the headers, the registry stores them, and the note renders. Deployment finding for the real gateway: a cross-origin XHR cannot read x-omniroute-* unless the proxy sends Access-Control-Expose-Headers for them (the mock's first version omitted it and the client saw nothing) - OmniRoute must expose those headers for browser clients. Mock stopped and editor config restored (Heretek URL/model).",
       "commit": "chore(autonomous): live-verify the telemetry surface with a mock provider"
+    },
+    {
+      "cycle": 203,
+      "target": "Commit the mock provider as a reusable offline harness tool (Tier 4)",
+      "metric_delta": "The cycle-202 mock lived in /tmp and would be lost. Added scripts/dev/mock-ai-provider.js (dependency-free OpenAI-compatible provider: SSE + non-streamed, x-omniroute-* telemetry, permissive CORS AND Access-Control-Expose-Headers so the browser can read the headers), with a usage header and a scripts/README.md section under a new 'Development harness' heading. This lets the @feedback-loop harness run end-to-end without credentials. Verified: node --check, a live smoke (GET /v1/models + POST with Expose-Headers and telemetry present), and the divergence guard (forkOnly +1, scripts/README.md already in modified).",
+      "commit": "feat(scripts): add a reusable offline mock AI provider"
     }
   ],
   "backlog": [
