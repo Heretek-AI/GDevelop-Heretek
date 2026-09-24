@@ -239,3 +239,32 @@ export const getToolsForRole = (
     tool => !!tool && !!tool.function && allowedNames.has(tool.function.name)
   );
 };
+
+/**
+ * The studio role that shapes a request's system prompt and tool subset.
+ *
+ * A sub-agent carries its role id. A top-level request carries none - but an
+ * `orchestrator`-mode chat is the studio's manager, so it must run with the
+ * manager's prompt and tool subset, not with every tool. Without this the
+ * "manager" ignored its own instructions and edited the project directly
+ * (feedback-loop Run 5).
+ *
+ * `invalid` distinguishes a present-but-unknown role id (a stale/corrupted
+ * persisted sub-agent) from no role: an invalid id must FAIL CLOSED to the
+ * read-only tool subset, while no role in a non-orchestrator chat keeps the
+ * full toolset.
+ */
+export const resolveStudioRoleId = (
+  studioRoleId: string | null | void,
+  mode: string | null | void
+): {| roleId: StudioRoleId | null, invalid: boolean |} => {
+  if (studioRoleId) {
+    return isStudioRoleId(studioRoleId)
+      ? { roleId: (studioRoleId: any), invalid: false }
+      : { roleId: null, invalid: true };
+  }
+  return {
+    roleId: mode === 'orchestrator' ? 'manager' : null,
+    invalid: false,
+  };
+};

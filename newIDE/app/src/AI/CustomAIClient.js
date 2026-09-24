@@ -11,6 +11,7 @@ import {
   getStudioRole,
   getToolsForRole,
   isStudioRoleId,
+  resolveStudioRoleId,
   READ_ONLY_TOOL_NAMES,
 } from '../AiGeneration/Studio/Roles';
 import {
@@ -3847,6 +3848,22 @@ const READ_ONLY_OPENAI_TOOLS = GDEVELOP_OPENAI_TOOLS.filter(
 );
 
 /**
+ * The tool subset a request may be offered, from its studio role and mode:
+ * a sub-agent uses its role's subset, an orchestrator-mode top-level request
+ * uses the manager's, a chat/agent request keeps every tool, and a request
+ * whose role id is unknown FAILS CLOSED to the read-only subset.
+ */
+const getToolsForStudioRequest = (
+  studioRoleId: string | null | void,
+  mode: string | null | void
+): Array<Object> => {
+  const { roleId, invalid } = resolveStudioRoleId(studioRoleId, mode);
+  if (invalid) return READ_ONLY_OPENAI_TOOLS;
+  if (roleId) return getToolsForRole(roleId, GDEVELOP_OPENAI_TOOLS);
+  return GDEVELOP_OPENAI_TOOLS;
+};
+
+/**
  * Registry tools the backend resolves and this client cannot: their local
  * launchFunction unconditionally fails, so offering them on a local turn
  * burns the turn and its tokens for nothing. Filtered from every local send
@@ -4248,6 +4265,7 @@ export const customCreateAiRequest = async ({
     gameProjectJson,
     projectSpecificExtensionsSummaryJson,
     mode,
+    role: resolveStudioRoleId(null, mode).roleId,
   });
 
   const openAiMessages = transformGDevelopMessagesToOpenAi(
@@ -4259,7 +4277,9 @@ export const customCreateAiRequest = async ({
   // structure must fit a small local model before the first request is sent.
   // Backend-resolved tools are withheld from the offer and the budget alike.
   const createConfig = getEffectiveConfigForRequest(reqId);
-  const createTools = withoutBackendOnlyTools(GDEVELOP_OPENAI_TOOLS);
+  const createTools = withoutBackendOnlyTools(
+    getToolsForStudioRequest(null, mode)
+  );
   const createMessageBudget = getMessageBudget(createConfig, createTools);
   let budgetedMessages = trimMessagesToBudget(
     openAiMessages,
@@ -4499,14 +4519,17 @@ export const customAddMessageToAiRequest = async ({
     }
 
     // The role a studio sub-agent was spawned with must shape every turn, not
-    // just the first: keep its prompt and tool subset.
+    // just the first: keep its prompt and tool subset. A top-level
+    // orchestrator request is the studio's manager, so it uses the manager
+    // role too (otherwise it edits the project directly instead of delegating).
     const studioRoleId = existing.studioRoleId || null;
+    const requestMode = mode || existing.mode;
 
     const systemPrompt = buildSystemPrompt({
       gameProjectJson,
       projectSpecificExtensionsSummaryJson,
-      mode: mode || existing.mode,
-      role: studioRoleId,
+      mode: requestMode,
+      role: resolveStudioRoleId(studioRoleId, requestMode).roleId,
     });
 
     const openAiMessages = transformGDevelopMessagesToOpenAi(
@@ -4522,11 +4545,7 @@ export const customAddMessageToAiRequest = async ({
     // mutations on every later turn. Fail closed to the read-only subset. A
     // top-level request has no role at all and keeps every tool.
     const roleTools = withoutBackendOnlyTools(
-      !studioRoleId
-        ? GDEVELOP_OPENAI_TOOLS
-        : isStudioRoleId(studioRoleId)
-        ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
-        : READ_ONLY_OPENAI_TOOLS
+      getToolsForStudioRequest(studioRoleId, requestMode)
     );
     const messageBudget = getMessageBudget(
       getEffectiveConfigForRequest(aiRequestId),

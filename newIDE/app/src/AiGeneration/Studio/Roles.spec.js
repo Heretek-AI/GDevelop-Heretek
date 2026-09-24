@@ -5,6 +5,7 @@ import {
   MUTATING_TOOL_NAMES,
   getStudioRole,
   getToolsForRole,
+  resolveStudioRoleId,
   isStudioRoleId,
   isSpawnableRoleId,
   SPAWNABLE_ROLE_IDS,
@@ -230,5 +231,45 @@ describe('Studio roles', () => {
         'spawn_agent',
       ].sort()
     );
+  });
+});
+
+describe('resolveStudioRoleId', () => {
+  it('uses a declared role id as-is', () => {
+    expect(resolveStudioRoleId('developer', 'chat')).toEqual({
+      roleId: 'developer',
+      invalid: false,
+    });
+  });
+
+  it('makes a top-level orchestrator request the manager', () => {
+    expect(resolveStudioRoleId(null, 'orchestrator')).toEqual({
+      roleId: 'manager',
+      invalid: false,
+    });
+  });
+
+  it('leaves a chat/agent request without a role', () => {
+    expect(resolveStudioRoleId(null, 'chat')).toEqual({
+      roleId: null,
+      invalid: false,
+    });
+    expect(resolveStudioRoleId(null, 'agent')).toEqual({
+      roleId: null,
+      invalid: false,
+    });
+    expect(resolveStudioRoleId(undefined, null)).toEqual({
+      roleId: null,
+      invalid: false,
+    });
+  });
+
+  it('flags a present-but-unknown role id so the caller fails closed', () => {
+    // A stale sub-agent role must not become the manager just because the
+    // request is in orchestrator mode: `invalid` keeps it read-only.
+    expect(resolveStudioRoleId('ghost-role', 'orchestrator')).toEqual({
+      roleId: null,
+      invalid: true,
+    });
   });
 });

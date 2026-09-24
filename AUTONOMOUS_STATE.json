@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 257,
+  "last_cycle": 258,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1516,9 +1516,16 @@
       "target": "Tier 4 harness audit: complete the OpenAI schemas of the change tools",
       "metric_delta": "Generalized the cycle-256 bug class with a focused audit: for every editor tool, each top-level array/object argument its implementation reads must be advertised in its OpenAI schema (a mismatch is an unusable capability for a schema-conforming model). Found and fixed three more: added changed_effects to change_object_properties_effects; added changed_groups, changed_layer_effects and move_instances to change_scene_properties_layers_effects_groups; added changed_resources to change_project_properties_resources - each item shape read from the implementation (effect fields incl. nested changed_properties; group_name/new_group_name/delete_this_group/objects_to_add/objects_to_remove; move_instances.to_scope/filter_by_object_names/filter_by_layer_names/instance_ids; resource_name/new_resource_name/delete_this_resource). Added a spec pinning all four; the audit now reports no remaining top-level array/object mismatch (the one residual, 'variables', belongs to a helper inside the tool's line range). Tests 1711 AI-surface / 83 suites; build green; ESLint/Prettier/divergence clean; verified the served bundle exposes the new args.",
       "commit": "fix(ai): advertise the array/object args the change tools read"
+    },
+    {
+      "cycle": 258,
+      "target": "Phase 5 + Tier 1: fix the orchestrator bypassing its own manager role (feedback-loop Run 5)",
+      "metric_delta": "Ran @feedback-loop (hosted proxy, key via the localhost helper + Preferences form, empty project created first to avoid initialize_project). The manager request (mode orchestrator, studioRoleId null) planned and spawned 2 agents BUT also called 14 project-mutating tools itself (create_scene, create_or_replace_object, add_or_edit_variable, run_script...) - it was not running as the manager at all: CustomAIClient gave a top-level request the generic prompt and EVERY tool (buildSystemPrompt role null; tools = GDEVELOP_OPENAI_TOOLS), while only sub-agents got a role's prompt/subset. Added resolveStudioRoleId (Roles.js): a top-level ORCHESTRATOR request resolves to the 'manager' role; a present-but-unknown role still FAILS CLOSED to read-only (so a stale sub-agent cannot become the manager). Both top-level paths (customCreateAiRequest + customAddMessageToAiRequest) now use it for the system prompt and the tool subset. Tests: +4 Roles, +1 CustomAIClient asserting an orchestrator request sends spawn_agent/create_or_update_plan but NOT create_scene/create_or_replace_object and carries the manager prompt (1716 AI-surface / 83 suites). Build green; ESLint/Prettier/divergence clean. Recorded as Run 5 in the skill's runs/RUNS.md.",
+      "commit": "fix(ai): run the top-level orchestrator as the studio manager role"
     }
   ],
   "backlog": [
+    "Verify the manager-role fix with a fresh @feedback-loop run (Run 5's transcript predates it): the manager should plan/delegate without direct project edits.",
     "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
@@ -1733,6 +1740,7 @@
     "The fork's studio roles (manager/designer/developer/tester) map onto the objective's agents as: manager ~ orchestrator, designer ~ asset-curator/design, developer ~ scene-architect + logic-engineer, tester ~ qa-playtester. Splitting developer into the objective's three roles was deliberately not done (a weak local model routes better to fewer, broader roles).",
     "Background processing for a request requires BOTH the dispatcher to include it in aiRequestsToProcess AND onSendMessage to find it: onSendMessage read aiRequests[state] and returned early for a request never fetched, silently failing the send ('results were not sent') and tripping the loop guard. Fall back to the client cache for local requests.",
     "Audit a tool's OpenAI schema against its implementation/specs whenever an agent reports a tool 'does nothing': change_behavior_property advertised flat args while reading changed_properties, so every schema-conformant call was a silent no-op. Sibling tools' schemas are the quickest reference for the expected shape.",
-    "Generalizable harness check: an editor tool's OpenAI schema must advertise every top-level arg its implementation reads (a mismatch makes the capability unreachable for a schema-conforming model). Audit by mapping export tool names to their const ranges and comparing extractArrayProperty/extractObjectProperty(args, 'x') reads against the schema properties."
+    "Generalizable harness check: an editor tool's OpenAI schema must advertise every top-level arg its implementation reads (a mismatch makes the capability unreachable for a schema-conforming model). Audit by mapping export tool names to their const ranges and comparing extractArrayProperty/extractObjectProperty(args, 'x') reads against the schema properties.",
+    "A role-based agent must get BOTH its role prompt and its role tool subset at the top level too, not only for sub-agents. The BYOK orchestrator ran with every tool plus a generic prompt, so the 'manager' edited the project directly (feedback-loop Run 5); resolveStudioRoleId now maps orchestrator mode to the manager role while a stale role id still fails closed."
   ]
 }

@@ -1984,6 +1984,55 @@ describe('CustomAIClient', () => {
       expect(subAgentTools).not.toContain('get_game_starter_summary');
     });
 
+    it('restricts a top-level orchestrator request to the manager role', async () => {
+      // feedback-loop Run 5: the top-level orchestrator got no role prompt and
+      // every tool, so the "manager" built the scene itself instead of
+      // delegating. It must run with the manager prompt and tool subset.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'build the city',
+        mode: 'orchestrator',
+      });
+      const createTools = axios.post.mock.calls[0][1].tools.map(
+        (tool: any) => tool.function.name
+      );
+      expect(createTools).toContain('create_or_update_plan');
+      expect(createTools).toContain('spawn_agent');
+      expect(createTools).not.toContain('create_scene');
+      expect(createTools).not.toContain('create_or_replace_object');
+      const createSystemPrompt = axios.post.mock.calls[0][1].messages.find(
+        (message: any) => message.role === 'system'
+      ).content;
+      expect(createSystemPrompt).toContain('studio lead');
+
+      axios.post.mockClear();
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: 'go',
+      });
+      const continueTools = axios.post.mock.calls[0][1].tools.map(
+        (tool: any) => tool.function.name
+      );
+      expect(continueTools).toContain('spawn_agent');
+      expect(continueTools).not.toContain('create_scene');
+    });
+
     it('names only declared tools in the backend-only allowlist', () => {
       // This is an ALLOWLIST: a typo here silently stops filtering the tool
       // (or filters nothing), so every member must be a declared registry name.

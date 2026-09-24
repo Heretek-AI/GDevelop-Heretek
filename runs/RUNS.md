@@ -98,6 +98,18 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Harness fix: the orchestrator now runs as the studio manager (cycle 258):
+  feedback-loop Run 5 showed the top-level orchestrator (mode `orchestrator`)
+  planned and spawned 2 agents but also called **14 project-mutating tools
+  itself** - it was not running as the manager at all. Root cause: in the BYOK
+  client a top-level request got the generic prompt and **every** tool
+  (`buildSystemPrompt` role null; tools = full schema); only sub-agents got a
+  role's prompt/subset. `resolveStudioRoleId` (Roles.js) now maps an
+  `orchestrator`-mode top-level request to the `manager` role, while a
+  present-but-unknown role id still fails closed to read-only. Wired into both
+  top-level paths (create + continue); a spec asserts an orchestrator request
+  sends `spawn_agent`/`create_or_update_plan`, not `create_scene`, and carries
+  the manager prompt. Recorded as Run 5 in the skill's runs/RUNS.md.
 - Harness fix: change-tool schemas audited and completed (cycle 257): a focused
   audit (every top-level array/object arg an implementation reads must be
   advertised in its OpenAI schema) found three more mismatches of the
