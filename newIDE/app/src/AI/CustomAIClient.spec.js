@@ -1573,6 +1573,52 @@ describe('CustomAIClient', () => {
       expect(names).toContain('create_scene');
     });
 
+    it('does not offer backend-only tools on later local turns or sub-agents', async () => {
+      // The create path had a test (cycle 169) but the continue and sub-agent
+      // paths were only covered by the pure filter - a regression that dropped
+      // the filter there would silently re-offer the always-failing tool.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValue({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      axios.post.mockClear();
+      await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: 'next',
+      });
+      const continueTools = axios.post.mock.calls[0][1].tools.map(
+        (tool: any) => tool.function.name
+      );
+      expect(continueTools).not.toContain('get_game_starter_summary');
+      expect(continueTools).toContain('create_scene');
+
+      axios.post.mockClear();
+      await customCreateSubAgentAiRequest({
+        parentAiRequestId: created.id,
+        roleId: 'developer',
+        userRequest: 'build it',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+      const subAgentTools = axios.post.mock.calls[0][1].tools.map(
+        (tool: any) => tool.function.name
+      );
+      expect(subAgentTools).not.toContain('get_game_starter_summary');
+    });
+
     it('does not offer get_game_starter_summary on a local create', async () => {
       // Its local launchFunction unconditionally fails ("handled on the
       // backend"), so offering it burns a turn and its tokens for nothing.

@@ -33,31 +33,48 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 180 | Guard the ChatMessages render loops against persisted output holes | `fix(ai): guard the ChatMessages render loops against output holes` | green (gates) |
 | 181 | Cover the security-relevant role resolution and role predicates (Tier 1) | `test(ai): cover role resolution and role predicates` | green (gates) |
 | 182 | Cover spawnSubAgent, the untested delegation glue (Tier 1) | `test(ai): cover spawnSubAgent delegation glue` | green (gates) |
-| 183 | Execute the Phase 5 WebUI audit (dev server + Chrome DevTools MCP) | `chore(autonomous): execute the Phase 5 WebUI audit` | green (WebUI-audited) |
-| 184 | WebUI-verify the studio transcript rendering (reasoning + tool flow) | `chore(autonomous): verify the studio transcript rendering` | green (WebUI-audited) |
+| 183 | Execute the Phase 5 WebUI audit (dev server + Chrome DevTools MCP) | `chore(autonomous): execute the Phase 5 WebUI audit` | green (WebUI audit) |
+| 184 | WebUI-verify the studio transcript rendering (reasoning + tool flow) | `chore(autonomous): verify the studio transcript rendering` | green (WebUI audit) |
 | 185 | Harden the function-call-output builder (null entry + non-object spread) | `fix(ai): harden the function-call-output builder` | green (gates) |
 | 186 | Cover the prompt builder and per-chat config resolver (Tier 1) | `test(ai): cover the prompt builder and config resolver` | green (gates) |
 | 187 | Unit-test the preferences backfill by extracting it to the tested leaf | `refactor(preferences): extract the stored-preferences merge to the tested leaf` | green (gates) |
 | 188 | Sanitize plan tasks at the getLatestActivePlan chokepoint | `fix(ai): sanitize plan tasks at the getLatestActivePlan chokepoint` | green (gates) |
-| 189 | Live Phase 5 harness run vs local Ollama; fix the CORS preflight header | `fix(ai): stop sending attribution headers that break local CORS` | green (live local Ollama: preflight 204 + POST 200, real reply) |
-| 190 | Bounded live studio-run attempt (plan + sub-agent) via the WebUI | `chore(autonomous): record the bounded live studio-run attempt` | blocked (UI drawer flaky for new chat) |
-| 191 | Stream reasoning as progress so the cold-start hint clears (Tier 2) | `fix(ai): stream reasoning as progress before the first answer token` | green (gates; live endpoint verified) |
-| 192 | Make provider telemetry inspectable per request (Tier 2 audit data layer) | `feat(ai): expose per-request provider telemetry` | green (gates; live endpoint verified) |
+| 189 | Live Phase 5 harness run vs local Ollama; fix the CORS preflight header | `fix(ai): stop sending attribution headers that break local CORS` | green (live local Ollama round-trip) |
+| 190 | Bounded live studio-run attempt (plan + sub-agent) via the WebUI | `chore(autonomous): record the bounded live studio-run attempt` | bounded attempt |
+| 191 | Stream reasoning as progress so the cold-start hint clears (Tier 2) | `fix(ai): stream reasoning as progress before the first answer token` | green (gates) |
+| 192 | Make provider telemetry inspectable per request (Tier 2 audit data layer) | `feat(ai): expose per-request provider telemetry` | green (gates) |
+| 193 | Surface the per-request provider telemetry in the chat (Tier 2 consumer) | `feat(ai): show provider response telemetry in the chat` | green (gates) |
+| 194 | Phase 5 adversarial diff inspection over the whole session (no change) | `docs(autonomous): record the adversarial diff inspection` | green (gates) |
+| 195 | Run the entire editor Jest suite (broadest regression gate) | `chore(autonomous): record the full suite run` | green (gates) |
+| 196 | Live multi-turn studio run against local Ollama (Phase 5) | `chore(autonomous): record the live multi-turn studio run` | green (live multi-turn run) |
+| 197 | Dispatch the canonical city-builder benchmark live against local Ollama | `chore(autonomous): record the live city-builder benchmark dispatch` | green (live benchmark dispatched; no delegation) |
+| 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (prompt hardened; re-run no compliance change) |
+| 199 | Cover the backend-tool filter on the continue and sub-agent paths (Tier 4) | `test(ai): cover the backend-tool filter on continue and sub-agent paths` | green |
 
-## Session context (cycles 155-192)
+## Harness findings (cycles 155-199)
 
-- **model**: `deepseek-v4.1-flash:cloud` (Ollama provider).
-- **endpoint**: local Ollama `:11434` is live and works (cycle 189 fixed a CORS
-  preflight bug that blocked every local request); hosted `llm.heretek.one` answers
-  401 without `config.local.json`.
-- **turns per phase**: Phase 1 ingest, Phase 2 scoring, Phase 3 implementation,
-  Phase 4 gates, Phase 6 consolidation; Phase 5 executed cycles 183/184/189.
-- **token efficiency**: fork AI suite 1489 -> 1630 passing tests across 81 suites.
-- **evidence**: cycle 189 live BYOK round-trip (real model reply) after the CORS fix;
-  cycle 183/184 WebUI audit of the persisted HarborTown run (12 sub-agent spawns).
-- **gates every cycle**: `npm test` (react-app-rewired), `eslint --max-warnings=0`,
-  `prettier --list-different`, `check-fork-divergence.js`; `npm run build` x2;
-  `npm run flow` on Flow-relevant changes; dev-server compile live.
+### Live endpoint
+- Local Ollama at `http://localhost:11434/v1` (model `deepseek-v4.1-flash:cloud`) works.
+- Hosted `llm.heretek.one` is reachable but answers 401 without `config.local.json`.
+
+### Defects found and fixed by running live
+- **CORS (critical)**: the client sent OpenRouter attribution headers (`HTTP-Referer`,
+  `X-Title`) on every request; Ollama's preflight rejects `x-title`, so the browser
+  build could not reach any local server. Removed both (cycle 189).
+- **Reasoning progress**: Ollama streams `delta.reasoning` before any `delta.content`;
+  partial content ignored it, so the cold-start hint said "waiting for the first token"
+  while bytes arrived. Now reports `content || reasoning` (cycle 191).
+
+### Model-behaviour finding (not a harness bug)
+- `deepseek-v4.1-flash:cloud` often **stops after planning/inspection** and narrates
+  delegation without calling `spawn_agent` (cycles 196-198). The delegation path itself
+  is proven: the persisted HarborTown run has 12 sub-agent spawns, and the unit tests
+  cover spawn/finalize. Measure across runs / use a stronger model before concluding.
+
+### Automation notes
+- `chrome-devtools.fill()` does NOT fire React onChange; use `press_key`/`type_text`.
+- `evaluate_script` takes a function-declaration string, not an IIFE.
+- The code-mode runtime has no `setTimeout`.
 
 ## Gate definitions
 

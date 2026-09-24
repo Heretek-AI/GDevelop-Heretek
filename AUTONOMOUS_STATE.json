@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 198,
+  "last_cycle": 199,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1162,6 +1162,12 @@
       "target": "Harden the manager prompt to require delegation (+ live re-run measurement)",
       "metric_delta": "Tier 1 follow-up to cycle 197: added an explicit manager rule - never end a turn with prose while a ready task is undelegated; the next action after planning must be spawn_agent - with a Roles.spec test (mutation-checked: removing the rule fails it). Re-ran the benchmark live against the SAME local model after reload: the run ended at status ready after 7 messages/5 tool calls [read_game_project_json, inspect_project_properties_resources, initialize_project, read x2] and did NOT plan or spawn; the model narrated 'Let me initialize one' and stopped. So prompt hardening is committed and tested, but one live run shows no compliance change - the local model does not reliably follow the multi-step protocol (the persisted HarborTown run did 12 spawns, so the capability and the harness are present; this is model variance). Config restored. Honest measurement, not a claimed improvement.",
       "commit": "feat(ai): require delegation in the manager prompt"
+    },
+    {
+      "cycle": 199,
+      "target": "Cover the backend-tool filter on the continue and sub-agent paths (Tier 4)",
+      "metric_delta": "Cycle 169's filter (withhold get_game_starter_summary from local turns) had a turn test only for the create path; the continue (roleTools) and sub-agent paths were covered only by the pure filter, so a regression dropping the wrapper there would silently re-offer the always-failing tool. Added a turn test asserting both customAddMessageToAiRequest and customCreateSubAgentAiRequest send tools without get_game_starter_summary (and still include create_scene). Mutation-checked: reverting the roleTools wrapper reproduces the tool in the sent payload. 1635/1635 across 81 suites, eslint+prettier clean, divergence clean.",
+      "commit": "test(ai): cover the backend-tool filter on continue and sub-agent paths"
     }
   ],
   "backlog": [
