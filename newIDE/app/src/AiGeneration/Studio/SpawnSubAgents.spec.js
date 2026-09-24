@@ -4,7 +4,16 @@ import {
   parseSpawnAgentArgs,
   buildGddContextNote,
   countLiveSubAgentsForParent,
+  spawnSubAgent,
 } from './SpawnSubAgents';
+import { customCreateSubAgentAiRequest } from '../../AI/CustomAIClient';
+
+// The child-request creation is the only external dependency of spawnSubAgent;
+// mocking it keeps the test off libGD and off any network. jest.mock is
+// hoisted above the imports by babel-jest, so this order is safe.
+jest.mock('../../AI/CustomAIClient', () => ({
+  customCreateSubAgentAiRequest: jest.fn(),
+}));
 
 const makeCall = (name: string, args: any): any => ({
   type: 'function_call',
@@ -127,6 +136,91 @@ describe('SpawnSubAgents', () => {
       ).toBeNull();
       expect(parseSpawnAgentArgs(makeCall('spawn_agent', '[]'))).toBeNull();
       expect(parseSpawnAgentArgs(makeCall('spawn_agent', 'null'))).toBeNull();
+    });
+  });
+
+  describe('spawnSubAgent', () => {
+    const spawnCall = (args: any): any => ({
+      type: 'function_call',
+      status: 'completed',
+      call_id: 'call-1',
+      name: 'spawn_agent',
+      arguments: JSON.stringify(args),
+    });
+    const baseArgs = {
+      parentAiRequestId: 'parent-1',
+      gameProjectJson: '{}',
+      projectSpecificExtensionsSummaryJson: null,
+      project: null,
+      gddContextNote: 'GDD note',
+    };
+
+    beforeEach(() => {
+      // $FlowFixMe mocked above
+      customCreateSubAgentAiRequest.mockReset();
+    });
+
+    it('fails a malformed call without creating a child', async () => {
+      // $FlowFixMe mocked above
+      const result = await spawnSubAgent({
+        ...baseArgs,
+        functionCall: spawnCall({
+          role: 'architect',
+          short_title: 'x',
+          task: 'y',
+        }),
+        onStamped: jest.fn(),
+      });
+      expect(result).toEqual({ error: 'Invalid spawn_agent arguments.' });
+      // $FlowFixMe mocked above
+      expect(customCreateSubAgentAiRequest).not.toHaveBeenCalled();
+    });
+
+    it('creates the child, forwards the GDD note, and stamps the call', async () => {
+      // $FlowFixMe mocked above
+      customCreateSubAgentAiRequest.mockResolvedValue({ id: 'child-9' });
+      const onStamped = jest.fn();
+      const result = await spawnSubAgent({
+        ...baseArgs,
+        functionCall: spawnCall({
+          role: 'developer',
+          short_title: 'Build the grid',
+          task: 'Build it.',
+          context: 'Use TileMap.',
+        }),
+        onStamped,
+      });
+      // $FlowFixMe mocked above
+      const arg = customCreateSubAgentAiRequest.mock.calls[0][0];
+      expect(arg.parentAiRequestId).toBe('parent-1');
+      expect(arg.roleId).toBe('developer');
+      expect(arg.userRequest).toContain('Task: Build it.');
+      expect(arg.userRequest).toContain('Context: Use TileMap.');
+      expect(arg.spawnContextNote).toBe('GDD note');
+      expect(onStamped).toHaveBeenCalledWith('child-9');
+      expect(result).toEqual({
+        subAgentAiRequestId: 'child-9',
+        shortTitle: 'Build the grid',
+        callId: 'call-1',
+      });
+    });
+
+    it('does not hand the design document back to the designer', async () => {
+      // $FlowFixMe mocked above
+      customCreateSubAgentAiRequest.mockResolvedValue({ id: 'child-10' });
+      await spawnSubAgent({
+        ...baseArgs,
+        functionCall: spawnCall({
+          role: 'designer',
+          short_title: 'Design',
+          task: 'Write the GDD.',
+        }),
+        onStamped: jest.fn(),
+      });
+      // $FlowFixMe mocked above
+      expect(
+        customCreateSubAgentAiRequest.mock.calls[0][0].spawnContextNote
+      ).toBeNull();
     });
   });
 
