@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 238,
+  "last_cycle": 239,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1402,6 +1402,12 @@
       "target": "Full-suite regression after the 230-237 changes (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 230-237 (network retry, token-sum extraction, prototype-safe roles, reused finalization check, harness scripts): 185 suites, 2370 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md latest-result line.",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 239,
+      "target": "Surface role-denied tool calls to the model instead of looping (Tier 1, found by the harness)",
+      "metric_delta": "REAL DEFECT found and fixed via a deterministic role-security test. A batch where EVERY call is role-denied has no editor call, and the dispatcher recorded the denials client-side but never SENT them: the model got no function_call_output, the batch was reprocessed, and the request looped until the loop guard tripped ('9 identical calls to create_scene'). Fixed: the denial results are collected and sent with any spawn failures when there are no editor calls. LIVE-VERIFIED with a seeded top-level 'tester' request and a scripted create_scene call: the request now ends 'ready' with the denial delivered to the model ('The tool create_scene is not available for the QA tester role.') and NO loop-guard warning - proving both the read-only security boundary and that the model is correctly informed. 1652/1652 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. (No unit test: the dispatcher is inline in the untestable Utils.js; the live proof is the evidence.)",
+      "commit": "fix(ai): send role-denied calls to the model instead of looping"
     }
   ],
   "backlog": [
@@ -1607,6 +1613,7 @@
     "loadLocalAiRequests MERGES persisted entries into the in-memory cache and never clears it, so a test asserting on its return value can pass/fail on in-memory state rather than what was persisted - assert on the storage JSON when testing persistence.",
     "Run scripts/check-fork-divergence.js BEFORE committing any edit to a file you have not confirmed is in the manifest: a correct fix in an upstream-identical file still creates new divergence (two paths here), and the policy is to revert it when production reachability is theoretical and the fix belongs upstream.",
     "The client normalizes a non-Error rejection to a generic 'AI request failed' Error (cycle 172), which drops axios-style `.code` - so any error-CLASSIFYING predicate (network vs provider) must be fed an Error instance in tests, and must not rely on `.code` for a non-Error rejection (message patterns are the fallback).",
-    "When a defensive helper is extracted (cycle 160's parentHasOutputForCall), grep for DUPLICATED copies of the same check: AiRequestContext's watch loop kept its own unguarded version for 74 cycles. Extraction only closes the class if every copy is routed through it."
+    "When a defensive helper is extracted (cycle 160's parentHasOutputForCall), grep for DUPLICATED copies of the same check: AiRequestContext's watch loop kept its own unguarded version for 74 cycles. Extraction only closes the class if every copy is routed through it.",
+    "A recorded-but-unsent result is a loop: when a branch records an outcome with addEditorFunctionCallResults but the batch has no editor calls, it must also SEND it via onSendEditorFunctionCallResults, or the model never advances and the batch reprocesses until the loop guard trips. The harness caught this only through a role-denied-only batch (a case no spec covered)."
   ]
 }

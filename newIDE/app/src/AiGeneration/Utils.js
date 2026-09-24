@@ -513,28 +513,34 @@ export const useProcessFunctionCalls = ({
       const studioRoleId = aiRequest.studioRoleId || null;
       const rolePolicy = getRoleToolPolicy(studioRoleId);
       const studioDeniedCallIds = new Set<string>();
+      // The denial results must be SENT to the model (not only recorded): a
+      // batch where every call was role-denied has no editor call, and if the
+      // denials are never sent the model never gets a function_call_output, the
+      // batch is reprocessed and the request loops until the loop guard trips
+      // (observed live, cycle 239).
+      const studioDeniedResults: Array<EditorFunctionCallResult> = [];
       if (studioRoleId) {
         for (const functionCall of functionCallsToProcess) {
           if (!rolePolicy.allowedToolNames.includes(functionCall.name)) {
             studioDeniedCallIds.add(functionCall.call_id);
-            addEditorFunctionCallResults(aiRequest.id, [
-              {
-                status: 'finished',
-                call_id: functionCall.call_id,
-                success: false,
-                output: {
-                  message: rolePolicy.roleResolved
-                    ? `The tool ${
-                        functionCall.name
-                      } is not available for the ${String(
-                        rolePolicy.displayName
-                      )} role.`
-                    : `The tool ${
-                        functionCall.name
-                      } is not available: this sub-agent's studio role could not be resolved.`,
-                },
+            const denial = {
+              status: 'finished',
+              call_id: functionCall.call_id,
+              success: false,
+              output: {
+                message: rolePolicy.roleResolved
+                  ? `The tool ${
+                      functionCall.name
+                    } is not available for the ${String(
+                      rolePolicy.displayName
+                    )} role.`
+                  : `The tool ${
+                      functionCall.name
+                    } is not available: this sub-agent's studio role could not be resolved.`,
               },
-            ]);
+            };
+            studioDeniedResults.push(denial);
+            addEditorFunctionCallResults(aiRequest.id, [denial]);
           }
         }
       }
@@ -855,12 +861,14 @@ export const useProcessFunctionCalls = ({
         }))
       );
       if (callsForEditor.length === 0) {
-        // Nothing left for the editor: surface any spawn failures to the model
-        // (they are already recorded but not yet sent), then release the locks.
-        if (spawnFailureResults.length > 0) {
+        // Nothing left for the editor: surface the role denials and any spawn
+        // failures to the model (they are already recorded but not yet sent),
+        // then release the locks. Without this a denied-only batch loops.
+        const outcomeResults = [...studioDeniedResults, ...spawnFailureResults];
+        if (outcomeResults.length > 0) {
           await onSendEditorFunctionCallResults(
             aiRequest.id,
-            spawnFailureResults,
+            outcomeResults,
             {}
           );
         }
