@@ -4690,9 +4690,12 @@ export const customGetAiRequestSuggestions = async (
     }
     const lastMsgIndex = output.length - 1;
     const lastMsg = output[lastMsgIndex];
+    // Persisted output is not shape-validated: a null hole threw out of both
+    // the try and the catch path below, losing suggestions entirely.
     const canAttach =
-      (lastMsg.type === 'message' && lastMsg.role === 'assistant') ||
-      lastMsg.type === 'function_call_output';
+      !!lastMsg &&
+      ((lastMsg.type === 'message' && lastMsg.role === 'assistant') ||
+        lastMsg.type === 'function_call_output');
     if (!canAttach) {
       return {
         ...latest,
@@ -4731,11 +4734,19 @@ Return your response STRICTLY as a JSON object with this format:
   ]
 }`;
 
-    const res = await sendChatCompletion({
-      messages: [
+    // The replayed history is budgeted like any other turn: without a
+    // trim, a long chat went over a small local model's window, errored, and
+    // fell back to defaults after burning the request. No tools ride this
+    // call, so the messages get the whole input budget.
+    const suggestionMessages = trimMessagesToBudget(
+      [
         ...transformGDevelopMessagesToOpenAi(req.output || []),
         { role: 'user', content: prompt },
       ],
+      getMessageBudget(getEffectiveConfigForRequest(aiRequestId), [])
+    );
+    const res = await sendChatCompletion({
+      messages: suggestionMessages,
       config: getEffectiveConfigForRequest(aiRequestId),
     });
 

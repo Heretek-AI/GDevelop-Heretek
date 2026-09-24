@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 169,
+  "last_cycle": 170,
   "completed_targets": [
     {
       "cycle": 75,
@@ -981,6 +981,12 @@
       "target": "Withhold backend-only tools from local turns (get_game_starter_summary)",
       "metric_delta": "Concrete BYOK defect: the starter-summary tool is backend-resolved (local launchFunction unconditionally fails) yet offered on every local turn - a guaranteed wasted turn when picked. Verified siblings (search_docs etc.) have real local implementations, so the class is exactly one tool. New BACKEND_ONLY_TOOL_NAMES + withoutBackendOnlyTools applied to all three turn paths for both offer and budget (budgets stay consistent with what's sent). 2 new tests, both red pre-fix (turn test showed the tool in the sent payload). A pre-existing relational test broke mid-fix because the toolset shrank by one entry while its probe message was too short - lengthened the probe with a comment rather than weakening the invariant. 1588/1588 across 80 suites (was 1586), eslint+prettier clean, divergence clean. Incidents: one edit broke a try-block indent (repaired, diff-verified); two more zero-content whitespace edits (reverted instantly) - the edit tool is stripping something; prefer python replacement for Flow files per the standing heuristic.",
       "commit": "fix(ai): withhold backend-only tools from local turns"
+    },
+    {
+      "cycle": 170,
+      "target": "Budget and harden the local suggestions call (history trim + null-hole attach)",
+      "metric_delta": "Two defects in customGetAiRequestSuggestions: (1) replayed full untrimmed history - over-window 400s and wasted requests on small local models before falling back to defaults; now trimmed to the input budget (no tools ride the call). (2) null hole in persisted output threw lastMsg.type out of BOTH try and catch paths - suggestions lost entirely, possibly unhandled upstream. Both proven red pre-fix (over-budget send captured; TypeError on attach). Fix via python replacement only. 1590/1590 across 80 suites (was 1588), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): budget and harden the local suggestions call"
     }
   ],
   "backlog": [

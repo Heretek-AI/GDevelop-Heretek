@@ -4106,6 +4106,118 @@ describe('CustomAIClient', () => {
       expect(lastFromCache.suggestions.suggestions[0].title).toBe('Jump');
     });
 
+    it('budgets the suggestion prompt to the model context window', async () => {
+      // The suggestions call replayed the full history with no trim: on a
+      // small local model the request went over-window, errored, and fell
+      // back to defaults after burning the request.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValue({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const aiRequest = await customCreateAiRequest({
+        userRequest: 'Seed for suggestions',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        mode: 'agent',
+        aiConfiguration: { presetId: 'default' },
+        gameId: null,
+      });
+      await customAddMessageToAiRequest({
+        aiRequestId: aiRequest.id,
+        userMessage: 'Big context. '.repeat(1500),
+      });
+
+      axios.post.mockClear();
+      // $FlowFixMe
+      axios.post.mockResolvedValue({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  explanationMessage: 'Try this next:',
+                  suggestions: [
+                    { title: 'Jump', suggestedMessage: 'Add a jump action' },
+                  ],
+                }),
+              },
+            },
+          ],
+        },
+      });
+      await customGetAiRequestSuggestions(aiRequest.id);
+
+      const sentMessages = axios.post.mock.calls[0][1].messages;
+      // llama3.2 input budget is 4096; the plain suggestions call sends no
+      // tools, so the messages alone must fit it.
+      expect(estimateMessagesTokens(sentMessages)).toBeLessThanOrEqual(4096);
+    });
+
+    it('attaches defaults when the persisted output has a null hole', async () => {
+      // The loader only checks id/status and normalize passes holes through,
+      // so output[0] can be null - and reading lastMsg.type then threw out
+      // of both the try and the catch path, losing suggestions entirely.
+      const memoryStorage = {};
+      const fakeStorage = {
+        getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+        setItem: (key, value) => {
+          memoryStorage[key] = String(value);
+        },
+        removeItem: key => {
+          delete memoryStorage[key];
+        },
+      };
+      global.localStorage = fakeStorage;
+      try {
+        _resetCustomAiClientForTesting();
+        setCustomEndpointConfig({
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'llama3.2',
+          temperature: 0.7,
+        });
+        fakeStorage.setItem(
+          'gd-custom-ai-requests',
+          JSON.stringify({
+            'local-ai-hole': {
+              id: 'local-ai-hole',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              userId: LOCAL_BYOK_USER_ID,
+              status: 'ready',
+              error: null,
+              output: [null],
+            },
+          })
+        );
+        expect(loadLocalAiRequests()['local-ai-hole']).toBeTruthy();
+        // $FlowFixMe
+        axios.post.mockResolvedValue({
+          status: 200,
+          data: {
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+          },
+        });
+
+        const result = await customGetAiRequestSuggestions('local-ai-hole');
+        expect(result.suggestions).toHaveLength(3);
+      } finally {
+        delete global.localStorage;
+        _resetCustomAiClientForTesting();
+      }
+    });
+
     it('returns null from sanitizeAiRequestSuggestions for wrong-shape payloads', () => {
       expect(sanitizeAiRequestSuggestions(null)).toBe(null);
       expect(sanitizeAiRequestSuggestions('nope')).toBe(null);
