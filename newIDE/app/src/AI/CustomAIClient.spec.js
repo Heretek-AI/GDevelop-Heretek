@@ -1245,6 +1245,36 @@ describe('CustomAIClient', () => {
     });
   });
 
+  describe('local-first request headers', () => {
+    it('does not send attribution headers that break local CORS preflight', async () => {
+      // Live finding (cycle 189): Ollama's preflight rejects `x-title`
+      // (not in Access-Control-Allow-Headers), so the browser build could not
+      // talk to a local OpenAI-compatible server at all. HTTP-Referer/X-Title
+      // are OpenRouter attribution extras, optional and useless locally.
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: {
+          enabled: true,
+          baseUrl: 'http://localhost:11434/v1',
+          apiKey: '',
+          model: 'llama3.2',
+          temperature: 0.7,
+        },
+      });
+
+      const headers = axios.post.mock.calls[0][2].headers;
+      expect(headers['X-Title']).toBeUndefined();
+      expect(headers['HTTP-Referer']).toBeUndefined();
+      // The essential header is still sent.
+      expect(headers['Content-Type']).toBe('application/json');
+    });
+  });
+
   describe('buildSystemPrompt', () => {
     it('uses the shared prompt without a role, and the role prompt with one', () => {
       const base = buildSystemPrompt({});

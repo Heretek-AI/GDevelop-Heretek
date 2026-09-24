@@ -3249,10 +3249,13 @@ export const sendChatCompletion = async ({
   const baseUrl = normalizeBaseUrl(currentConfig.baseUrl);
   const endpointUrl = getEndpointUrl(baseUrl, '/chat/completions');
 
+  // Content-Type only by default: the OpenRouter attribution headers
+  // (HTTP-Referer/X-Title) are optional and, for a local OpenAI-compatible
+  // server, actively harmful — a browser preflight rejects `x-title` because
+  // Ollama's Access-Control-Allow-Headers does not list it, so the whole
+  // request is blocked before it reaches the model (live finding, cycle 189).
   const headers: { [string]: string } = {
     'Content-Type': 'application/json',
-    'HTTP-Referer': 'https://gdevelop.io',
-    'X-Title': 'GDevelop IDE',
   };
   // Apply only safe custom headers; never let them replace Content-Type or
   // inject CR/LF, even when the config object skipped sanitizeCustomAIConfig.
@@ -5035,10 +5038,9 @@ export const testConnection = async (
   // First attempt: Try GET /models
   try {
     const modelsUrl = getEndpointUrl(baseUrl, '/models');
-    const headers: { [string]: string } = {
-      'HTTP-Referer': 'https://gdevelop.io',
-      'X-Title': 'GDevelop IDE',
-    };
+    // Same local-first header policy as sendChatCompletion: no attribution
+    // headers that a local server's CORS preflight would reject.
+    const headers: { [string]: string } = {};
     const testHeaders = config.customHeaders || {};
     for (const headerName of Object.keys(testHeaders)) {
       const headerValue = testHeaders[headerName];

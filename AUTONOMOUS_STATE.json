@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 188,
+  "last_cycle": 189,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1102,10 +1102,16 @@
       "target": "Sanitize plan tasks at the getLatestActivePlan chokepoint",
       "metric_delta": "getLatestActivePlan confirmed Array.isArray(output.plan.tasks) but not its ELEMENTS: `tasks.some(task => task.status)` threw on a null in the model-authored plan JSON, and that same array feeds OrchestratorPlan's own filter (upstream-identical, so NOT edited) and the studio's readiness/plan-update passes. Fixed at the single choke point: non-object task entries are dropped before the plan is returned, closing the class for every consumer without touching upstream files. +1 test red pre-fix, mutation-checked. 1627/1627 across 81 suites (was 1626), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): sanitize plan tasks at the getLatestActivePlan chokepoint"
+    },
+    {
+      "cycle": 189,
+      "target": "Live Phase 5 harness run vs local Ollama; fix the CORS preflight header",
+      "metric_delta": "Executed the real Phase 5 loop against a LOCAL OpenAI-compatible endpoint (Ollama on :11434 with deepseek-v4.1-flash:cloud) - pure local-first, no credentials. First live send FAILED with the exact cause captured from the console: 'Access to XMLHttpRequest ... blocked by CORS policy: Request header field x-title is not allowed by Access-Control-Allow-Headers in preflight response' - the client sent OpenRouter attribution headers (HTTP-Referer, X-Title) on every request, so the browser build could not reach Ollama at all (invariant 1 broken). Removed both attribution headers from sendChatCompletion and testConnection. After the fix (dev watcher recompiled), Retry succeeded: OPTIONS 204 + POST 200, and the chat shows status ready, 2 messages, a real model reply ('Hello! I'm GDevelop AI Assistant ... I can call create_or_replace_object ...'). 1 test red pre-fix, mutation-checked. Original editor config restored (Heretek URL/model). 1628/1628 across 81 suites, eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): stop sending attribution headers that break local CORS"
     }
   ],
   "backlog": [
-    "Phase 5 live model turn is BLOCKED by credentials only: the WebUI harness now runs (dev server + Chrome DevTools MCP audited cycle 183; editor and Ask AI render, persisted HarborTown run has 12 sub-agent spawns with no errors). Supply config.local.json (Heretek key) to run the full @feedback-loop benchmark end-to-end.",
+    "Phase 5 live run now WORKS against local Ollama (cycle 189: preflight 204 + POST 200, real reply). Run the full @feedback-loop city-builder benchmark against :11434 when a run budget allows; hosted Heretek needs config.local.json.",
     "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
     "Extract ChatMessages' renderItems classification into a pure leaf so the render-path guards become unit-testable (currently guarded by precedent, verified only by build/lint/suite).",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync, so upstream fixes never arrive.",
@@ -1289,6 +1295,7 @@
     "Verify platform APIs empirically before adopting (segmented ZWJ/flag/combining strings in node first); check the jest env for assumed globals (no Headers here, but Intl exists). When a test string's encoding matters (combining vs precomposed), assert codepoints in the file rather than trusting what the editor shows.",
     "When two meters share inputs, change both or neither: adding tools to the occupancy numerator broke the cost-meter relational test, which exposed that the cost meter omitted the same term. A failing sibling test after a correct change is evidence of a second instance of the bug, not a bad test - read it before reverting.",
     "Budget what you send, not what you built: the compaction measured the head template while the JSON instruction tail was appended after measurement - always measure the exact messages array the request sends (measurePrompt over system+user), the same way trimMessagesToBudget measures what it trims.",
-    "Chrome DevTools MCP via code mode: the runtime has no setTimeout (use wait_for or the tool's own waits), and evaluate_script requires a function-declaration string (e.g. '() => {...}'), not an IIFE - an invoked string returns a value and fails with 'fn is not a function'."
+    "Chrome DevTools MCP via code mode: the runtime has no setTimeout (use wait_for or the tool's own waits), and evaluate_script requires a function-declaration string (e.g. '() => {...}'), not an IIFE - an invoked string returns a value and fails with 'fn is not a function'.",
+    "A local OpenAI-compatible server's CORS preflight only allows a fixed header set; sending optional attribution headers (HTTP-Referer/X-Title) blocks the whole request in the browser build before it reaches the model. Keep the outbound header set minimal (Content-Type) for local-first, and verify new headers against a real Ollama preflight, not just axios mocks - mocks do not model CORS."
   ]
 }
