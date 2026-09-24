@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 196,
+  "last_cycle": 197,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1150,9 +1150,16 @@
       "target": "Live multi-turn studio run against local Ollama (Phase 5)",
       "metric_delta": "Executed a real multi-turn agent loop live, no credentials: pointed the editor at local Ollama (saving/restoring the original Heretek config), opened the existing live chat, and sent a studio prompt (create_or_update_plan + spawn_agent). The turn completed: status ready, 10 messages, 5 assistant turns, 4 tool calls in order [create_or_update_plan, inspect_project_properties_resources, initialize_project, create_or_update_plan]; every POST to :11434 returned 200; no fork console errors (only benign iframe feature warnings) and no 5xx. The model chose to inspect/initialize/replan rather than spawn, so the run validated the plan tool + editor tool execution live but did not exercise spawn_agent (that branch remains covered by the unit tests + the persisted 12-spawn HarborTown run). Mechanism note for reliable automation: chrome-devtools fill() does NOT trigger React onChange (send stayed disabled); real key events (press_key/type_text) do.",
       "commit": "chore(autonomous): record the live multi-turn studio run"
+    },
+    {
+      "cycle": 197,
+      "target": "Dispatch the canonical city-builder benchmark live against local Ollama",
+      "metric_delta": "No code change. Sent the full prompt-city.md benchmark through the Ask AI composer to local Ollama (via the newly-reliable type_text automation; fill() does not fire React onChange). The run completed cleanly - status ready, 9 messages, 5 tool calls [create_or_update_plan, inspect_project_properties_resources, read_game_project_json, initialize_project, create_or_update_plan], every POST 200, no errors. It did NOT delegate: the last assistant text says 'I'll start by creating the plan, then delegate to the designer' yet no spawn_agent was emitted, so the turn ended after planning. The delegation path itself is proven (the persisted HarborTown run has 12 spawns; spawnSubAgent/role tests cover it), so this is model-compliance variance, not a harness defect. Config restored. Finding for Tier 1: the manager prompt should forbid ending a turn with prose after planning while tasks are undelegated.",
+      "commit": "chore(autonomous): record the live city-builder benchmark dispatch"
     }
   ],
   "backlog": [
+    "Tier 1 (from cycle 197 live run): the manager sometimes plans and narrates delegation but ends the turn without calling spawn_agent. Strengthen Roles.manager.systemPrompt to require spawn_agent as the next action while any ready task is undelegated, and re-run the benchmark to measure compliance.",
     "Phase 5 live run now WORKS against local Ollama (cycle 189: preflight 204 + POST 200, real reply). Run the full @feedback-loop city-builder benchmark against :11434 when a run budget allows; hosted Heretek needs config.local.json.",
     "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
     "Extract ChatMessages' renderItems classification into a pure leaf so the render-path guards become unit-testable (currently guarded by precedent, verified only by build/lint/suite).",
