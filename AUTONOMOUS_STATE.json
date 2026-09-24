@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 211,
+  "last_cycle": 212,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1240,6 +1240,12 @@
       "target": "Fix the plan-flip clobber: cache wins for pre-existing messages on write-back",
       "metric_delta": "Fixed the cycle-210 live defect. customAddMessageToAiRequest built its write-back output from the turn-start snapshot, so a concurrent in-place rewrite of a pre-existing message (the studio flipping a plan task to done) was silently overwritten - same messageId, so the cache-only merge could not recover it. Now the write reconciles by messageId: for a message that existed before the turn, the CACHE version wins (it may hold a concurrent gated rewrite); messages the turn produced have fresh ids and are kept. +1 regression test that performs an in-place flip DURING the model call and asserts it survives (red pre-fix: status pending; mutation-checked). LIVE-VERIFIED with the deterministic harness end-to-end: with a project open, the scripted loop ran plan -> spawn -> report and the plan task now reads **done** (previously pending). 1641/1641 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
       "commit": "fix(ai): stop a turn from clobbering a concurrent in-place rewrite"
+    },
+    {
+      "cycle": 212,
+      "target": "Script the parent while sub-agents reply plainly (mock routing) + multi-task example",
+      "metric_delta": "A single global turn sequence could not drive a realistic multi-agent run: parent and child requests interleave, so a child consumed the parent's next scripted turn. Added sub-agent detection to the mock (a system prompt naming a studio role) so the script applies to PARENT requests only and children return a plain reply. Added scripts/dev/mock-script-multi.json (a 3-task plan with dependsOn plus three sequential spawns) and documented the routing. Verified deterministically by direct requests: parent#1 -> create_or_update_plan, child -> plain content (no tool calls, script not consumed), parent#2 -> spawn_agent(design), parent#3 -> spawn_agent(build) - exactly the intended order. Divergence +1 forkOnly (the example).",
+      "commit": "feat(scripts): route mock scripts to parent requests and add a multi-agent example"
     }
   ],
   "backlog": [

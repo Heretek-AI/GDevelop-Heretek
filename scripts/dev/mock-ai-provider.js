@@ -78,6 +78,20 @@ const json = (res, status, body, extraHeaders) => {
   res.end(JSON.stringify(body));
 };
 
+// A sub-agent request carries its role prompt ("... of a small game studio");
+// the top-level orchestrator does not. Distinguishing them lets a scripted run
+// give the PARENT the scripted turns (plan, spawn, spawn, ...) while each child
+// simply returns a report, so the interleaved parent/child request order does
+// not consume the script out of sequence.
+const isSubAgentRequest = messages =>
+  messages.some(
+    message =>
+      message &&
+      message.role === 'system' &&
+      typeof message.content === 'string' &&
+      message.content.includes('small game studio')
+  );
+
 const buildReply = (messages, rawBody) => {
   const lastUser = [...messages].reverse().find(m => m && m.role === 'user');
   const text =
@@ -124,7 +138,8 @@ const server = http.createServer((req, res) => {
         // A malformed body still gets a deterministic reply.
       }
       const messages = Array.isArray(payload.messages) ? payload.messages : [];
-      const turn = nextTurn();
+      const isChild = isSubAgentRequest(messages);
+      const turn = isChild ? null : nextTurn();
       const reply =
         turn && typeof turn.content === 'string'
           ? turn.content

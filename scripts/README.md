@@ -40,8 +40,12 @@ See [MAINTENANCE.md](../MAINTENANCE.md) for how these fit together.
     custom AI base URL at `http://localhost:11435/v1` to use it. Set
     `MOCK_SCRIPT=<file>` to serve a fixed sequence of turns (content and/or
     `toolCalls`) from a JSON array, one per request — see
-    `dev/mock-script.example.json` (plan -> spawn_agent -> report) — to drive a
-    deterministic multi-step studio run offline.
+    `dev/mock-script.example.json` (plan -> spawn_agent -> report) or
+    `dev/mock-script-multi.json` (a 3-task plan with dependencies and three
+    sequential spawns) — to drive a deterministic multi-step studio run offline.
+    The script applies to PARENT requests only; a sub-agent request (its system
+    prompt names a studio role) gets a plain reply, so the interleaved
+    parent/child request order cannot consume the script out of sequence.
 
 ## Documentation and translations
 

@@ -1,0 +1,33 @@
+[
+  {
+    "content": "Planning three tasks.",
+    "toolCalls": [
+      { "id": "c_plan", "name": "create_or_update_plan", "arguments": { "tasks": [
+        { "id": "design", "title": "Design", "description": "Write GDD_Overview.", "status": "pending", "dependsOn": [] },
+        { "id": "build", "title": "Build", "description": "Place tiles.", "status": "pending", "dependsOn": ["design"] },
+        { "id": "test", "title": "Test", "description": "Verify.", "status": "pending", "dependsOn": ["build"] }
+      ] } }
+    ]
+  },
+  {
+    "content": "Delegating design.",
+    "toolCalls": [
+      { "id": "c_spawn1", "name": "spawn_agent", "arguments": { "role": "designer", "short_title": "Design", "task": "Write GDD_Overview.", "related_task_id": "design" } }
+    ]
+  },
+  {
+    "content": "Delegating build.",
+    "toolCalls": [
+      { "id": "c_spawn2", "name": "spawn_agent", "arguments": { "role": "developer", "short_title": "Build", "task": "Place the tiles.", "related_task_id": "build" } }
+    ]
+  },
+  {
+    "content": "Delegating test.",
+    "toolCalls": [
+      { "id": "c_spawn3", "name": "spawn_agent", "arguments": { "role": "tester", "short_title": "Test", "task": "Verify the build.", "related_task_id": "test" } }
+    ]
+  },
+  {
+    "content": "All three tasks are delegated and reported."
+  }
+]
