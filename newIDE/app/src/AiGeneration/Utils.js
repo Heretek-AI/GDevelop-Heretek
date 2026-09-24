@@ -77,6 +77,7 @@ import { createLoopGuard } from './Studio/LoopGuard';
 import { mergePlanResultOutput } from './Studio/PlanStore';
 import { isSubAgentAtTurnCap } from './Studio/FinalizeSubAgents';
 import { getRoleToolPolicy, isRoleReadOnly } from './Studio/RoleToolPolicy';
+import { getEditApprovalLaunchingCall } from './Studio/EditApprovalLabel';
 import {
   createRequestWriteQueue,
   getRequestWriteBlock,
@@ -235,12 +236,10 @@ const getEditApprovalLabel = ({
   editorCallbacks: EditorCallbacks,
 |}): React.Node => {
   if (aiRequest.parentAiRequestId) {
-    const parentRequest = aiRequests[aiRequest.parentAiRequestId] || null;
-    const launchingCall = parentRequest
-      ? getAllSubAgentFunctionCalls({ aiRequest: parentRequest }).find(
-          functionCall => functionCall.subAgentAiRequestId === aiRequest.id
-        )
-      : null;
+    const launchingCall = getEditApprovalLaunchingCall({
+      aiRequest,
+      aiRequests,
+    });
     if (launchingCall) {
       return renderFunctionCallLabel({
         functionCall: launchingCall,

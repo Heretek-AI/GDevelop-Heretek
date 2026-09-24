@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 163,
+  "last_cycle": 164,
   "completed_targets": [
     {
       "cycle": 75,
@@ -945,6 +945,12 @@
       "target": "Null-tolerate the sub-agent report/finished output loops (same class, final studio sites)",
       "metric_delta": "Studio sweep found the null-hole class in three more loops: isSubAgentFinished's written-back filter and buildSubAgentReport's core loop + failed-calls filter all read message.type unguarded, so a persisted hole threw while finalizing and the parent never got the report. Fixed with message-level guards (filter-callback style matching countAssistantTurns; loop style matching the transform). 2 new tests, all three guards mutation-checked individually (each single-revert fails exactly its test). 1572/1572 across 77 suites (was 1570), eslint+prettier clean, divergence clean. This closes the output-loop class across CustomAIClient, AiRequestUtils, SpawnSubAgents counting, UseStudioRuntime check, and FinalizeSubAgents - every `X || []` over persisted/network output now has element guards.",
       "commit": "fix(ai): tolerate null holes in the sub-agent report loops"
+    },
+    {
+      "cycle": 164,
+      "target": "Extract the edit-approval launching-call resolution to a tested leaf",
+      "metric_delta": "Backlog #150 approval-label item: the sub-agent-vs-direct label decision lived inline in the untestable dispatcher (three.js) - a silent break means the user approves blind. New Studio/EditApprovalLabel.js leaf (same rationale as RoleToolPolicy/isUserMessage) wired into getEditApprovalLabel; 4 tests pin launch resolution, top-level/pruned fallbacks, and null holes. Mutation-checked (unguarded leaf fails both resolution tests). 1576/1576 across 78 suites (was 1572/77), eslint+prettier clean, divergence +2 forkOnly via surgical --update. Incidents: wired the call site before creating the leaf (no harm, nothing ran); duplicate import from editing two import blocks (caught by eslint). Lock-lifecycle audit alongside found the refusal/suspend returns correctly bypass the lock-releasing finally by sitting before the try - comment accurate, no change.",
+      "commit": "refactor(ai): extract edit-approval launching-call resolution"
     }
   ],
   "backlog": [
