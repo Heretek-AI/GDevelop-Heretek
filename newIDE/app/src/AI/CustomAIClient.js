@@ -4715,6 +4715,16 @@ Ensure generatedEvents is a JSON string of standard GDevelop event objects (e.g.
       };
     }
 
+    // Every array-typed field is model-authored: `X || []` keeps a truthy
+    // non-array (a string, an object, a number) and the consumer then calls
+    // `.join` or iterates it — `diagnosticLines.join('\n')` in particular threw
+    // on a bare string. Coerce each to an array so a malformed field degrades
+    // to "no entries" instead of breaking the whole generation result.
+    const asArray = (value: any): Array<any> =>
+      Array.isArray(value) ? value : [];
+    const asObject = (value: any): Object =>
+      value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+
     const aiGeneratedEvent: AiGeneratedEvent = {
       id: `local-evt-${Date.now()}`,
       createdAt: new Date().toISOString(),
@@ -4737,12 +4747,14 @@ Ensure generatedEvents is a JSON string of standard GDevelop event objects (e.g.
           isEventsJsonValid: true,
           generatedEvents: generatedEventsText,
           areEventsValid: true,
-          extensionNames: changeData.extensionNames || [],
-          diagnosticLines: changeData.diagnosticLines || [],
-          undeclaredVariables: changeData.undeclaredVariables || [],
-          undeclaredObjectVariables: changeData.undeclaredObjectVariables || {},
-          missingObjectBehaviors: changeData.missingObjectBehaviors || {},
-          missingResources: changeData.missingResources || [],
+          extensionNames: asArray(changeData.extensionNames),
+          diagnosticLines: asArray(changeData.diagnosticLines),
+          undeclaredVariables: asArray(changeData.undeclaredVariables),
+          undeclaredObjectVariables: asObject(
+            changeData.undeclaredObjectVariables
+          ),
+          missingObjectBehaviors: asObject(changeData.missingObjectBehaviors),
+          missingResources: asArray(changeData.missingResources),
         },
       ],
       error: null,

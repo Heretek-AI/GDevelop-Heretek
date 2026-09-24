@@ -3847,6 +3847,54 @@ describe('CustomAIClient', () => {
       }
     });
 
+    it('coerces malformed array/object fields instead of passing them through', async () => {
+      // The array-typed fields are model-authored, and the editor calls
+      // `.join` on `diagnosticLines` and iterates `extensionNames`. A truthy
+      // non-array (a string, a number) used to pass through `X || []` and threw
+      // in the consumer, losing the whole generation result.
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: JSON.stringify({
+                  operationName: 'insert',
+                  generatedEvents: '[]',
+                  diagnosticLines: 'a single line, not an array',
+                  extensionNames: 'ExtensionA',
+                  undeclaredVariables: 42,
+                  undeclaredObjectVariables: 'nope',
+                  missingObjectBehaviors: ['an', 'array'],
+                  missingResources: true,
+                }),
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await customCreateAiGeneratedEvent({
+        sceneName: 'MainScene',
+        eventsDescription: 'Do something',
+      });
+
+      expect(result.creationSucceeded).toBe(true);
+      if (result.creationSucceeded) {
+        const [change]: any = result.aiGeneratedEvent.changes;
+        expect(change.diagnosticLines).toEqual([]);
+        expect(change.extensionNames).toEqual([]);
+        expect(change.undeclaredVariables).toEqual([]);
+        expect(change.undeclaredObjectVariables).toEqual({});
+        expect(change.missingObjectBehaviors).toEqual({});
+        expect(change.missingResources).toEqual([]);
+        // The consumer's call must not throw.
+        expect(() => change.diagnosticLines.join('\n')).not.toThrow();
+      }
+    });
+
     it('fails with a clear error when the model response is not JSON', async () => {
       // $FlowFixMe
       axios.post.mockResolvedValueOnce({
