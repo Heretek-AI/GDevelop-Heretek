@@ -639,6 +639,9 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
         // that have a taskId (which are excluded from renderItems but still
         // need to appear in the status bar when running).
         for (const message of aiRequest.output || []) {
+          // A persisted request's output is not shape-validated, so a hole or
+          // a scalar can be in the list and `message.type` would throw.
+          if (!message || typeof message !== 'object') continue;
           if (message.type !== 'message' || message.role !== 'assistant')
             continue;
           if (!Array.isArray(message.content)) continue;
@@ -801,6 +804,7 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
       () => {
         const map: Map<string, Array<FunctionCallItem>> = new Map();
         (aiRequest.output || []).forEach(message => {
+          if (!message || typeof message !== 'object') return;
           if (message.type === 'message' && message.role === 'assistant') {
             if (!Array.isArray(message.content)) return;
             message.content.forEach(messageContent => {
