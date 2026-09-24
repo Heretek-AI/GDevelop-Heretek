@@ -3427,6 +3427,25 @@ const READ_ONLY_OPENAI_TOOLS = GDEVELOP_OPENAI_TOOLS.filter(
     READ_ONLY_TOOL_NAMES.includes(tool.function.name)
 );
 
+/**
+ * Registry tools the backend resolves and this client cannot: their local
+ * launchFunction unconditionally fails, so offering them on a local turn
+ * burns the turn and its tokens for nothing. Filtered from every local send
+ * (and the budget computed for it); the schema keeps them for hosted turns
+ * and argument validation.
+ */
+export const BACKEND_ONLY_TOOL_NAMES: Array<string> = [
+  'get_game_starter_summary',
+];
+
+export const withoutBackendOnlyTools = (tools: Array<Object>): Array<Object> =>
+  tools.filter(
+    tool =>
+      !!tool &&
+      !!tool.function &&
+      !BACKEND_ONLY_TOOL_NAMES.includes(tool.function.name)
+  );
+
 export const SIDE_EFFECT_FREE_TOOLS = new Set([
   'describe_instances',
   'read_events_source',
@@ -3819,10 +3838,12 @@ export const customCreateAiRequest = async ({
 
   // Same budget as later turns: a create with a large embedded project
   // structure must fit a small local model before the first request is sent.
+  // Backend-resolved tools are withheld from the offer and the budget alike.
   const createConfig = getEffectiveConfigForRequest(reqId);
+  const createTools = withoutBackendOnlyTools(GDEVELOP_OPENAI_TOOLS);
   const budgetedMessages = trimMessagesToBudget(
     openAiMessages,
-    getMessageBudget(createConfig, GDEVELOP_OPENAI_TOOLS)
+    getMessageBudget(createConfig, createTools)
   );
   noteSystemCompactedIfChanged(reqId, openAiMessages, budgetedMessages);
   if (budgetedMessages.length < openAiMessages.length) {
@@ -3840,7 +3861,7 @@ export const customCreateAiRequest = async ({
   try {
     assistantResponse = await sendChatCompletion({
       messages: budgetedMessages,
-      tools: GDEVELOP_OPENAI_TOOLS,
+      tools: createTools,
       config: createConfig,
       signal: abortController.signal,
       // The first turn is the one most likely to hit a model still loading, so
@@ -4042,11 +4063,13 @@ export const customAddMessageToAiRequest = async ({
     // the full toolset either: a read-only sub-agent (a tester) would gain
     // mutations on every later turn. Fail closed to the read-only subset. A
     // top-level request has no role at all and keeps every tool.
-    const roleTools = !studioRoleId
-      ? GDEVELOP_OPENAI_TOOLS
-      : isStudioRoleId(studioRoleId)
-      ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
-      : READ_ONLY_OPENAI_TOOLS;
+    const roleTools = withoutBackendOnlyTools(
+      !studioRoleId
+        ? GDEVELOP_OPENAI_TOOLS
+        : isStudioRoleId(studioRoleId)
+        ? getToolsForRole((studioRoleId: any), GDEVELOP_OPENAI_TOOLS)
+        : READ_ONLY_OPENAI_TOOLS
+    );
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
       getMessageBudget(getEffectiveConfigForRequest(aiRequestId), roleTools)
@@ -4234,9 +4257,11 @@ export const customCreateSubAgentAiRequest = async ({
     // read-only subset instead of failing open, which is why this differs from
     // the continue-turn fallback above (there the role only re-derives tools
     // for an already-created agent).
-    const subAgentTools = isStudioRoleId(roleId)
-      ? getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS)
-      : READ_ONLY_OPENAI_TOOLS;
+    const subAgentTools = withoutBackendOnlyTools(
+      isStudioRoleId(roleId)
+        ? getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS)
+        : READ_ONLY_OPENAI_TOOLS
+    );
     const budgetedMessages = trimMessagesToBudget(
       openAiMessages,
       getMessageBudget(

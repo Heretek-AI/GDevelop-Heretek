@@ -36,6 +36,7 @@ import {
   testConnection,
   sendChatCompletion,
   formatProviderTelemetry,
+  withoutBackendOnlyTools,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1385,6 +1386,47 @@ describe('CustomAIClient', () => {
       } finally {
         debugSpy.mockRestore();
       }
+    });
+  });
+
+  describe('backend-only tools are withheld from local turns', () => {
+    it('drops backend-resolved tools while keeping the rest', () => {
+      const tools = withoutBackendOnlyTools(GDEVELOP_OPENAI_TOOLS);
+      const names = tools.map(tool => tool.function.name);
+      expect(names).not.toContain('get_game_starter_summary');
+      // Everything else is still offered: the filter removes one entry.
+      expect(names).toHaveLength(GDEVELOP_OPENAI_TOOLS.length - 1);
+      expect(names).toContain('create_scene');
+    });
+
+    it('does not offer get_game_starter_summary on a local create', async () => {
+      // Its local launchFunction unconditionally fails ("handled on the
+      // backend"), so offering it burns a turn and its tokens for nothing.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'ok' } }],
+        },
+      });
+
+      await customCreateAiRequest({
+        userRequest: 'study a starter',
+        mode: 'chat',
+      });
+
+      const sentTools = axios.post.mock.calls[0][1].tools.map(
+        (tool: any) => tool.function.name
+      );
+      expect(sentTools).not.toContain('get_game_starter_summary');
+      expect(sentTools).toContain('create_scene');
     });
   });
 
@@ -5063,7 +5105,12 @@ describe('CustomAIClient', () => {
 
       await customAddMessageToAiRequest({
         aiRequestId: created.id,
-        userMessage: 'a second, longer user message to grow the prompt',
+        // Long enough to dominate any constant-term shift between turns
+        // (e.g. the offered toolset shrinking by one entry): the test pins
+        // that occupancy follows conversation size.
+        userMessage:
+          'a second, much longer user message to grow the prompt. ' +
+          'Filler text so the growth dwarfs constant shifts. '.repeat(30),
       });
 
       const secondPrompt = customGetAiRequestContextTokens(created.id);

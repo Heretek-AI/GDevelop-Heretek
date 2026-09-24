@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 168,
+  "last_cycle": 169,
   "completed_targets": [
     {
       "cycle": 75,
@@ -975,6 +975,12 @@
       "target": "Context gauge and cost meter count the tool schema (Tier 2 accounting parity)",
       "metric_delta": "Real defect, measured: occupancy recorded messages-only (218 tokens) while the schema adds ~7528 - a 97% undercount, so the gauge understated ~2x on small windows while the trimmer silently compacted. All three turn paths now share one promptTokens (messages + the tools actually sent: full/role/sub-agent sets) between the occupancy registry and the cost meter - which also under-billed providers by the schema each turn. Gauge denominator corrected to the input budget (message-budget minus tools was dimensionally wrong once tools joined the numerator). New tools-included test proven red pre-fix; the pre-existing relational test independently forced the cost-meter half (it failed on messages-only cost). 1586/1586 across 80 suites (was 1585), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): count the tool schema in the context gauge and cost meter"
+    },
+    {
+      "cycle": 169,
+      "target": "Withhold backend-only tools from local turns (get_game_starter_summary)",
+      "metric_delta": "Concrete BYOK defect: the starter-summary tool is backend-resolved (local launchFunction unconditionally fails) yet offered on every local turn - a guaranteed wasted turn when picked. Verified siblings (search_docs etc.) have real local implementations, so the class is exactly one tool. New BACKEND_ONLY_TOOL_NAMES + withoutBackendOnlyTools applied to all three turn paths for both offer and budget (budgets stay consistent with what's sent). 2 new tests, both red pre-fix (turn test showed the tool in the sent payload). A pre-existing relational test broke mid-fix because the toolset shrank by one entry while its probe message was too short - lengthened the probe with a comment rather than weakening the invariant. 1588/1588 across 80 suites (was 1586), eslint+prettier clean, divergence clean. Incidents: one edit broke a try-block indent (repaired, diff-verified); two more zero-content whitespace edits (reverted instantly) - the edit tool is stripping something; prefer python replacement for Flow files per the standing heuristic.",
+      "commit": "fix(ai): withhold backend-only tools from local turns"
     }
   ],
   "backlog": [
