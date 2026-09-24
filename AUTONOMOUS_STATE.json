@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 201,
+  "last_cycle": 202,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1180,9 +1180,16 @@
       "target": "Extend context-overflow recovery to the create and sub-agent paths (Tier 2 parity)",
       "metric_delta": "Cycle 200 scoped the overflow retry to the continue path; the create (which embeds the project structure, so MOST likely to overflow) and sub-agent paths still failed outright. Both now retry once at a halved message budget, reusing isContextOverflowError and the same non-abort guard. +2 tests (each: reject-once over-window then succeed → 2 POSTs, second prompt strictly smaller), each mutation-checked (removing the retry fails its test). 1639/1639 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. Incident: a scripted restore spliced the file (13 no-undef errors); recovered by reverting both files to HEAD and re-applying the three edits one at a time with an eslint check after each — recorded as a heuristic.",
       "commit": "feat(ai): recover create and sub-agent turns from context overflow"
+    },
+    {
+      "cycle": 202,
+      "target": "Live-verify the per-request telemetry surface with a synthetic provider",
+      "metric_delta": "No code change. Cycles 192/193 (telemetry data layer + chat note) could not be verified live because Ollama sends no x-omniroute-* headers. Built a small CORS-enabled OpenAI-compatible mock on :11435 emitting telemetry headers, pointed the editor at it, and sent a live message: the chat rendered 'Provider response: mock-city-builder . 42 ms . ~7707 in / 40 out tokens . cache MISS', confirming the callback is threaded through the create path, the parser reads the headers, the registry stores them, and the note renders. Deployment finding for the real gateway: a cross-origin XHR cannot read x-omniroute-* unless the proxy sends Access-Control-Expose-Headers for them (the mock's first version omitted it and the client saw nothing) - OmniRoute must expose those headers for browser clients. Mock stopped and editor config restored (Heretek URL/model).",
+      "commit": "chore(autonomous): live-verify the telemetry surface with a mock provider"
     }
   ],
   "backlog": [
+    "Harness deployment: OmniRoute (or any telemetry proxy) must send Access-Control-Expose-Headers for x-omniroute-* headers, otherwise the editor cannot read them (cycle 202 live proof). Document this in the feedback-loop skill.",
     "Tier 1 (cycle 197/198): the local model stops after planning/inspection instead of delegating; harness is correct (persisted run had 12 spawns), so measure the hardened manager prompt across several runs / a stronger model before concluding. Consider a client-side nudge: if a manager turn ends with undelegated ready tasks and no prose answer, continue it once automatically.",
     "Phase 5 live run now WORKS against local Ollama (cycle 189: preflight 204 + POST 200, real reply). Run the full @feedback-loop city-builder benchmark against :11434 when a run budget allows; hosted Heretek needs config.local.json.",
     "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
@@ -1375,6 +1382,7 @@
     "Telemetry the console already prints should also be stored in a registry keyed by request id: 'inspectable' in this objective means readable from React state, not just visible in devtools. Thread a callback (onProviderTelemetry) through the client like onStreamDelta rather than having the client guess the request id.",
     "Auditing revertibility with `git show <sha> | git apply --reverse --check` is wrong for a commit older than HEAD: git apply checks against the working tree, so any later commit touching the same lines makes it conflict regardless of true revertibility. Verify with `git revert --no-commit` on the tip or a newest-first range instead, and confirm the history is linear (no merges) first.",
     "Driving a React controlled input via Chrome DevTools: fill() sets the DOM value but does not fire the input event React listens for (the send button stays disabled); use click to focus then press_key/type_text so real key events update state. This is why earlier new-chat sends failed intermittently.",
-    "A find-based python splice is unsafe when the same anchor text appears in more than one turn path (three near-identical send blocks here): the restore matched the wrong occurrence and spliced a function body into another. After such an edit, run eslint immediately; if it reports variables 'not defined' in a region you did not touch, the splice is wrong - revert the file to HEAD and re-apply each edit with its own unique anchor + lint check."
+    "A find-based python splice is unsafe when the same anchor text appears in more than one turn path (three near-identical send blocks here): the restore matched the wrong occurrence and spliced a function body into another. After such an edit, run eslint immediately; if it reports variables 'not defined' in a region you did not touch, the splice is wrong - revert the file to HEAD and re-apply each edit with its own unique anchor + lint check.",
+    "A browser client can only read custom response headers from a cross-origin endpoint if the server lists them in Access-Control-Expose-Headers; a proxy advertising x-omniroute-* must expose them or the telemetry is invisible to the editor (proven live in cycle 202)."
   ]
 }
