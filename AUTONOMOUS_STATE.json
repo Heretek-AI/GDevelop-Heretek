@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 176,
+  "last_cycle": 177,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1030,6 +1030,12 @@
       "target": "Bring AUTONOMOUS_STATE.json to the required schema and create runs/RUNS.md",
       "metric_delta": "The objective's explicit schema was unmet: engine_version read 1.0.0 (required 2.0.0) and active_agents was absent; runs/RUNS.md (required append target for model/endpoint/turns-per-phase/token-efficiency/harness-verdict) did not exist. Set engine_version 2.0.0, added active_agents [orchestrator, scene-architect, logic-engineer, asset-curator, qa-playtester], and created runs/RUNS.md logging cycles 155-176 with the required fields - the harness verdict is recorded as blocked (no dev server, credentials, or reachable endpoint), not waived. State JSON validated; divergence +1 forkOnly (runs/RUNS.md) via surgical --update. No code change.",
       "commit": "chore(autonomous): complete the state schema and run log"
+    },
+    {
+      "cycle": 177,
+      "target": "Actionable hints for HTTP 429 and 502/503 provider failures",
+      "metric_delta": "The objective names 429/502/timeout as errors to surface gracefully; 429 and 5xx had no guidance (a 429 said only 'AI Provider Error (429): ...'). Added status hints: 429 -> rate limiting / wait-and-retry, 502|503 -> temporarily unavailable / retry or check base URL. Deliberately left 500 untouched so the existing 'unmatched provider error' test still holds as evidence of pass-through. 2 new tests red pre-fix; mutation-checked (neutralizing the hint fails both). One wording fix: the first 429 hint said 'too frequent' while the test matched /rate/, so the hint now says 'rate limiting requests'. 1599/1599 across 80 suites (was 1597), eslint+prettier clean, divergence clean.",
+      "commit": "feat(ai): hint at rate limiting and provider outages"
     }
   ],
   "backlog": [

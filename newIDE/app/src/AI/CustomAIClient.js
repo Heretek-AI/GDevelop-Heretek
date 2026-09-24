@@ -3393,8 +3393,17 @@ export const sendChatCompletion = async ({
         status === 401 && !hasApiKey
           ? ' (No API key is configured for this endpoint — set one in the AI preferences if the provider requires it.)'
           : '';
+      // Status-specific guidance for the failure modes the objective names
+      // (429/502). 500 is deliberately left untouched so a genuinely
+      // unmatched provider error still reads exactly as the server sent it.
+      const statusHint =
+        status === 429
+          ? ' (The provider is rate limiting requests: wait a moment and retry, or reduce concurrent requests.)'
+          : status === 502 || status === 503
+          ? ' (The provider is temporarily unavailable: retry in a moment; if it persists, check the provider status or your base URL.)'
+          : '';
       throw new Error(
-        `AI Provider Error (${status}): ${errorMsg}${authHint}${getErrorHint(
+        `AI Provider Error (${status}): ${errorMsg}${authHint}${statusHint}${getErrorHint(
           error
         )}`
       );

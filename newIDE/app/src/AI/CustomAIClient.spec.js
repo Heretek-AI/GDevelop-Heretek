@@ -1824,6 +1824,45 @@ describe('CustomAIClient', () => {
       ).rejects.toThrow(/make sure the local AI server is running/);
     });
 
+    it('hints at rate limiting on a 429', async () => {
+      // The objective names 429 explicitly: the message must stay an AI
+      // Provider Error but add what to do about it.
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 429,
+          data: { error: { message: 'Too Many Requests' } },
+        },
+      });
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: minimalConfig,
+        })
+      ).rejects.toThrow(
+        /^AI Provider Error \(429\): Too Many Requests .*rate/i
+      );
+    });
+
+    it('hints at a temporary provider outage on 502/503', async () => {
+      for (const status of [502, 503]) {
+        // $FlowFixMe
+        axios.post.mockRejectedValueOnce({
+          response: {
+            status,
+            data: { error: { message: 'upstream unavailable' } },
+          },
+        });
+        await expect(
+          sendChatCompletion({
+            messages: [{ role: 'user', content: 'hi' }],
+            config: minimalConfig,
+          })
+        ).rejects.toThrow(/temporarily unavailable|bad gateway/i);
+      }
+    });
+
     it('leaves unmatched provider errors untouched', async () => {
       // $FlowFixMe
       axios.post.mockRejectedValueOnce({
