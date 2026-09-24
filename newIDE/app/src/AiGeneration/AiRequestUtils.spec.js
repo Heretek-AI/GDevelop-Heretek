@@ -25,6 +25,7 @@ import {
   aiRequestShouldBeWatched,
   aiRequestHasWorkInProgress,
   getSubAgentKind,
+  isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
 
@@ -949,6 +950,154 @@ describe('malformed message content never crashes the chat helpers', () => {
         ([malformedUser, malformedAssistant]: any)
       )
     ).toEqual({ lastUserMessage: null, lastAssistantMessages: [] });
+  });
+});
+
+describe('null holes in the persisted output never crash the dispatch helpers', () => {
+  // normalizePersistedMessages guarantees `output` is an array but passes
+  // inner entries through unchanged, and the loader checks only id/status —
+  // so a null message (or a null inside a content array) reaches every loop
+  // below. Each threw `Cannot read properties of null` on its first read,
+  // and these run on every dispatch pass and every chat render.
+  const validCall = {
+    type: 'function_call',
+    status: 'completed',
+    call_id: 'c1',
+    name: 'describe_instances',
+    arguments: '{}',
+  };
+  const validAssistant = {
+    type: 'message',
+    status: 'completed',
+    role: 'assistant',
+    content: [validCall, null],
+  };
+  const validOutput = {
+    type: 'function_call_output',
+    call_id: 'c1',
+    output: '{"success":true}',
+  };
+
+  it('getFunctionCallsToProcess skips null messages and null entries', () => {
+    const result = getFunctionCallsToProcess(
+      ({
+        aiRequest: makeAiRequest([null, validAssistant, undefined]),
+        editorFunctionCallResults: [],
+      }: any)
+    );
+    expect(result.map(fc => fc.call_id)).toEqual(['c1']);
+  });
+
+  it('getFunctionCallToFunctionCallOutputMap skips null messages and null entries', () => {
+    const map = getFunctionCallToFunctionCallOutputMap(
+      ({ aiRequest: makeAiRequest([null, validAssistant, validOutput]) }: any)
+    );
+    expect(map.size).toBe(1);
+  });
+
+  it('getAllSubAgentFunctionCalls skips null messages and null entries', () => {
+    const subAgentCall = {
+      type: 'function_call',
+      status: 'completed',
+      call_id: 'c2',
+      name: 'run_project_edit_agent',
+      arguments: '{}',
+      subAgentAiRequestId: 'sub-1',
+    };
+    const result = getAllSubAgentFunctionCalls(
+      ({
+        aiRequest: makeAiRequest([
+          null,
+          {
+            type: 'message',
+            status: 'completed',
+            role: 'assistant',
+            content: [null, subAgentCall],
+          },
+        ]),
+      }: any)
+    );
+    expect(result.map(fc => fc.call_id)).toEqual(['c2']);
+  });
+
+  it('getPendingSubAgentFunctionCalls skips null messages', () => {
+    const result = getPendingSubAgentFunctionCalls(
+      ({ aiRequest: makeAiRequest([null, validOutput]) }: any)
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('getFunctionCallNameByCallId skips nulls and still finds the real call', () => {
+    expect(
+      getFunctionCallNameByCallId(
+        ({
+          aiRequest: makeAiRequest([null, validAssistant]),
+          callId: 'c1',
+        }: any)
+      )
+    ).toBe('describe_instances');
+  });
+
+  it('getLatestActivePlan skips null messages', () => {
+    // The search runs backward from the end, so the null must come last to
+    // be visited before the plan is found — a null before the plan is never
+    // reached and proves nothing.
+    const request = makeAiRequest([
+      {
+        type: 'function_call_output',
+        call_id: 'c1',
+        output: JSON.stringify({
+          success: true,
+          plan: {
+            tasks: [
+              { id: 'a', title: 'A', description: 'a', status: 'pending' },
+            ],
+          },
+        }),
+      },
+      null,
+    ]);
+    expect(
+      getLatestActivePlan(({ output: request.output }: any)).tasks
+    ).toHaveLength(1);
+  });
+
+  it('getLastMessagesFromAiRequestOutput skips null messages and null entries', () => {
+    expect(
+      getLastMessagesFromAiRequestOutput(
+        ([
+          null,
+          {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'user_request', text: 'hi' }, null],
+          },
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'done' }, null],
+          },
+        ]: any)
+      )
+    ).toEqual({ lastUserMessage: 'hi', lastAssistantMessages: ['done'] });
+  });
+
+  it('isUserMessage (the loop-guard filter) tolerates null holes', () => {
+    // The dispatcher finds the last user message on every pass; a null hole
+    // threw out of the whole batch before any call was dispatched.
+    expect(
+      ([
+        null,
+        { type: 'message', role: 'assistant', content: [] },
+        { type: 'message', role: 'user', content: [] },
+        undefined,
+      ]: any)
+        .filter(isUserMessage)
+        .pop().role
+    ).toBe('user');
+    expect(isUserMessage(null)).toBe(false);
+    expect(isUserMessage(undefined)).toBe(false);
+    expect(isUserMessage('user')).toBe(false);
   });
 });
 

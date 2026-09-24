@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 156,
+  "last_cycle": 157,
   "completed_targets": [
     {
       "cycle": 75,
@@ -903,6 +903,12 @@
       "target": "Harden the turn pipeline against non-string network content and null inner entries (malformed-data re-sweep)",
       "metric_delta": "Backlog #162 re-grep over cycle-155-added reads plus the neighboring turn path found 6 unguarded reads in the same truthiness class: parseAssistantMessage passed network content (object/array-of-blocks both truthy) into extractThinkingAndContent whose .match threw, and accepted non-string reasoning into summary.text (object rendered as chat text throws in React); the transform loop guarded msg but not inner elements - null inside content/functionCalls/functionCallOutputs arrays threw on .type/.id/.callId (normalizePersistedMessages passes inner entries through). Fixed: string-only coercion for content and both reasoning sources; skip-non-object guards on all four inner loops (matching the existing tool_calls precedent). 3 new tests, each mutation-checked individually (reverting any single guard reproduces its TypeError: filter/.type, fc/.id, item/.type, fco/.callId). 1492/1492 across 68 suites (was 1489), eslint clean, divergence clean. #163 re-asserted: the cycle-155 telemetry debug prints endpoint + x-omniroute-* values only; apiKey still header-only.",
       "commit": "fix(ai): harden turn pipeline against non-string content and null entries"
+    },
+    {
+      "cycle": 157,
+      "target": "Null-tolerate every output loop in the dispatch/render feed (AiRequestUtils + loop-guard filter)",
+      "metric_delta": "Backlog #150 Tier-1 sweep found the same null-hole class in 8 output loops that run on every dispatch pass and chat render: getFunctionCallToFunctionCallOutputMap, getFunctionCallsToProcess, getAllSubAgentFunctionCalls, getPendingSubAgentFunctionCalls, getFunctionCallNameByCallId, getLatestActivePlan, getLastMessagesFromAiRequestOutput (message-level and inner content/find/filter reads), plus the loop-guard lastUserMessage filter in the Utils.js dispatcher. A single null hole threw out of the whole batch before any call dispatched and crashed the render feed. Fixed with skip-non-object guards; the dispatcher filter routes through a tested isUserMessage predicate in AiRequestUtils (Utils.js imports three.js so it cannot be loaded by a spec - same leaf rationale as RoleToolPolicy). 8 new tests, each proven red pre-fix (plan test needed null-last ordering since the search runs backward; helper body mutation-checked). 1500/1500 across 68 suites (was 1492), eslint clean, divergence clean.",
+      "commit": "fix(ai): tolerate null holes in the dispatch output loops"
     }
   ],
   "backlog": [
@@ -1082,6 +1088,7 @@
     "When the SAME unvalidated field is read at N sites, prefer one fix at the choke point over N local guards — but check the choke point actually runs for every path. normalizePersistedMessages runs on every request loaded from storage, so returning `output: []` for a non-array fixed the spread, the .map and the .length at once; the local Array.isArray guards stay only for objects that never came through the loader. The full trap list is now: spread, for..of, .map/.filter/.some callbacks, and .join — all four throw on a truthy non-array.",
     "REMOTE TRACKING STATE (as of cycle 154): the repo's issues are the public tracker; AUTONOMOUS_STATE.json remains the private cross-session log. New issues this session: #162/#163/#164; #149 closed; #150 kept open with a progress comment. Before creating a tracking issue, grep the existing list for the theme — nothing covered this session's hardening work, but #149 (test-runner hygiene) and #150 (fork test gaps) were both partially satisfied and needed updating rather than duplicating. Verify an issue's claims yourself before closing it: #149's SSE criterion was re-run rather than taken from its own prior comment.",
     "EditorFunctionCallRunner strips meta from the model-visible output (only didModifyProject/newSceneNames are consumed) - anything the model must read (e.g. run_script guidance) must ride top-level on the return, not in meta. Caught pre-commit: guidance was computed but dropped.",
-    "A guard on the container does not guard the elements: Array.isArray(msg.content) plus a msg null-check still throws when an ELEMENT is null (item.type, fc.id, fco.callId). normalizePersistedMessages passes inner entries through, so every inner loop over persisted/network arrays needs its own skip-non-object - and each guard needs its own mutation check, because one combined test stops at the first throw and proves only that guard."
+    "A guard on the container does not guard the elements: Array.isArray(msg.content) plus a msg null-check still throws when an ELEMENT is null (item.type, fc.id, fco.callId). normalizePersistedMessages passes inner entries through, so every inner loop over persisted/network arrays needs its own skip-non-object - and each guard needs its own mutation check, because one combined test stops at the first throw and proves only that guard.",
+    "When a search runs backward (getLatestActivePlan from the end), a null-hole test only discriminates if the hole is visited before the match - null-last, not null-first. More generally: place the poison where the code actually walks, or the test passes on broken code."
   ]
 }

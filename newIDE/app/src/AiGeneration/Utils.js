@@ -44,6 +44,7 @@ import {
   getLastMessagesFromAiRequestOutput,
   getLatestActivePlan,
   getSubAgentKind,
+  isUserMessage,
   shouldFetchAiRequestSuggestions,
 } from './AiRequestUtils';
 import { useEnsureExtensionInstalled } from './UseEnsureExtensionInstalled';
@@ -653,9 +654,7 @@ export const useProcessFunctionCalls = ({
       if (guard) {
         loopGuardsRef.current.set(aiRequest.id, guard);
         const lastUserMessage = (aiRequest.output || [])
-          .filter(
-            message => message.type === 'message' && message.role === 'user'
-          )
+          .filter(isUserMessage)
           .pop();
         const currentLastUserMessageId = lastUserMessage
           ? (lastUserMessage: any).messageId

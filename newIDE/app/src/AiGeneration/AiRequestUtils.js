@@ -265,6 +265,16 @@ export const getLocalAiRequestContextUsedRatio = (
   if (!usable(totalTokens) || !usable(budgetTokens)) return null;
   return totalTokens / budgetTokens;
 };
+/**
+ * Whether a persisted output entry is a user chat message. Output entries are
+ * not shape-validated on load, so every `.filter(message => ...)` over them
+ * must tolerate a null hole — and this predicate lives here (not inline in
+ * the dispatcher) so a spec can pin it: Utils.js pulls in three.js through
+ * the editor-function map and cannot be loaded by a test.
+ */
+export const isUserMessage = (message: any): boolean =>
+  !!message && message.type === 'message' && message.role === 'user';
+
 export const getFunctionCallToFunctionCallOutputMap = ({
   aiRequest,
 }: {|
@@ -289,6 +299,10 @@ export const getFunctionCallToFunctionCallOutputMap = ({
   const output = aiRequest.output || [];
   for (let i = 0; i < output.length; i++) {
     const message = output[i];
+    // Persisted output is only checked for id/status on load and
+    // normalizePersistedMessages passes non-message entries through, so a
+    // null hole reaches this loop and its first read threw.
+    if (!message || typeof message !== 'object') continue;
 
     if (message.type === 'message' && message.role === 'assistant') {
       // Process function calls in this message. `content` is network-supplied
@@ -297,6 +311,7 @@ export const getFunctionCallToFunctionCallOutputMap = ({
       // chat view itself rather than one field of it.
       if (!Array.isArray(message.content)) continue;
       message.content.forEach(content => {
+        if (!content || typeof content !== 'object') return;
         if (content.type === 'function_call') {
           // Initialize with null output - will be updated if we find a matching output
           functionCallsToOutputs.set(content, null);
@@ -342,6 +357,7 @@ export const getFunctionCallsToProcess = ({
   const output = aiRequest.output || [];
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
+    if (!message || typeof message !== 'object') continue;
 
     // Track already processed function call outputs
     if (message.type === 'function_call_output') {
@@ -354,7 +370,10 @@ export const getFunctionCallsToProcess = ({
       // the caller that builds the function-call list for the chat.
       if (!Array.isArray(message.content)) continue;
       const functionCalls = message.content.filter(
-        content => content.type === 'function_call'
+        content =>
+          content &&
+          typeof content === 'object' &&
+          content.type === 'function_call'
       );
 
       if (functionCalls.length > 0) {
@@ -399,9 +418,11 @@ export const getAllSubAgentFunctionCalls = ({
   const output = aiRequest.output || [];
   for (let i = 0; i < output.length; i++) {
     const message = output[i];
+    if (!message || typeof message !== 'object') continue;
     if (message.type === 'message' && message.role === 'assistant') {
       if (!Array.isArray(message.content)) continue;
       for (const content of message.content) {
+        if (!content || typeof content !== 'object') continue;
         if (content.type === 'function_call' && content.subAgentAiRequestId) {
           subAgentCalls.push(content);
         }
@@ -454,6 +475,7 @@ export const getPendingSubAgentFunctionCalls = ({
   const output = aiRequest.output || [];
   for (let i = 0; i < output.length; i++) {
     const message = output[i];
+    if (!message || typeof message !== 'object') continue;
     if (message.type === 'function_call_output') {
       processedCallIds.add(message.call_id);
     }
@@ -474,9 +496,11 @@ export const getFunctionCallNameByCallId = ({
   const output = aiRequest.output || [];
   for (let i = 0; i < output.length; i++) {
     const message = output[i];
+    if (!message || typeof message !== 'object') continue;
     if (message.type === 'message' && message.role === 'assistant') {
       if (!Array.isArray(message.content)) continue;
       for (const content of message.content) {
+        if (!content || typeof content !== 'object') continue;
         if (content.type === 'function_call' && content.call_id === callId) {
           return content.name;
         }
@@ -497,6 +521,7 @@ export const getLatestActivePlan = (
   const outputMessages = aiRequest.output || [];
   for (let i = outputMessages.length - 1; i >= 0; i--) {
     const message = outputMessages[i];
+    if (!message || typeof message !== 'object') continue;
     if (message.type === 'function_call_output' && message.output) {
       try {
         const output = JSON.parse(message.output);
@@ -658,9 +683,12 @@ export const getLastMessagesFromAiRequestOutput = (
 
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
+    if (!message || typeof message !== 'object') continue;
     if (message.type === 'message' && message.role === 'user') {
       if (!Array.isArray(message.content)) break;
-      const textContent = message.content.find(c => c.type === 'user_request');
+      const textContent = message.content.find(
+        c => c && typeof c === 'object' && c.type === 'user_request'
+      );
       if (textContent) {
         lastUserMessage = textContent.text;
       }
@@ -669,6 +697,7 @@ export const getLastMessagesFromAiRequestOutput = (
     if (message.type === 'message' && message.role === 'assistant') {
       if (!Array.isArray(message.content)) continue;
       for (const content of message.content) {
+        if (!content || typeof content !== 'object') continue;
         if (
           content.type === 'output_text' &&
           lastAssistantMessages.length < 5
