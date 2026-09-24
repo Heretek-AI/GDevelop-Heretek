@@ -202,6 +202,28 @@ describe('SpawnSubAgents', () => {
         subAgentAiRequestId: 'child-9',
         shortTitle: 'Build the grid',
         callId: 'call-1',
+        relatedTaskId: null,
+      });
+    });
+
+    it('returns the plan task the spawn named, so the call can be linked to it', async () => {
+      // $FlowFixMe mocked above
+      customCreateSubAgentAiRequest.mockResolvedValue({ id: 'child-11' });
+      const result = await spawnSubAgent({
+        ...baseArgs,
+        functionCall: spawnCall({
+          role: 'developer',
+          short_title: 'Build the grid',
+          task: 'Build it.',
+          related_task_id: 'grid',
+        }),
+        onStamped: jest.fn(),
+      });
+      expect(result).toEqual({
+        subAgentAiRequestId: 'child-11',
+        shortTitle: 'Build the grid',
+        callId: 'call-1',
+        relatedTaskId: 'grid',
       });
     });
 

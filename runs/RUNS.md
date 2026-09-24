@@ -98,6 +98,14 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Delegations linked to their plan task, live (cycle 251): a successful
+  `spawn_agent` now stamps `functionCall.taskId` and lifts its plan task to
+  `in_progress` with `agentCallId`, so the chat renders the spawn inside that
+  task's row (a pending task does not render linked calls). Verified through the
+  mock: the persisted spawn call carried `taskId: 'design'`, the plan updated to
+  `design: done (agentCallId c_design)`, and the WebUI showed the "Design" call
+  row under the "Design the city-builder GDD" task row; screenshot
+  /tmp/opencode/cycle251-task-link.png.
 - Orchestrator stall recovery, live end-to-end (cycle 250): a manager that
   plans and then ends its turn without delegating is now nudged automatically
   (bounded, once per plan state). Proven against the scriptable mock provider:

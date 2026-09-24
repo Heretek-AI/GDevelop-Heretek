@@ -199,7 +199,17 @@ export const buildGddContextNote = (project: ?gdProject): string => {
 };
 
 export type SpawnSubAgentResult =
-  | {| subAgentAiRequestId: string, shortTitle: string, callId: string |}
+  | {|
+      subAgentAiRequestId: string,
+      shortTitle: string,
+      callId: string,
+      /**
+       * The plan task the spawn named (`related_task_id`), so the caller can
+       * stamp `functionCall.taskId` and the chat can render the call inside its
+       * plan task row. `null` when the model delegated without a task.
+       */
+      relatedTaskId: string | null,
+    |}
   | {| error: string |};
 
 /**
@@ -262,5 +272,6 @@ export const spawnSubAgent = async ({
     subAgentAiRequestId: subAgentRequest.id,
     shortTitle: parsedArgs.shortTitle,
     callId: functionCall.call_id,
+    relatedTaskId: parsedArgs.relatedTaskId,
   };
 };

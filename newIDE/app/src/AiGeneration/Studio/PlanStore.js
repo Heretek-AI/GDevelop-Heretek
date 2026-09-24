@@ -177,6 +177,66 @@ export const patchPlanTask = (
   );
 };
 
+/**
+ * Mark the task a delegation named as delegated: link it to the sub-agent's
+ * call id and lift a still-pending task to in_progress.
+ *
+ * The status flip is the point. A plan task that stays `pending` does not
+ * render its linked function calls (`OrchestratorPlan.TaskRow`), so stamping
+ * `taskId` on the call without this would hide the spawn instead of showing it
+ * under its task. A task already done/voided keeps its status - only its link
+ * is set - so a late delegation cannot un-finish work.
+ */
+export const patchPlanTaskAsDelegated = (
+  tasks: Array<StudioPlanTask>,
+  taskId: string,
+  callId: string
+): Array<StudioPlanTask> => {
+  const list = Array.isArray(tasks) ? tasks : [];
+  const target = list.find(task => task && task.id === taskId);
+  if (!target) return list;
+  const status = target.status === 'pending' ? 'in_progress' : target.status;
+  return patchPlanTask(list, taskId, { status, agentCallId: callId });
+};
+
+/**
+ * A copy of a request `output` with its latest plan message's tasks replaced,
+ * or null when there is no plan message to rewrite.
+ *
+ * Shared by the finalize writer (`UseStudioRuntime`) and the delegation writer
+ * (`Utils`), so both target the same message: the last `function_call_output`
+ * whose JSON carries `plan.tasks` - exactly what `getLatestActivePlan` reads.
+ */
+export const replacePlanMessage = (
+  output: Array<any>,
+  tasks: Array<StudioPlanTask>
+): Array<any> | null => {
+  const list = Array.isArray(output) ? output : [];
+  const planOutput = JSON.stringify(buildPlanOutput(tasks));
+  for (let i = list.length - 1; i >= 0; i--) {
+    const message = list[i];
+    if (
+      !message ||
+      typeof message !== 'object' ||
+      message.type !== 'function_call_output' ||
+      !message.output
+    ) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(message.output);
+      if (parsed && parsed.plan && Array.isArray(parsed.plan.tasks)) {
+        const updated = [...list];
+        updated[i] = { ...message, output: planOutput };
+        return updated;
+      }
+    } catch (ignored) {
+      // A non-JSON output is skipped, like `getLatestActivePlan` does.
+    }
+  }
+  return null;
+};
+
 export type StudioPlanTaskValidation =
   | {| success: true, tasks: Array<StudioPlanTask> |}
   | {| success: false, message: string |};

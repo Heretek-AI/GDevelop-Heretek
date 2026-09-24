@@ -74,7 +74,11 @@ import {
   MAX_SUB_AGENTS_PER_PARENT,
 } from './Studio/SpawnSubAgents';
 import { createLoopGuard } from './Studio/LoopGuard';
-import { mergePlanResultOutput } from './Studio/PlanStore';
+import {
+  mergePlanResultOutput,
+  patchPlanTaskAsDelegated,
+  replacePlanMessage,
+} from './Studio/PlanStore';
 import { isSubAgentAtTurnCap } from './Studio/FinalizeSubAgents';
 import { getRoleToolPolicy, isRoleReadOnly } from './Studio/RoleToolPolicy';
 import { getEditApprovalLaunchingCall } from './Studio/EditApprovalLabel';
@@ -844,6 +848,30 @@ export const useProcessFunctionCalls = ({
             // created nothing, so counting it would ratchet the cap down on
             // every transient failure until nothing can ever delegate.
             spawnedThisBatch++;
+            // Link the call to its plan task so the chat renders it inside that
+            // task's row (ChatMessages' `functionCallItemsByTaskId` reads it) -
+            // the hosted server stamps this too; the BYOK path must as well.
+            const relatedTaskId = (spawnResult: any).relatedTaskId;
+            if (relatedTaskId) {
+              // Link the call to its plan task AND lift that task to
+              // in_progress in one write: a still-pending task does not render
+              // its linked calls (`OrchestratorPlan.TaskRow`), so without the
+              // status flip the spawn would be hidden instead of shown under
+              // its task. The hosted server stamps the same link.
+              spawnCall.taskId = relatedTaskId;
+              updateAiRequest(aiRequest.id, currentRequest => {
+                const base = currentRequest || aiRequest;
+                const plan = getLatestActivePlan(base);
+                if (!plan || !plan.tasks) return base;
+                const patchedTasks = patchPlanTaskAsDelegated(
+                  plan.tasks,
+                  relatedTaskId,
+                  spawnCall.call_id
+                );
+                const output = replacePlanMessage(base.output, patchedTasks);
+                return output ? { ...base, output } : base;
+              });
+            }
           }
         }
       }

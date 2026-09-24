@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 250,
+  "last_cycle": 251,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1474,6 +1474,12 @@
       "target": "Tier 1 orchestrator reliability: resume a studio manager that stalls after planning (bounded, tested)",
       "metric_delta": "Under BYOK nothing resumed a manager that produced a plan, then ended its turn without delegating - the multi-agent loop idled forever (the recurring 'local model plans then stops' gap). Added the fix end-to-end: (1) pure, tested NudgePolicy (shouldNudgeStudioManager + getActionablePlanSignature + buildStudioNudgeMessage, 13 specs) decides when to nudge; (2) useStudioNudge hook (8 specs with fake timers + react-test-renderer) arms a 5s grace timer, sends once per plan state, caps at 5 per request, only for the top-level non-role manager, only a recent (<=10min) request, skips suspended/error/sending/in-progress/live-or-pending-sub-agent; (3) wired beside useStudioRuntime in AskAiEditorContainer. Live end-to-end proof against the scriptable mock: transcript user -> plan output -> user[NUDGE] -> assistant create_or_update_plan -> assistant spawn_agent (the stalled manager resumed and delegated; exactly one nudge). Also deduplicated two merge-artifact comment blocks (CustomAIClient.js, AiRequestUtils.js). Tests 1691 AI-surface / 83 suites (up from 1670/81); build green; ESLint/Prettier/divergence clean (4 new forkOnly files recorded).",
       "commit": "feat(ai): resume a stalled studio manager with a bounded nudge"
+    },
+    {
+      "cycle": 251,
+      "target": "Tier 1 multi-agent UI: link a spawn call to its plan task so the chat renders the delegation inside the task row",
+      "metric_delta": "A spawn_agent call was never linked to its plan task: ChatMessages' functionCallItemsByTaskId reads functionCall.taskId, but nothing in the BYOK path stamped it (the hosted server does), so delegated calls were shown only at the top level and never under their task. Added: (1) spawnSubAgent now returns relatedTaskId (the plan task the call named); (2) Utils stamps spawnCall.taskId and, in the same write, lifts the plan task to in_progress + agentCallId via new pure PlanStore helpers patchPlanTaskAsDelegated/replacePlanMessage (the status flip is required: a pending task does not render its linked calls, so the spawn would be hidden otherwise); (3) refactored UseStudioRuntime's plan rewrite onto the shared replacePlanMessage (one implementation). Tests +5 PlanStore +1 SpawnSubAgents (1697 AI-surface / 83 suites, up from 1692). Live proof via the mock: spawn carried taskId 'design'; plan became design done (agentCallId c_design), build in_progress; WebUI rendered the 'Design' call row under the 'Design the city-builder GDD' task. Build green; ESLint/Prettier/divergence clean.",
+      "commit": "feat(ai): link spawn calls to their plan task in the chat"
     }
   ],
   "backlog": [
@@ -1685,6 +1691,7 @@
     "Run Jest through `npm test` only: the package's test script is `react-app-rewired test --env=node`, and invoking `npx react-app-rewired test` without `--env=node` makes 21 CustomAIClient streaming specs fail with 'TextEncoder is not defined'. A bare-invocation failure is environmental, not a regression.",
     "For a multi-agent UI, the sub-agent's report is already in the parent's output as a function_call_output (written by useStudioRuntime); surface that instead of persisting child transcripts. extractFunctionCallReport handles both the {message} object and JSON-string shapes.",
     "The CRA dev server may hold a stale bundle after long edit sessions; verify a new feature is actually served by fetching the loaded app chunk (the big src_ExportAndShare_* chunk contains the app under test) and grepping for a unique symbol, not the small bundle.js. To restart it, kill the `node .../react-app-rewired/scripts/start.js` PID (pkill on 'react-app-rewired start' misses it); wait for 'webpack compiled successfully' in its log.",
-    "A hook that sends through a timer must flush microtasks in its spec: after jest.advanceTimersByTime, `await TestRenderer.act(async () => { await Promise.resolve(); })`, or the deferred send has not run when the assertions execute."
+    "A hook that sends through a timer must flush microtasks in its spec: after jest.advanceTimersByTime, `await TestRenderer.act(async () => { await Promise.resolve(); })`, or the deferred send has not run when the assertions execute.",
+    "The BYOK studio must stamp what the hosted server stamps on function calls/plan tasks (functionCall.taskId, planTask.agentCallId, planTask.status): the UI reads those fields and silently shows nothing when they are absent. Check the UI reader before assuming the studio writes a linkage field."
   ]
 }

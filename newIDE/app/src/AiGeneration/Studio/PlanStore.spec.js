@@ -7,6 +7,8 @@ import {
   validatePlanTasks,
   mergePlanTasks,
   patchPlanTask,
+  patchPlanTaskAsDelegated,
+  replacePlanMessage,
   mergePlanResultOutput,
   isStudioPlanTaskStatus,
 } from './PlanStore';
@@ -478,5 +480,77 @@ describe('PlanStore', () => {
         ]).success
       ).toBe(false);
     });
+  });
+});
+
+describe('patchPlanTaskAsDelegated', () => {
+  it('lifts a pending task to in_progress and links its call', () => {
+    const tasks = [
+      makeTask({ id: 'design' }),
+      makeTask({ id: 'build', dependsOn: ['design'] }),
+    ];
+    const patched = patchPlanTaskAsDelegated(tasks, 'design', 'call-1');
+    expect(patched[0].status).toBe('in_progress');
+    expect(patched[0].agentCallId).toBe('call-1');
+    // The other task is untouched.
+    expect(patched[1].status).toBe('pending');
+    expect(patched[1].agentCallId).toBeUndefined();
+  });
+
+  it('never un-finishes a done task, only links it', () => {
+    const patched = patchPlanTaskAsDelegated(
+      [makeTask({ id: 'design', status: 'done' })],
+      'design',
+      'call-2'
+    );
+    expect(patched[0].status).toBe('done');
+    expect(patched[0].agentCallId).toBe('call-2');
+  });
+
+  it('is a no-op for an unknown task id', () => {
+    const tasks = [makeTask({ id: 'design' })];
+    expect(patchPlanTaskAsDelegated(tasks, 'nope', 'call-3')).toEqual(tasks);
+  });
+});
+
+describe('replacePlanMessage', () => {
+  const planMessage = (tasks: any) => ({
+    type: 'function_call_output',
+    call_id: 'plan-call',
+    output: JSON.stringify(buildPlanOutput(tasks)),
+  });
+
+  it('rewrites the last plan message and leaves other messages alone', () => {
+    const output = [
+      planMessage([makeTask({ id: 'design' })]),
+      { type: 'message', role: 'assistant', content: [] },
+      {
+        type: 'function_call_output',
+        call_id: 'other',
+        output: '{"success":true}',
+      },
+    ];
+    const tasks = [makeTask({ id: 'design', status: 'in_progress' })];
+    const updated = replacePlanMessage(output, tasks);
+    expect(updated).not.toBeNull();
+    if (!updated) return;
+    expect(updated).toHaveLength(3);
+    expect(getLatestActivePlan(({ output: updated }: any))).not.toBeNull();
+    const plan = getLatestActivePlan(({ output: updated }: any));
+    expect(plan && plan.tasks[0].status).toBe('in_progress');
+    // The input is not mutated.
+    expect(getLatestActivePlan(({ output }: any)).tasks[0].status).toBe(
+      'pending'
+    );
+  });
+
+  it('returns null when there is no plan message', () => {
+    expect(
+      replacePlanMessage(
+        [{ type: 'message', role: 'assistant', content: [] }],
+        []
+      )
+    ).toBeNull();
+    expect(replacePlanMessage(([]: any), [])).toBeNull();
   });
 });
