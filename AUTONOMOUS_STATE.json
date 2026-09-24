@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 212,
+  "last_cycle": 213,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1246,6 +1246,12 @@
       "target": "Script the parent while sub-agents reply plainly (mock routing) + multi-task example",
       "metric_delta": "A single global turn sequence could not drive a realistic multi-agent run: parent and child requests interleave, so a child consumed the parent's next scripted turn. Added sub-agent detection to the mock (a system prompt naming a studio role) so the script applies to PARENT requests only and children return a plain reply. Added scripts/dev/mock-script-multi.json (a 3-task plan with dependsOn plus three sequential spawns) and documented the routing. Verified deterministically by direct requests: parent#1 -> create_or_update_plan, child -> plain content (no tool calls, script not consumed), parent#2 -> spawn_agent(design), parent#3 -> spawn_agent(build) - exactly the intended order. Divergence +1 forkOnly (the example).",
       "commit": "feat(scripts): route mock scripts to parent requests and add a multi-agent example"
+    },
+    {
+      "cycle": 213,
+      "target": "Deterministic multi-task studio lifecycle proven end-to-end",
+      "metric_delta": "MAJOR EVIDENCE (Tier 1). Ran the committed mock-script-multi.json through the open editor (HarnessTown): the orchestrator created a 3-task plan with dependencies (design -> build -> test), spawned THREE sub-agents sequentially (designer, developer, tester), each child's report was written back to its spawn call ('Report from the Designer/Developer/QA tester: ...'), and the plan ended with ALL THREE tasks 'done'. 10 parent messages, 3 spawns, 3 children created and retired, no errors; screenshot /tmp/opencode/cycle213-multiagent.png. Definitive deterministic proof of the studio orchestration + plan lifecycle (with the cycle-211 clobber fix), needing no model or credentials. Config restored, mock stopped.",
+      "commit": "chore(autonomous): deterministic multi-task studio lifecycle proof"
     }
   ],
   "backlog": [
