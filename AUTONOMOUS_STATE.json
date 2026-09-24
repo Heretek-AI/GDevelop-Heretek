@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 182,
+  "last_cycle": 183,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1066,10 +1066,16 @@
       "target": "Cover spawnSubAgent, the untested delegation glue (Tier 1)",
       "metric_delta": "spawnSubAgent creates the child request (the entire delegation path) and had no tests. +3 tests with CustomAIClient mocked (stays off libGD/network): malformed call fails without creating a child; valid developer call forwards parent id, role, a Task/Context user request, the precomputed GDD note, stamps the call and returns the child ids; the designer does NOT receive the GDD note. Designer gating mutation-checked (neutralizing the role condition fails that test). eslint import/first required reordering the mock below the imports (jest.mock is hoisted). 1609/1609 across 80 suites (was 1606), eslint+prettier clean, divergence clean.",
       "commit": "test(ai): cover spawnSubAgent delegation glue"
+    },
+    {
+      "cycle": 183,
+      "target": "Execute the Phase 5 WebUI audit (dev server + Chrome DevTools MCP)",
+      "metric_delta": "Phase 5 was blocked all session; started the dev server (compiled successfully, 'No issues found') and audited the editor through Chrome DevTools MCP. Results: home + Ask AI drawer render; the fork's persisted HarborTown harness run is present (114 output messages, 35 assistant turns, 146 tool calls, 78 tool outputs, 12 sub-agent spawns, status ready, no error, 0 null holes); console shows only pre-existing upstream MUI deprecation warnings (createMuiTheme/GridList/fade/disableBackdropClick), nothing fork-introduced; network has no 4xx/5xx. Screenshot saved to /tmp/opencode/cycle183-editor.png. A live model turn remains impossible (no config.local.json key); llm.heretek.one answers 401 unauthenticated. Gate tools: the code-mode runtime has no setTimeout, and evaluate_script takes a function-declaration string (not an IIFE).",
+      "commit": "chore(autonomous): execute the Phase 5 WebUI audit"
     }
   ],
   "backlog": [
-    "Phase 5 interactive WebUI audit (@feedback-loop via Chrome DevTools MCP) is BLOCKED by environment: no config.local.json, no dev server (:3000), no reachable AI endpoint. Run it when credentials/endpoint are supplied - it is the one objective gate this session could not exercise.",
+    "Phase 5 live model turn is BLOCKED by credentials only: the WebUI harness now runs (dev server + Chrome DevTools MCP audited cycle 183; editor and Ask AI render, persisted HarborTown run has 12 sub-agent spawns with no errors). Supply config.local.json (Heretek key) to run the full @feedback-loop benchmark end-to-end.",
     "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
     "Extract ChatMessages' renderItems classification into a pure leaf so the render-path guards become unit-testable (currently guarded by precedent, verified only by build/lint/suite).",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync, so upstream fixes never arrive.",
@@ -1252,6 +1258,7 @@
     "This jest env (jest 27 node env) has no global Headers/TextDecoder-class web globals beyond what the existing mocks provide: model fetch-Headers fakes as index-opaque {get} objects rather than `new Headers(...)`, which throws ReferenceError and fails the test for the wrong reason.",
     "Verify platform APIs empirically before adopting (segmented ZWJ/flag/combining strings in node first); check the jest env for assumed globals (no Headers here, but Intl exists). When a test string's encoding matters (combining vs precomposed), assert codepoints in the file rather than trusting what the editor shows.",
     "When two meters share inputs, change both or neither: adding tools to the occupancy numerator broke the cost-meter relational test, which exposed that the cost meter omitted the same term. A failing sibling test after a correct change is evidence of a second instance of the bug, not a bad test - read it before reverting.",
-    "Budget what you send, not what you built: the compaction measured the head template while the JSON instruction tail was appended after measurement - always measure the exact messages array the request sends (measurePrompt over system+user), the same way trimMessagesToBudget measures what it trims."
+    "Budget what you send, not what you built: the compaction measured the head template while the JSON instruction tail was appended after measurement - always measure the exact messages array the request sends (measurePrompt over system+user), the same way trimMessagesToBudget measures what it trims.",
+    "Chrome DevTools MCP via code mode: the runtime has no setTimeout (use wait_for or the tool's own waits), and evaluate_script requires a function-declaration string (e.g. '() => {...}'), not an IIFE - an invoked string returns a value and fails with 'fn is not a function'."
   ]
 }
