@@ -211,6 +211,39 @@ export const shouldShowSendAgainLabel = ({
  * turn — later slow turns are context-size slowness, not a model loading into
  * memory, and narrating every one as a cold start is noise.
  */
+/**
+ * A short, human-readable note for the provider telemetry a routing proxy
+ * reported for the last turn (`x-omniroute-*`), or null when there is nothing
+ * to show. Kept pure so the chat's rendering stays a one-liner and the format
+ * is unit-testable.
+ */
+export const formatProviderTelemetryNote = (telemetry: ?Object): ?string => {
+  if (!telemetry || typeof telemetry !== 'object') return null;
+  const parts = [];
+  if (typeof telemetry.model === 'string' && telemetry.model) {
+    parts.push(telemetry.model);
+  }
+  if (
+    typeof telemetry.latencyMs === 'number' &&
+    Number.isFinite(telemetry.latencyMs)
+  ) {
+    parts.push(`${Math.round(telemetry.latencyMs)} ms`);
+  }
+  const hasIn = typeof telemetry.tokensIn === 'number';
+  const hasOut = typeof telemetry.tokensOut === 'number';
+  if (hasIn || hasOut) {
+    parts.push(
+      `~${hasIn ? telemetry.tokensIn : '?'} in / ${
+        hasOut ? telemetry.tokensOut : '?'
+      } out tokens`
+    );
+  }
+  if (typeof telemetry.cache === 'string' && telemetry.cache) {
+    parts.push(`cache ${telemetry.cache}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+};
+
 export const hasModelResponded = (output: ?Array<Object>): boolean =>
   !!(output || []).some(
     message =>

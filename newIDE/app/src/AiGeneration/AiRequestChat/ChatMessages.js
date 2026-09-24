@@ -53,6 +53,7 @@ import {
   getAvailableCredits,
   useLocalColdStartHint,
   hasModelResponded,
+  formatProviderTelemetryNote,
 } from './Utils';
 import Text from '../../UI/Text';
 import { ColumnStackLayout, LineStackLayout } from '../../UI/Layout';
@@ -69,6 +70,7 @@ import {
   customGetAiRequestSystemCompacted,
   customGetAiRequestTokenTotal,
   customGetAiRequestPartialContent,
+  customGetAiRequestProviderTelemetry,
 } from '../../AI/CustomAIClient';
 
 /**
@@ -1382,6 +1384,25 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
                   Older messages were trimmed to fit the AI model's context
                   window.
                 </Trans>
+              )}
+            </Text>
+          </Line>
+        ) : null}
+
+        {!isWorking &&
+        formatProviderTelemetryNote(
+          customGetAiRequestProviderTelemetry(aiRequest.id)
+        ) ? (
+          <Line justifyContent="flex-start">
+            <Text
+              noMargin
+              displayInlineAsSpan
+              size="body-small"
+              color="secondary"
+            >
+              <Trans>Provider response:</Trans>{' '}
+              {formatProviderTelemetryNote(
+                customGetAiRequestProviderTelemetry(aiRequest.id)
               )}
             </Text>
           </Line>

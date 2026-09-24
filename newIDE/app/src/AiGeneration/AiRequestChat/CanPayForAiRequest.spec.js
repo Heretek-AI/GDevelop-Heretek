@@ -14,6 +14,7 @@ import {
   shouldShowLocalColdStartHint,
   useLocalColdStartHint,
   hasModelResponded,
+  formatProviderTelemetryNote,
   COLD_START_HINT_DELAY_MS,
 } from './Utils';
 import {
@@ -525,6 +526,37 @@ describe('useLocalColdStartHint', () => {
       jest.advanceTimersByTime(COLD_START_HINT_DELAY_MS * 3);
     });
     expect(container.textContent).toBe('');
+  });
+});
+
+describe('formatProviderTelemetryNote', () => {
+  it('formats model, latency, tokens and cache', () => {
+    expect(
+      formatProviderTelemetryNote({
+        model: 'deepseek-v4.1-flash',
+        latencyMs: 3361.4,
+        tokensIn: 8856,
+        tokensOut: 90,
+        cache: 'MISS',
+      })
+    ).toBe(
+      'deepseek-v4.1-flash · 3361 ms · ~8856 in / 90 out tokens · cache MISS'
+    );
+  });
+
+  it('shows what is present and a ? for a missing half of the token pair', () => {
+    expect(formatProviderTelemetryNote({ tokensOut: 12 })).toBe(
+      '~? in / 12 out tokens'
+    );
+    expect(formatProviderTelemetryNote({ latencyMs: 20 })).toBe('20 ms');
+  });
+
+  it('is null when there is nothing to show', () => {
+    expect(formatProviderTelemetryNote(null)).toBe(null);
+    expect(formatProviderTelemetryNote(undefined)).toBe(null);
+    expect(formatProviderTelemetryNote({})).toBe(null);
+    expect(formatProviderTelemetryNote({ latencyMs: NaN })).toBe(null);
+    expect(formatProviderTelemetryNote({ model: '' })).toBe(null);
   });
 });
 

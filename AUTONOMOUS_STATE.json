@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 192,
+  "last_cycle": 193,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1126,6 +1126,12 @@
       "target": "Make provider telemetry inspectable per request (Tier 2 audit data layer)",
       "metric_delta": "The x-omniroute-* telemetry was console-only; the objective wants full request/response inspectability. Added parseProviderTelemetry (numbers, drops non-numeric, null when nothing), refactored formatProviderTelemetry onto it, a per-request registry localAiRequestProviderTelemetry with customGetAiRequestProviderTelemetry(id), an onProviderTelemetry callback threaded through sendChatCompletion AND streamChatCompletion, and storage on all three turn paths (sub-agent attributes to the parent). Cleared by the test reset. +1 test (parse shape, non-numeric drop, live storage via a create with telemetry headers) red pre-fix, mutation-checked (removing the callback yields null). 1630/1630 across 81 suites, eslint+prettier clean, divergence clean.",
       "commit": "feat(ai): expose per-request provider telemetry"
+    },
+    {
+      "cycle": 193,
+      "target": "Surface the per-request provider telemetry in the chat (Tier 2 consumer)",
+      "metric_delta": "The cycle-192 telemetry registry had no consumer. Added formatProviderTelemetryNote (pure, in AiRequestChat/Utils.js) and a small 'Provider response: <model> · <ms> · ~in/out tokens · cache' line in ChatMessages' status block (fork-modified), reading customGetAiRequestProviderTelemetry. +3 tests (full format, missing token half, null cases) mutation-checked (dropping the cache part fails the full-format test). Note is only shown when the endpoint reports x-omniroute-* headers, so it stays silent for Ollama (which sends none) - verified live that Ollama emits none; the format itself is pinned by tests. 1633/1633 across 81 suites, eslint+prettier clean, production build exit 0, dev watcher compiled, divergence clean.",
+      "commit": "feat(ai): show provider response telemetry in the chat"
     }
   ],
   "backlog": [
