@@ -751,6 +751,18 @@ describe('mergeIncrementalAiRequest', () => {
     }
   });
 
+  it('tolerates a null hole in the cached output while splicing', () => {
+    // The splice index walks `previousOutput` (a cached/persisted array that
+    // is not shape-validated) and read `.messageId` off a null hole - the
+    // sibling cycle-140 guard only covered the FETCHED first element.
+    const previous = requestWithOutput([(null: any), message('b')]);
+    const fetched = requestWithOutput([message('b'), message('c')]);
+    const merged = mergeIncrementalAiRequest(previous, fetched, 'b');
+    expect(merged).not.toBe(fetched);
+    const mergedOutput = merged.output || [];
+    expect(mergedOutput.some(m => m && m.messageId === 'c')).toBe(true);
+  });
+
   it('returns the fetched request as-is when it is a full output, not a slice', () => {
     const previous = requestWithOutput([message('a'), message('b')]);
     const fetched = requestWithOutput([

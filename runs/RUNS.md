@@ -1,8 +1,7 @@
 # Autonomous Studio Run Log
 
-Metrics appended by the recursive studio engine. The model performing
-the work is recorded as `model`; `endpoint` is the AI endpoint under
-test for that cycle.
+Metrics appended by the recursive studio engine. `model` is the model doing the
+work; `endpoint` is the AI endpoint under test for that cycle.
 
 | cycle | target | commit | harness verdict |
 |---|---|---|---|
@@ -27,27 +26,26 @@ test for that cycle.
 | 173 | Guard the untested fork-at-message-id slice against a null hole | `fix(ai): guard the fork-at-message-id slice against a null hole` | blocked (no dev server/credentials in environment) |
 | 174 | Null-tolerate the local turn merge (success and failure paths) | `fix(ai): null-tolerate the local turn merge paths` | blocked (no dev server/credentials in environment) |
 | 175 | Guard the last latent crash: output.some over a persisted hole during a racy failed turn | `fix(ai): guard the racy turn-merge comparison against a hole` | blocked (no dev server/credentials in environment) |
+| 176 | Bring AUTONOMOUS_STATE.json to the required schema and create runs/RUNS.md | `chore(autonomous): complete the state schema and run log` | blocked (no dev server/credentials in environment) |
+| 177 | Actionable hints for HTTP 429 and 502/503 provider failures | `feat(ai): hint at rate limiting and provider outages` | blocked (no dev server/credentials in environment) |
+| 178 | Null-tolerate the plan readiness scan (model-authored plan tasks) | `fix(ai): tolerate null plan tasks in the readiness scan` | blocked (no dev server/credentials in environment) |
+| 179 | Guard the polling splice scan against a hole in the cached output | `fix(ai): guard the polling splice scan against a cached hole` | blocked (no dev server/credentials in environment) |
 
-## Session context (cycles 155-176)
+## Session context (cycles 155-179)
 
-- **model**: `deepseek-v4.1-flash:cloud` (Ollama provider, per the running harness).
-- **endpoint**: none configured in this environment (`config.local.json` absent;
-  `http://localhost:3000` not running; `llm.heretek.one` unreachable/unauthorized).
-  Phase 5 interactive WebUI audit via Chrome DevTools MCP is therefore **blocked**,
-  not waived: every cycle reports the deterministic gates it could run.
-- **turns per phase**: each cycle executes Phase 1 ingest, Phase 2 target scoring,
-  Phase 3 implementation, Phase 4 verification gates, then Phase 6 consolidation;
-  Phase 5 is attempted and recorded as blocked.
-- **token efficiency**: tracked by the fork's own meters; the suite grew from
-  1489 to 1597 passing tests across 80 suites over this session.
-- **verification gates that DID run every cycle**: `npm test` (react-app-rewired,
-  CRA babel), `eslint --max-warnings=0`, `prettier --list-different`, the
-  `check-fork-divergence.js` guard, and (cycles 162, 171) `npm run flow` where
-  Flow-relevant files changed.
+- **model**: `deepseek-v4.1-flash:cloud` (Ollama provider).
+- **endpoint**: none configured (`config.local.json` absent; `localhost:3000` down;
+  `llm.heretek.one` unreachable/unauthorized) - Phase 5 WebUI audit is blocked, not waived.
+- **turns per phase**: Phase 1 ingest, Phase 2 scoring, Phase 3 implementation,
+  Phase 4 gates, Phase 6 consolidation each cycle; Phase 5 attempted and recorded blocked.
+- **token efficiency**: the fork AI suite grew from 1489 to 1601 passing tests across 80 suites.
+- **gates every cycle**: `npm test` (react-app-rewired), `eslint --max-warnings=0`,
+  `prettier --list-different`, `check-fork-divergence.js`; `npm run flow`/`npm run build`
+  on Flow- or build-relevant changes.
 
 ## Gate definitions
 
-- **Green**: all deterministic gates pass (tests, eslint, prettier, divergence).
-- **Blocked**: a gate could not be run for environmental reasons, stated explicitly.
-- **Red**: a gate failed; the cycle is rolled back and a heuristic is logged.
+- **Green**: all deterministic gates pass.
+- **Blocked**: a gate could not run for environmental reasons, stated explicitly.
+- **Red**: a gate failed; the cycle is rolled back and a heuristic logged.
 

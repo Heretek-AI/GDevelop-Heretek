@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 178,
+  "last_cycle": 179,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1042,6 +1042,12 @@
       "target": "Null-tolerate the plan readiness scan (model-authored plan tasks)",
       "metric_delta": "PlanStore.areTaskDependenciesSatisfied and getNextReadyTask read otherTask.status / task.status over plan tasks, which come from model-authored function_call_output JSON and persisted output - neither shape-validated per element. A null entry crashed the readiness scan while the studio finalized a child (the exact pass that flips the next task to in_progress). Both scans now skip non-objects. 1 test covering both, each guard mutation-checked individually (reverting either reproduces the TypeError). 1600/1600 across 80 suites (was 1599), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): tolerate null plan tasks in the readiness scan"
+    },
+    {
+      "cycle": 179,
+      "target": "Guard the polling splice scan against a hole in the cached output",
+      "metric_delta": "mergeIncrementalAiRequest's splice findIndex walked previousOutput (a cached/persisted array, not shape-validated) and read .messageId off a null hole - the sibling cycle-140 guard covered only the FETCHED first element. A hole crashed the polling merge, stalling the chat's updates. 1 test red pre-fix, mutation-checked (note: prettier reformats the guard, so the revert string must match its output). 1601/1601 across 80 suites (was 1600), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): guard the polling splice scan against a cached hole"
     }
   ],
   "backlog": [

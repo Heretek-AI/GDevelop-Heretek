@@ -959,8 +959,13 @@ export const mergeIncrementalAiRequest = (
     firstFetchedMessage.messageId === outputFromMessageId;
   if (!isIncrementalSlice || !previousOutput) return fetchedAiRequest;
 
+  // The cached output is not shape-validated either, so the scan must skip
+  // holes: reading `.messageId` off a null entry threw out of the polling loop.
   const spliceIndex = previousOutput.findIndex(
-    message => message.messageId === outputFromMessageId
+    message =>
+      message &&
+      typeof message === 'object' &&
+      message.messageId === outputFromMessageId
   );
   if (spliceIndex === -1) return fetchedAiRequest;
 
