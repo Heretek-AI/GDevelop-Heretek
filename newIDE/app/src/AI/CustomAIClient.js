@@ -3114,6 +3114,64 @@ const NETWORK_RETRY_DELAY_MS = 500;
 const delay = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));
 
+// A provider can return a transient 429/5xx ("endpoint unavailable, reset after
+// 6s") that succeeds seconds later. Without a retry the whole agent turn fails
+// - which for a sub-agent wastes its work (feedback-loop Run 6: a developer died
+// on a 503). Bounded and backed off, so a persistent outage still fails.
+const PROVIDER_RETRY_DELAY_MS = 1500;
+const MAX_PROVIDER_RETRIES = 2;
+
+/** The HTTP status of a thrown provider error, or null. */
+export const getProviderErrorStatus = (error: any): number | null => {
+  const status = error && (error: any).providerStatus;
+  return typeof status === 'number' ? status : null;
+};
+
+/**
+ * Whether a provider error is worth retrying: rate limiting (429), request
+ * timeout (408) or a gateway/server-availability failure (502/503/504). A 4xx
+ * client error and a bare 500 are NOT retried: 500 is deliberately left
+ * untouched so a genuine provider error reads exactly as the server sent it
+ * (see the status-hint comment in `sendChatCompletion`).
+ */
+export const isRetryableProviderError = (error: any): boolean => {
+  const status = getProviderErrorStatus(error);
+  if (status === null) return false;
+  return status === 408 || status === 429 || (status >= 502 && status <= 504);
+};
+
+/**
+ * Run a turn, retrying a transient provider error (429/5xx) with backoff.
+ * Aborted turns are never retried.
+ */
+const runTurnWithProviderRetry = async (
+  sendTurn: () => Promise<any>,
+  abortSignal: { aborted: boolean }
+): Promise<any> => {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await sendTurn();
+    } catch (error) {
+      if (
+        abortSignal.aborted ||
+        !isRetryableProviderError(error) ||
+        attempt >= MAX_PROVIDER_RETRIES
+      ) {
+        throw error;
+      }
+      attempt++;
+      const delayMs = PROVIDER_RETRY_DELAY_MS * attempt;
+      console.warn(
+        `[CustomAIClient] Transient provider error (${getProviderErrorStatus(
+          error
+        )}); retrying in ${delayMs}ms (attempt ${attempt}/${MAX_PROVIDER_RETRIES}).`
+      );
+      await delay(delayMs);
+    }
+  }
+};
+
 /**
  * Whether an error is a transport-level failure (no HTTP response): the server
  * is unreachable, the connection was reset, DNS failed, etc. A provider error
@@ -3798,11 +3856,15 @@ export const sendChatCompletion = async ({
           : status === 502 || status === 503
           ? ' (The provider is temporarily unavailable: retry in a moment; if it persists, check the provider status or your base URL.)'
           : '';
-      throw new Error(
+      const providerError = new Error(
         `AI Provider Error (${status}): ${errorMsg}${authHint}${statusHint}${getErrorHint(
           error
         )}`
       );
+      // Keep the HTTP status on the error so a caller can retry a transient
+      // provider failure (429/5xx) instead of failing the whole agent turn.
+      (providerError: any).providerStatus = status;
+      throw providerError;
     }
     // No response at all (server down, network split, DNS): add the local
     // reachability/model hints when they match. The thrown value may be
@@ -4322,7 +4384,10 @@ export const customCreateAiRequest = async ({
   let assistantResponse;
   try {
     try {
-      assistantResponse = await sendTurn();
+      assistantResponse = await runTurnWithProviderRetry(
+        sendTurn,
+        abortController.signal
+      );
     } catch (error) {
       // The first turn embeds the project structure, so it is the most likely
       // to overflow: retry once at a halved budget before failing the create.
@@ -4582,7 +4647,10 @@ export const customAddMessageToAiRequest = async ({
     let assistantResponse;
     try {
       try {
-        assistantResponse = await sendTurn();
+        assistantResponse = await runTurnWithProviderRetry(
+          sendTurn,
+          abortController.signal
+        );
       } catch (error) {
         // A context-overflow 400 means the request still exceeded the window
         // even after the standard trim (an unknown model family defaulting too
@@ -4868,7 +4936,10 @@ export const customCreateSubAgentAiRequest = async ({
     let assistantResponse;
     try {
       try {
-        assistantResponse = await sendTurn();
+        assistantResponse = await runTurnWithProviderRetry(
+          sendTurn,
+          abortController.signal
+        );
       } catch (error) {
         // Sub-agents receive the project JSON too, so they can overflow the
         // same way: one retry at a halved budget before failing the child.

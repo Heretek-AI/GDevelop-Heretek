@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 259,
+  "last_cycle": 260,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1528,10 +1528,15 @@
       "target": "Phase 5: verify the manager-role fix with a fresh @feedback-loop run (no code change)",
       "metric_delta": "No code change. Re-ran @feedback-loop (hosted proxy, key via the localhost helper + Preferences form, Empty 1280x720 project pre-created) to validate cycle 258. Result: the top-level orchestrator made 4 spawns (designer x2, developer x2) and 0 direct project edits over 53 messages, with the plan tracking the model's own ids (task_design done, task_build done, task_economy in_progress, task_test pending); its reasoning explicitly acknowledged the restricted toolset. Pre-fix Run 5 made 15 manager mutations. Recorded as Run 6 in the skill's runs/RUNS.md; screenshot /tmp/opencode/cycle259-manager-fixed.png. One child developer errored (28 msgs) - sub-agent failure recovery is the next thing to watch.",
       "commit": "docs(autonomous): verify the manager-role fix end-to-end"
+    },
+    {
+      "cycle": 260,
+      "target": "Tier 2 resilience: retry a transient provider 502/503 instead of failing the agent turn",
+      "metric_delta": "feedback-loop Run 6's developer sub-agent died on a provider 503 - a transient 'endpoint unavailable' that failed the whole turn and wasted the agent's work (sub-agent failure recovery then spawned a replacement, but the provider blip was the root cause). Fixed: sendChatCompletion now attaches the HTTP status to the thrown provider error (providerStatus), and the three turn paths (create/continue/sub-agent) run through runTurnWithProviderRetry - 408/429/502/503/504 are retried up to 2 times with linear backoff (1.5s/3s), never on abort; a bare 500 and all 4xx are NOT retried (preserving the existing 'no 500 retry' contract, whose spec still passes). +3 specs (503 then success => 2 posts, ready; 400 => 1 post, error; retryable classification). Tests 1719 AI-surface / 83 suites. Live-verified with a purpose-built flaky provider (503 then 200): request ended ready, console logged the retry, provider log showed call 1 503 -> call 2 200. Build green; ESLint/Prettier/divergence clean.",
+      "commit": "fix(ai): retry a transient provider 502/503 instead of failing the turn"
     }
   ],
   "backlog": [
-    "Watch sub-agent failure recovery in a real run: Run 6 had a developer sub-agent end in 'error' (28 msgs); confirm the manager spawns a follow-up or reports it, and that the final report reaches the parent.",
     "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
@@ -1748,6 +1753,7 @@
     "Audit a tool's OpenAI schema against its implementation/specs whenever an agent reports a tool 'does nothing': change_behavior_property advertised flat args while reading changed_properties, so every schema-conformant call was a silent no-op. Sibling tools' schemas are the quickest reference for the expected shape.",
     "Generalizable harness check: an editor tool's OpenAI schema must advertise every top-level arg its implementation reads (a mismatch makes the capability unreachable for a schema-conforming model). Audit by mapping export tool names to their const ranges and comparing extractArrayProperty/extractObjectProperty(args, 'x') reads against the schema properties.",
     "A role-based agent must get BOTH its role prompt and its role tool subset at the top level too, not only for sub-agents. The BYOK orchestrator ran with every tool plus a generic prompt, so the 'manager' edited the project directly (feedback-loop Run 5); resolveStudioRoleId now maps orchestrator mode to the manager role while a stale role id still fails closed.",
-    "A fresh @feedback-loop run is the right validation for an orchestration fix: the deterministic spec pinned the tool subset, but only the real run proved the manager delegates (4 spawns, 0 direct edits) instead of building the project itself."
+    "A fresh @feedback-loop run is the right validation for an orchestration fix: the deterministic spec pinned the tool subset, but only the real run proved the manager delegates (4 spawns, 0 direct edits) instead of building the project itself.",
+    "Sub-agent failure recovery works (feedback-loop Run 6): an errored child is treated as finished, its failed report is delivered to the manager, and the manager spawned a replacement. The underlying 503 is now retried client-side, so a transient provider blip no longer kills a sub-agent turn. Keep 500 non-retryable (a genuine provider error should surface as-is)."
   ]
 }

@@ -98,6 +98,16 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Resilience: transient provider 503 is retried (cycle 260): feedback-loop Run 6's
+  developer sub-agent died on a provider 503 ("endpoint unavailable; reset after
+  6s") - a transient error that failed the whole turn. `sendChatCompletion` now
+  keeps the HTTP status on the thrown error, and each of the three turn paths
+  (create / continue / sub-agent) runs through `runTurnWithProviderRetry`: a
+  408/429/502/503/504 is retried up to 2 times with linear backoff, never on
+  abort; a bare 500 and 4xx are left as-is (the existing "no 500 retry" contract
+  preserved). Verified live with a purpose-built flaky provider: call 1 → 503,
+  call 2 → 200, the chat request ended `ready`, and the console logged
+  `Transient provider error (503); retrying in 1500ms (attempt 1/2)`.
 - Manager-role fix verified end-to-end (cycle 259): a fresh `@feedback-loop` run
   (Empty project pre-created; `prompt-city.md`) showed the top-level orchestrator
   make **4 spawns (designer ×2, developer ×2) and 0 direct project edits** over

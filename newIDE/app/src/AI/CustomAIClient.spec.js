@@ -44,6 +44,8 @@ import {
   customGetAiRequestProviderTelemetry,
   isContextOverflowError,
   isNetworkLevelError,
+  isRetryableProviderError,
+  getProviderErrorStatus,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1821,6 +1823,75 @@ describe('CustomAIClient', () => {
       expect(isNetworkLevelError({ response: { status: 500 } })).toBe(false);
       expect(isNetworkLevelError(null)).toBe(false);
       expect(isNetworkLevelError({ message: 'shuffle failure' })).toBe(false);
+    });
+
+    it('retries a transient provider 503 and succeeds', async () => {
+      // feedback-loop Run 6: a 503 ("endpoint unavailable") killed a developer
+      // sub-agent's turn outright. A transient server error must be retried.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: { status: 503, data: { error: { message: 'unavailable' } } },
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const result = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      expect(result.status).not.toBe('error');
+      expect(axios.post).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry a real client error (400)', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockRejectedValue({
+        response: { status: 400, data: { error: { message: 'bad request' } } },
+      });
+      const result = await customCreateAiRequest({
+        userRequest: 'start',
+        mode: 'chat',
+      });
+      expect(result.status).toBe('error');
+      expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it('classifies which provider errors are retryable', () => {
+      const providerError = (status: number) => {
+        const error = new Error('provider');
+        // $FlowFixMe: the client attaches the status for exactly this.
+        (error: any).providerStatus = status;
+        return error;
+      };
+      expect(getProviderErrorStatus(providerError(503))).toBe(503);
+      expect(getProviderErrorStatus(new Error('x'))).toBeNull();
+      expect(isRetryableProviderError(providerError(429))).toBe(true);
+      expect(isRetryableProviderError(providerError(408))).toBe(true);
+      expect(isRetryableProviderError(providerError(502))).toBe(true);
+      expect(isRetryableProviderError(providerError(503))).toBe(true);
+      expect(isRetryableProviderError(providerError(504))).toBe(true);
+      // 500 is a genuine server error and is left to the caller (see the
+      // existing "no 500 retry" behaviour), as are 4xx client errors.
+      expect(isRetryableProviderError(providerError(500))).toBe(false);
+      expect(isRetryableProviderError(providerError(400))).toBe(false);
+      expect(isRetryableProviderError(providerError(401))).toBe(false);
+      expect(isRetryableProviderError(new Error('network'))).toBe(false);
     });
 
     it('retries once with a smaller prompt when the window overflows', async () => {
