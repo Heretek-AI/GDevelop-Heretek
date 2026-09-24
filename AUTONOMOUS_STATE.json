@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 242,
+  "last_cycle": 243,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1426,6 +1426,12 @@
       "target": "Full-suite regression after the outcome-delivery fixes (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 239-241 (role-denied delivery, loop-guard warning delivery, mixed-batch delivery): 185 suites, 2370 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md fixed-defects list with the recorded-but-unsent outcome class.",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 243,
+      "target": "Pin the backend-only tool allowlist (every member must be a declared tool)",
+      "metric_delta": "The coverage-gap sweep found BACKEND_ONLY_TOOL_NAMES (the allowlist that withholds backend-resolved tools from local turns) is used but never asserted. Because it is an ALLOWLIST, a typo silently stops filtering (or filters nothing). Added a test that every member is a declared GDEVELOP_OPENAI_TOOLS name and that get_game_starter_summary is present, mutation-checked (renaming the entry fails it). 1653/1653 across 81 suites (was 1652), eslint+prettier clean, divergence clean. Incident: a restore command ran from the wrong workdir leaving the mutation in place for one test run (4 failures) - restored from the absolute path and re-verified; the failures were the mutation, not a regression.",
+      "commit": "test(ai): pin the backend-only tool allowlist"
     }
   ],
   "backlog": [

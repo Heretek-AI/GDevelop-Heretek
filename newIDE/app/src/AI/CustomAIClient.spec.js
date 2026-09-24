@@ -37,6 +37,7 @@ import {
   sendChatCompletion,
   formatProviderTelemetry,
   withoutBackendOnlyTools,
+  BACKEND_ONLY_TOOL_NAMES,
   buildSystemPrompt,
   getEffectiveConfigForRequest,
   parseProviderTelemetry,
@@ -1934,6 +1935,19 @@ describe('CustomAIClient', () => {
         (tool: any) => tool.function.name
       );
       expect(subAgentTools).not.toContain('get_game_starter_summary');
+    });
+
+    it('names only declared tools in the backend-only allowlist', () => {
+      // This is an ALLOWLIST: a typo here silently stops filtering the tool
+      // (or filters nothing), so every member must be a declared registry name.
+      const declared = new Set(
+        GDEVELOP_OPENAI_TOOLS.map(tool => tool.function.name)
+      );
+      expect(BACKEND_ONLY_TOOL_NAMES).toContain('get_game_starter_summary');
+      const unknown = BACKEND_ONLY_TOOL_NAMES.filter(
+        name => !declared.has(name)
+      );
+      expect(unknown).toEqual([]);
     });
 
     it('does not offer get_game_starter_summary on a local create', async () => {
