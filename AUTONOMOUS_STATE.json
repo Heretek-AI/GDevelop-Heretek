@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 227,
+  "last_cycle": 228,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1336,6 +1336,12 @@
       "target": "Live streaming token counter + a slow-stream mock option (Tier 2)",
       "metric_delta": "Added the Tier 2 'streaming token counter': PartialStreamText (fork-owned ChatMessages) now appends ' . ~N tokens' computed with estimateTokens(partialContent), so progress is legible while a local model generates. Also added MOCK_STREAM_DELAY_MS to the mock provider so streaming-only UI can be exercised (chunks spaced over time). Verified: unit (estimateTokens is tested) + eslint + production build exit 0 + divergence clean; the slow stream itself verified by curl (chunks + tool calls arrive over time). Honest caveat: the counter could not be caught in a Chrome DevTools snapshot mid-stream - the standalone form's transcript/working row was not captured while a turn ran - so it rests on build/unit evidence and the fact that PartialStreamText (its host) was live-verified earlier, not on a fresh live observation.",
       "commit": "feat(ai): show a live streaming token count in the chat"
+    },
+    {
+      "cycle": 228,
+      "target": "Attempt to catch the streaming token counter live (no change)",
+      "metric_delta": "No code change. Retried the cycle-227 caveat with the slow-stream mock (MOCK_STREAM_DELAY_MS=800) and the transcript visible (hide the chats list first, as in cycle 184). The streaming path works - POSTs return 200 and the [BYOK] telemetry debug line is emitted - and after completion the transcript shows the reply, the token meter and the Provider response line. The 'streaming token counter' itself (a suffix on PartialStreamText) still could not be captured mid-stream: PartialStreamText only renders while partial content exists, and the CDP snapshot cadence / transcript visibility did not land inside that window. The feature remains verified by unit/build only - recorded honestly, not claimed as live-verified. Config restored; slow mock stopped.",
+      "commit": "docs(autonomous): record the streaming-counter live-catch attempt"
     }
   ],
   "backlog": [
