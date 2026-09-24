@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 164,
+  "last_cycle": 165,
   "completed_targets": [
     {
       "cycle": 75,
@@ -951,6 +951,12 @@
       "target": "Extract the edit-approval launching-call resolution to a tested leaf",
       "metric_delta": "Backlog #150 approval-label item: the sub-agent-vs-direct label decision lived inline in the untestable dispatcher (three.js) - a silent break means the user approves blind. New Studio/EditApprovalLabel.js leaf (same rationale as RoleToolPolicy/isUserMessage) wired into getEditApprovalLabel; 4 tests pin launch resolution, top-level/pruned fallbacks, and null holes. Mutation-checked (unguarded leaf fails both resolution tests). 1576/1576 across 78 suites (was 1572/77), eslint+prettier clean, divergence +2 forkOnly via surgical --update. Incidents: wired the call site before creating the leaf (no harm, nothing ran); duplicate import from editing two import blocks (caught by eslint). Lock-lifecycle audit alongside found the refusal/suspend returns correctly bypass the lock-releasing finally by sitting before the try - comment accurate, no change.",
       "commit": "refactor(ai): extract edit-approval launching-call resolution"
+    },
+    {
+      "cycle": 165,
+      "target": "Cover the studio write-back hook with a render harness (useStudioRuntime)",
+      "metric_delta": "Backlog #150 hook item: the write-back loop that reports finished children to parents had zero tests - a stall there is a silent agent death. New UseStudioRuntime.spec.js renders the hook under jsdom (docblock env comment first, createRoot+act per the CanPay precedent) with injected fakes: finished child asserts exactly one plan write to the parent id plus one report send carrying the child text; unfinished child asserts silence. Mutation-checked by inverting the finished check: both tests fail in opposite directions (0 vs 1 calls). Source untouched (behavior already correct). 1578/1578 across 79 suites (was 1572/77), eslint+prettier clean, divergence +1 forkOnly surgical. Note: unmount inside act warns under jest 27 - harness drops unmount, containers are per-test so no interference.",
+      "commit": "test(ai): cover the studio write-back hook"
     }
   ],
   "backlog": [

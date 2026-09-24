@@ -176,6 +176,7 @@
     "newIDE/app/src/AiGeneration/Studio/SpawnSubAgents.js",
     "newIDE/app/src/AiGeneration/Studio/SpawnSubAgents.spec.js",
     "newIDE/app/src/AiGeneration/Studio/UseStudioRuntime.js",
+    "newIDE/app/src/AiGeneration/Studio/UseStudioRuntime.spec.js",
     "newIDE/app/src/MainFrame/Preferences/PreferencesStorage.js",
     "newIDE/app/src/MainFrame/Preferences/PreferencesStorage.spec.js",
     "newIDE/app/src/Utils/Array.ts",
