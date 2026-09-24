@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 210,
+  "last_cycle": 211,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1234,10 +1234,16 @@
       "target": "Full-project scripted loop reveals the plan task never flips to done",
       "metric_delta": "REAL DEFECT FOUND by the deterministic harness. With a project open (HarnessTown) the scripted mock drove the full loop: create_or_update_plan SUCCEEDED (plan output, task 'design' pending), spawn_agent was stamped, a real child ran, and the child's report was written back to the spawn call ('Report from the Designer: ... The design task is complete.'). BUT the plan output still reads 'pending': the studio plan flip (buildPlanStatusUpdateOutput -> done) did not persist. Console shows '[studio] finalizing sub-agent ... for call call_spawn' and NO deferred/superseded log, so the gated write ran and was then CLOBBERED - the report send starts the parent's next model turn, and customAddMessageToAiRequest writes output built from the turn-start snapshot (still pending), overwriting the flipped plan message (same messageId, so the cache-only merge does not re-insert it). The gate serializes gated writes only; the model turn writes the cache directly and bypasses it. This explains why live runs never showed completed plan tasks. Recorded as the top Tier 1 defect with root cause; the fix (merge by messageId, cache wins for pre-existing messages) is broad and needs its own cycle. Also proven: a project must be opened BEFORE the chat starts, else the container unmounts mid-loop and stalls it.",
       "commit": "docs(autonomous): record the plan-flip clobber found by the harness"
+    },
+    {
+      "cycle": 211,
+      "target": "Fix the plan-flip clobber: cache wins for pre-existing messages on write-back",
+      "metric_delta": "Fixed the cycle-210 live defect. customAddMessageToAiRequest built its write-back output from the turn-start snapshot, so a concurrent in-place rewrite of a pre-existing message (the studio flipping a plan task to done) was silently overwritten - same messageId, so the cache-only merge could not recover it. Now the write reconciles by messageId: for a message that existed before the turn, the CACHE version wins (it may hold a concurrent gated rewrite); messages the turn produced have fresh ids and are kept. +1 regression test that performs an in-place flip DURING the model call and asserts it survives (red pre-fix: status pending; mutation-checked). LIVE-VERIFIED with the deterministic harness end-to-end: with a project open, the scripted loop ran plan -> spawn -> report and the plan task now reads **done** (previously pending). 1641/1641 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
+      "commit": "fix(ai): stop a turn from clobbering a concurrent in-place rewrite"
     }
   ],
   "backlog": [
-    "Tier 1 DEFECT (cycle 210): the studio plan task is never marked done. buildPlanStatusUpdateOutput is correct and its write runs, but the parent's next model turn rebuilds the request from the pre-flip snapshot and overwrites the flipped plan message; the cache-only merge cannot help because the messageId is unchanged. Fix by merging the turn's write with the latest cache by messageId (cache wins for messages that existed before the turn; the turn wins for messages it produced), with a regression test reproducing flip-then-stale-turn-write.",
+    "Tier 1: with the plan lifecycle now correct end-to-end, run the full prompt-city.md benchmark offline via the scripted mock (project open) and capture the resulting plan/sub-agent artifacts, then with a real model/credentials.",
     "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent, so the multi-agent delegation step needs either a stronger model or an automatic continuation nudge. A client-side nudge was assessed as architecturally invasive (the turn completes in AI/CustomAIClient, which cannot import Studio/ without a cycle) - design it as a small scheduler outside the client before implementing.",
     "UI build-out (Tier 1/2): a multi-agent chat switching panel and a per-agent audit dashboard. The data layer exists and is live-verified (customGetAiRequestProviderTelemetry + the chat's 'Provider response:' note); the dashboard still needs product direction and cannot be verified headless.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",

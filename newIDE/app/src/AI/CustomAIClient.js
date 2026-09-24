@@ -4370,14 +4370,35 @@ export const customAddMessageToAiRequest = async ({
     const cacheOnlyMessages = (currentCachedRequest.output || []).filter(
       message => message && !turnIds.has(message.messageId)
     );
-    let merged = output;
+    // For a message that existed before this turn, the CACHE is the source of
+    // truth: a concurrent gated write may have REWRITTEN it in place (e.g. the
+    // studio flipping a plan task to `done` after a sub-agent reported). The
+    // turn's `output` is a snapshot from turn start, so keeping its copy would
+    // silently clobber that rewrite - the flip has the same messageId, so the
+    // cache-only path below cannot recover it. Messages the turn produced have
+    // fresh ids and are absent from the cache, so they are kept as-is.
+    const cachedByMessageId = new Map();
+    for (const message of currentCachedRequest.output || []) {
+      if (message && typeof message === 'object' && message.messageId) {
+        cachedByMessageId.set(message.messageId, message);
+      }
+    }
+    const reconciledOutput = output.map(message =>
+      message &&
+      typeof message === 'object' &&
+      message.messageId &&
+      cachedByMessageId.has(message.messageId)
+        ? cachedByMessageId.get(message.messageId)
+        : message
+    );
+    let merged = reconciledOutput;
     if (cacheOnlyMessages.length > 0) {
       const appendedThisTurn = (userMessage && userMessage.trim() ? 1 : 0) + 1;
-      const turnStart = Math.max(0, output.length - appendedThisTurn);
+      const turnStart = Math.max(0, reconciledOutput.length - appendedThisTurn);
       merged = [
-        ...output.slice(0, turnStart),
+        ...reconciledOutput.slice(0, turnStart),
         ...cacheOnlyMessages,
-        ...output.slice(turnStart),
+        ...reconciledOutput.slice(turnStart),
       ];
     }
     const updatedAiRequest: AiRequest = {

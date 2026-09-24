@@ -4160,6 +4160,85 @@ describe('CustomAIClient', () => {
       expect(forked.output.length).toBe(aiRequest.output.length);
     });
 
+    it('keeps a concurrent in-place rewrite of a pre-existing message (plan flip)', async () => {
+      // The studio flips a plan task to `done` via a gated write while the
+      // parent's next model turn is running. The turn's output is a snapshot
+      // from turn start, so keeping its copy silently clobbered the flip
+      // (same messageId, so the cache-only merge could not recover it).
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      const planFor = status =>
+        JSON.stringify({
+          success: true,
+          plan: {
+            tasks: [{ id: 'design', title: 'D', description: 'd', status }],
+          },
+        });
+      customUpdateAiRequest(
+        ({
+          id: 'local-ai-flip',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          userId: LOCAL_BYOK_USER_ID,
+          status: 'ready',
+          error: null,
+          output: [
+            {
+              type: 'function_call_output',
+              call_id: 'call_plan',
+              messageId: 'msg-plan',
+              output: planFor('pending'),
+            },
+          ],
+        }: any)
+      );
+
+      // $FlowFixMe the model call performs the concurrent flip, then answers.
+      axios.post.mockImplementationOnce(async () => {
+        const current = customGetAiRequest('local-ai-flip');
+        customUpdateAiRequest(
+          ({
+            ...current,
+            output: (current.output || []).map(m =>
+              m && m.messageId === 'msg-plan'
+                ? { ...m, output: planFor('done') }
+                : m
+            ),
+          }: any)
+        );
+        return {
+          status: 200,
+          data: {
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+          },
+        };
+      });
+
+      const result = await customAddMessageToAiRequest({
+        aiRequestId: 'local-ai-flip',
+        userMessage: 'next',
+      });
+      const planMessage = (result.output || []).find(
+        m => m && m.messageId === 'msg-plan'
+      );
+      expect(JSON.parse(planMessage.output).plan.tasks[0].status).toBe('done');
+      // And the turn's own answer is present.
+      expect(
+        (result.output || []).some(
+          m =>
+            m &&
+            m.role === 'assistant' &&
+            m.messageId &&
+            m.messageId !== 'msg-plan'
+        )
+      ).toBe(true);
+    });
+
     it('survives a hole when a concurrent write lands during a failed turn', async () => {
       // The failure path compares each cache-only message against `output`
       // (which carries the persisted hole). When every cache message is
