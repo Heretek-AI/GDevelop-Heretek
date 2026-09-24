@@ -37,6 +37,8 @@ import {
   sendChatCompletion,
   formatProviderTelemetry,
   withoutBackendOnlyTools,
+  buildSystemPrompt,
+  getEffectiveConfigForRequest,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1240,6 +1242,70 @@ describe('CustomAIClient', () => {
       expect(axiosOptions.timeout).toBe(MAX_TIMEOUT_MS);
       // Guard the premise: the raw value really would overflow.
       expect(3000000000).toBeGreaterThan(MAX_TIMEOUT_MS);
+    });
+  });
+
+  describe('buildSystemPrompt', () => {
+    it('uses the shared prompt without a role, and the role prompt with one', () => {
+      const base = buildSystemPrompt({});
+      expect(base).toContain('GDevelop AI Assistant');
+      expect(base).not.toContain('the developer of a small game studio');
+
+      const developer = buildSystemPrompt({ role: 'developer' });
+      expect(developer).toContain('the developer of a small game studio');
+      expect(developer).toContain('GDevelop AI Assistant');
+    });
+
+    it('falls back to the shared prompt for an unrecognized persisted role', () => {
+      // `role` is read back from a persisted AiRequest and is not validated;
+      // an unknown id must not throw while the turn's prompt is built.
+      let prompt;
+      expect(() => {
+        prompt = buildSystemPrompt({ role: 'legacy-role' });
+      }).not.toThrow();
+      expect(prompt).toContain('GDevelop AI Assistant');
+      expect(prompt).not.toContain('the developer of a small game studio');
+    });
+
+    it('appends the project structure, extensions and spawn context when given', () => {
+      const prompt = buildSystemPrompt({
+        gameProjectJson: '{"objects":[]}',
+        projectSpecificExtensionsSummaryJson: '{"ext":1}',
+        spawnContextNote: 'GDD note',
+      });
+      expect(prompt).toContain('Current Project Structure:');
+      expect(prompt).toContain('{"objects":[]}');
+      expect(prompt).toContain('Installed Project Extensions:');
+      expect(prompt).toContain('GDD note');
+    });
+  });
+
+  describe('getEffectiveConfigForRequest', () => {
+    it('returns the global config, then the per-chat override, then back', () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+      expect(getEffectiveConfigForRequest('local-ai-x').model).toBe(
+        'qwen2.5-coder'
+      );
+
+      customSetAiRequestModelOverride('local-ai-x', 'deepseek-chat');
+      expect(getEffectiveConfigForRequest('local-ai-x').model).toBe(
+        'deepseek-chat'
+      );
+      // Another chat is unaffected.
+      expect(getEffectiveConfigForRequest('local-ai-y').model).toBe(
+        'qwen2.5-coder'
+      );
+
+      customSetAiRequestModelOverride('local-ai-x', '');
+      expect(getEffectiveConfigForRequest('local-ai-x').model).toBe(
+        'qwen2.5-coder'
+      );
     });
   });
 

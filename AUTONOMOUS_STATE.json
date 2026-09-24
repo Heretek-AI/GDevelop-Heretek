@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 185,
+  "last_cycle": 186,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1084,6 +1084,12 @@
       "target": "Harden the function-call-output builder (null entry + non-object spread)",
       "metric_delta": "getFunctionCallOutputsFromEditorFunctionCallResults - the turn path that turns editor results into the model's function_call_output messages - was untested and had two defects: a null entry threw on .status (crashing the turn), and spreading a non-object output (`output: any`) corrupted the JSON the model receives (a string became {0:'a',1:'b',...}, an array likewise). Fixed: skip malformed entries; spread only plain objects, nesting anything else under `output`. +4 tests; the null crash and the numeric-keys corruption each mutation-checked (reverting the spread yields received keys ['0','1','2','3','success']). 1613/1613 across 80 suites (was 1609), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): harden the function-call-output builder"
+    },
+    {
+      "cycle": 186,
+      "target": "Cover the prompt builder and per-chat config resolver (Tier 1)",
+      "metric_delta": "The export scan found buildSystemPrompt (shapes every turn's prompt, including the role header) and getEffectiveConfigForRequest (merges the per-chat model override over the global config) had no direct tests. +4 tests: shared vs role prompt; unrecognized persisted role falls back instead of throwing; project structure/extensions/spawn context appended; config resolution global -> override -> another chat unaffected -> cleared. Role-fallback mutation-checked (naive getStudioRole throws 'Unknown studio role: legacy-role'). 1617/1617 across 80 suites (was 1613), eslint+prettier clean, divergence clean.",
+      "commit": "test(ai): cover the prompt builder and config resolver"
     }
   ],
   "backlog": [
