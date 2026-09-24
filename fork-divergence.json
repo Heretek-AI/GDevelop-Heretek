@@ -173,6 +173,7 @@
     "newIDE/app/src/AiGeneration/Studio/Roles.js",
     "newIDE/app/src/AiGeneration/Studio/Roles.spec.js",
     "newIDE/app/src/AiGeneration/Studio/SafeTruncation.js",
+    "newIDE/app/src/AiGeneration/Studio/SafeTruncation.spec.js",
     "newIDE/app/src/AiGeneration/Studio/SpawnSubAgents.js",
     "newIDE/app/src/AiGeneration/Studio/SpawnSubAgents.spec.js",
     "newIDE/app/src/AiGeneration/Studio/UseStudioRuntime.js",
