@@ -283,6 +283,12 @@ export const summarizeSubAgentActivity = (aiRequest: {
   output?: Array<any>,
 }): { total: number, done: number, running: number } => {
   const calls = getAllSubAgentFunctionCalls({ aiRequest: (aiRequest: any) });
+  // A spawn call is counted once per call_id: a transcript that repeats the
+  // same function_call (e.g. after a fork/merge) must not inflate the count.
+  const uniqueCallIds = new Set();
+  for (const call of calls) {
+    if (typeof call.call_id === 'string') uniqueCallIds.add(call.call_id);
+  }
   const answeredCallIds = new Set();
   for (const message of aiRequest.output || []) {
     if (
@@ -294,10 +300,11 @@ export const summarizeSubAgentActivity = (aiRequest: {
     }
   }
   let done = 0;
-  for (const call of calls) {
-    if (answeredCallIds.has(call.call_id)) done++;
-  }
-  return { total: calls.length, done, running: calls.length - done };
+  uniqueCallIds.forEach(callId => {
+    if (answeredCallIds.has(callId)) done++;
+  });
+  const total = uniqueCallIds.size;
+  return { total, done, running: total - done };
 };
 
 export const isUserMessage = (message: any): boolean =>

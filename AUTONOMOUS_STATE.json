@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 216,
+  "last_cycle": 217,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1270,6 +1270,12 @@
       "target": "Multi-agent audit summary in the chat (Tier 1 UI + Tier 2 audit)",
       "metric_delta": "Added summarizeSubAgentActivity to AiRequestUtils (pure: counts spawned sub-agent calls and how many have a function_call_output, i.e. finished) and a small chat line in ChatMessages that renders it, so the multi-agent activity is visible without opening each sub-agent - the first Tier 1 multi-agent UI surface and a step toward the per-agent audit dashboard. +2 tests (3 spawned/2 answered -> {total:3,done:2,running:1}; none -> zeros), mutation-checked. LIVE-VERIFIED: with the scripted 3-spawn mock, the chat showed '3 sub-agents: 3 finished'; a first version rendered 'sub-agent s' (JSX whitespace split the plural suffix) - fixed by building the sentence as one string and re-verified live. 1643/1643 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
       "commit": "feat(ai): show a multi-agent audit summary in the chat"
+    },
+    {
+      "cycle": 217,
+      "target": "Count distinct sub-agents in the audit summary (dedupe by call_id)",
+      "metric_delta": "summarizeSubAgentActivity counted every spawn call, so a transcript repeating the same function_call (a fork/merge, or the same call re-emitted) inflated the multi-agent count. It now dedupes by call_id before counting, so the chat line reports distinct sub-agents. +1 test (the same call twice with one output -> total 1, done 1), mutation-checked (reverting the dedupe yields total 2). 1644/1644 across 81 suites, eslint+prettier clean, divergence clean. No component change this cycle (build last verified at 216).",
+      "commit": "fix(ai): count distinct sub-agents in the audit summary"
     }
   ],
   "backlog": [

@@ -989,6 +989,25 @@ describe('summarizeSubAgentActivity', () => {
     });
   });
 
+  it('counts a repeated spawn call once', () => {
+    // A forked/merged transcript can contain the same function_call twice; the
+    // count must reflect distinct sub-agents, not occurrences.
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+      ]),
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+      ]),
+      makeFunctionCallOutput('c1'),
+    ]);
+    expect(summarizeSubAgentActivity((request: any))).toEqual({
+      total: 1,
+      done: 1,
+      running: 0,
+    });
+  });
+
   it('is all zero for a request with no sub-agents', () => {
     const request = makeAiRequest([
       makeAssistantMessage([makeFunctionCall('c1', 'create_scene')]),
