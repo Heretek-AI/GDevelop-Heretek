@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 184,
+  "last_cycle": 185,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1078,6 +1078,12 @@
       "target": "WebUI-verify the studio transcript rendering (reasoning + tool flow)",
       "metric_delta": "Live WebUI evidence for fork UI that was previously only unit-tested: opening the persisted HarborTown chat rendered the assistant transcript including the reasoning entries (cycle 93's type:'reasoning' branch) as visible text, the assistant's planning narrative, and its tool flow (e.g. initialize_project with template 'empty'). Console re-checked after opening: zero fork-introduced errors (only the upstream MUI deprecation warnings). Screenshot saved to /tmp/opencode/cycle184-studio-transcript.png. No code change - a verification cycle that confirms three previously-unverifiable rendering paths (reasoning entry, assistant text, multi-tool transcript) actually render in the running editor.",
       "commit": "chore(autonomous): verify the studio transcript rendering"
+    },
+    {
+      "cycle": 185,
+      "target": "Harden the function-call-output builder (null entry + non-object spread)",
+      "metric_delta": "getFunctionCallOutputsFromEditorFunctionCallResults - the turn path that turns editor results into the model's function_call_output messages - was untested and had two defects: a null entry threw on .status (crashing the turn), and spreading a non-object output (`output: any`) corrupted the JSON the model receives (a string became {0:'a',1:'b',...}, an array likewise). Fixed: skip malformed entries; spread only plain objects, nesting anything else under `output`. +4 tests; the null crash and the numeric-keys corruption each mutation-checked (reverting the spread yields received keys ['0','1','2','3','success']). 1613/1613 across 80 suites (was 1609), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): harden the function-call-output builder"
     }
   ],
   "backlog": [

@@ -645,13 +645,33 @@ export const getFunctionCallOutputsFromEditorFunctionCallResults = (
   let hasUnfinishedResult = false;
   const functionCallOutputs = editorFunctionCallResults
     .map(functionCallOutput => {
+      // Skip malformed entries rather than throwing out of the turn: the
+      // results array is app-built, but the sibling reads all tolerate a hole.
+      if (!functionCallOutput || typeof functionCallOutput !== 'object') {
+        return null;
+      }
       if (functionCallOutput.status === 'finished') {
+        // `output: any`: spreading a non-object (a string becomes {0:'a',...},
+        // an array becomes {0:...}) corrupts the JSON the model receives, so
+        // only a plain object is spread; anything else is nested under
+        // `output` so its value survives without numeric keys.
+        // `output: any`: spreading a non-object (a string becomes {0:'a',...},
+        // an array becomes {0:...}) corrupts the JSON the model receives, so
+        // only a plain object is spread; anything else is nested under
+        // `output` so its value survives without numeric keys.
+        const rawOutput = functionCallOutput.output;
+        const outputFields =
+          rawOutput &&
+          typeof rawOutput === 'object' &&
+          !Array.isArray(rawOutput)
+            ? (rawOutput: Object)
+            : { output: rawOutput };
         return {
           type: 'function_call_output',
           call_id: functionCallOutput.call_id,
           output: JSON.stringify({
             success: functionCallOutput.success,
-            ...functionCallOutput.output,
+            ...outputFields,
           }),
         };
       }

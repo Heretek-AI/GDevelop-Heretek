@@ -25,6 +25,7 @@ import {
   aiRequestShouldBeWatched,
   aiRequestHasWorkInProgress,
   getSubAgentKind,
+  getFunctionCallOutputsFromEditorFunctionCallResults,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -950,6 +951,68 @@ describe('malformed message content never crashes the chat helpers', () => {
         ([malformedUser, malformedAssistant]: any)
       )
     ).toEqual({ lastUserMessage: null, lastAssistantMessages: [] });
+  });
+});
+
+describe('getFunctionCallOutputsFromEditorFunctionCallResults', () => {
+  it('maps finished results and flags a working one', () => {
+    const result = getFunctionCallOutputsFromEditorFunctionCallResults(
+      ([
+        {
+          status: 'finished',
+          call_id: 'c1',
+          success: true,
+          output: { message: 'ok' },
+        },
+        { status: 'working', call_id: 'c2' },
+      ]: any)
+    );
+    expect(result.hasUnfinishedResult).toBe(true);
+    expect(result.functionCallOutputs).toHaveLength(1);
+    expect(result.functionCallOutputs[0].call_id).toBe('c1');
+    expect(JSON.parse(result.functionCallOutputs[0].output)).toEqual({
+      success: true,
+      message: 'ok',
+    });
+  });
+
+  it('returns no outputs and no unfinished flag for null', () => {
+    expect(getFunctionCallOutputsFromEditorFunctionCallResults(null)).toEqual({
+      hasUnfinishedResult: false,
+      functionCallOutputs: [],
+    });
+  });
+
+  it('does not crash on a null entry', () => {
+    const result = getFunctionCallOutputsFromEditorFunctionCallResults(
+      ([
+        null,
+        { status: 'finished', call_id: 'c1', success: true, output: {} },
+      ]: any)
+    );
+    expect(result.functionCallOutputs).toHaveLength(1);
+    expect(result.functionCallOutputs[0].call_id).toBe('c1');
+  });
+
+  it('does not spread a non-object output into numeric keys', () => {
+    // `output: any`: spreading a string yields {0:'a',1:'b',...}, corrupting
+    // the JSON the model receives for that call.
+    const result = getFunctionCallOutputsFromEditorFunctionCallResults(
+      ([
+        { status: 'finished', call_id: 'c1', success: false, output: 'boom' },
+        {
+          status: 'finished',
+          call_id: 'c2',
+          success: true,
+          output: ['a', 'b'],
+        },
+      ]: any)
+    );
+    for (const out of result.functionCallOutputs) {
+      const parsed = JSON.parse(out.output);
+      expect(Object.keys(parsed)).not.toContain('0');
+      expect(parsed.output).toBeDefined();
+    }
   });
 });
 
