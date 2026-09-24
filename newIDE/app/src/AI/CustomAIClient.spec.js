@@ -2490,6 +2490,30 @@ describe('CustomAIClient', () => {
       delete global.localStorage;
     });
 
+    it('replaces a non-array stored output with an empty array on load', () => {
+      // The loader validates only id/status, so a truthy non-array `output`
+      // reaches every consumer — a spread or `.map` over it throws and fails the
+      // whole turn. normalizePersistedMessages is the one choke point.
+      fakeStorage.setItem(
+        'gd-custom-ai-requests',
+        JSON.stringify({
+          'local-ai-bad-output': {
+            id: 'local-ai-bad-output',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            userId: LOCAL_BYOK_USER_ID,
+            status: 'ready',
+            error: null,
+            output: { not: 'an array' },
+          },
+        })
+      );
+      _resetCustomAiClientForTesting();
+      const loaded = loadLocalAiRequests();
+
+      expect(loaded['local-ai-bad-output'].output).toEqual([]);
+    });
+
     it("rewrites a stored 'text' entry to output_text on load", () => {
       // Chats persisted before the parser emitted output_text carry 'text',
       // which no renderer handles — the answer would be invisible on reload.

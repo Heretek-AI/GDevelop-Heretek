@@ -1012,7 +1012,12 @@ export const _resetCustomAiClientForTesting = () => {
  */
 const normalizePersistedMessages = (request: AiRequest): AiRequest => {
   const output = request.output;
-  if (!Array.isArray(output)) return request;
+  // A persisted request's `output` is not validated by the loader (which checks
+  // only id/status), so a truthy non-array reaches every consumer: a spread or
+  // `.map` over it throws 'is not iterable' / 'is not a function' and fails the
+  // whole turn. Guaranteeing an array here fixes all of them at one choke point,
+  // since this runs on every request loaded from storage.
+  if (!Array.isArray(output)) return { ...request, output: [] };
   let changed = false;
   const normalizedOutput = [];
   for (const message of output) {
@@ -3887,7 +3892,11 @@ export const customAddMessageToAiRequest = async ({
       };
     }
 
-    const output = [...(existing.output || [])];
+    // `existing.output` is a persisted field and the loader validates only the
+    // request's id/status, so a truthy non-array (an object, a number) is
+    // possible and the spread would throw 'is not iterable', failing the whole
+    // turn.
+    const output = [...(Array.isArray(existing.output) ? existing.output : [])];
 
     if (functionCallOutputs && functionCallOutputs.length > 0) {
       for (const fcOutput of functionCallOutputs) {
