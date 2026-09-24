@@ -42,6 +42,7 @@ import {
   parseProviderTelemetry,
   customGetAiRequestProviderTelemetry,
   isContextOverflowError,
+  isNetworkLevelError,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1726,6 +1727,52 @@ describe('CustomAIClient', () => {
         axios.post.mock.calls[1][1].messages
       );
       expect(second).toBeLessThan(first);
+    });
+
+    it('retries once when the endpoint is unreachable', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'seed',
+        mode: 'chat',
+      });
+      axios.post.mockClear();
+
+      // $FlowFixMe reject once with a transport error (an Error, as axios
+      // rejects, so its code survives the client's non-Error normalization).
+      const refused = new Error('connect ECONNREFUSED 127.0.0.1:11434');
+      // $FlowFixMe
+      refused.code = 'ECONNREFUSED';
+      axios.post.mockRejectedValueOnce(refused);
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const result = await customAddMessageToAiRequest({
+        aiRequestId: created.id,
+        userMessage: 'next',
+      });
+      expect(result.status).not.toBe('error');
+      expect(axios.post).toHaveBeenCalledTimes(2);
+
+      // The predicate: transport-level only.
+      expect(isNetworkLevelError({ code: 'ECONNREFUSED' })).toBe(true);
+      expect(isNetworkLevelError({ message: 'Network Error' })).toBe(true);
+      expect(isNetworkLevelError({ response: { status: 500 } })).toBe(false);
+      expect(isNetworkLevelError(null)).toBe(false);
+      expect(isNetworkLevelError({ message: 'shuffle failure' })).toBe(false);
     });
 
     it('retries once with a smaller prompt when the window overflows', async () => {

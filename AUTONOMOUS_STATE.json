@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 229,
+  "last_cycle": 230,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1348,6 +1348,12 @@
       "target": "Full-suite regression + run-log refresh (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite at the current committed state: 185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 228 (including the streaming-counter caveat).",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 230,
+      "target": "One bounded retry when the endpoint is unreachable (Tier 2 resilience)",
+      "metric_delta": "A local server that is still starting (or a transient network split) can refuse a connection and succeed moments later; previously that failed the turn. Added isNetworkLevelError (transport-level only: no HTTP response AND a connection-failure code/message - a provider 4xx/5xx is excluded) and a single retry after 500ms on all three turn paths (create/continue/sub-agent), bounded by the existing nested catch so it runs at most once per turn. +1 test (ECONNREFUSED then success -> not error, 2 POSTs; predicate truth table incl. 500-excluded and null), mutation-checked (neutralizing the branch fails it). Test-discovery note: axios rejects with an Error, but a plain-object rejection loses its code to the client's non-Error normalization (cycle 172), so the fixture must be an Error with .code. 1649/1649 across 81 suites, eslint+prettier clean, divergence clean. Client-only change; build last verified at 227.",
+      "commit": "feat(ai): retry once when the endpoint is unreachable"
     }
   ],
   "backlog": [
@@ -1551,6 +1557,7 @@
     "JSX splits a literal adjacent to an expression across lines into words: `<Trans>{n} sub-agent{n===1?'':'s'}</Trans>` rendered 'sub-agent s'. Build such a sentence as a single interpolated string, not adjacent text/expression nodes.",
     "Adding a field to a summarizer's return breaks exact-equality tests: update the callers' expectations (here three tests) in the same change, or the suite goes red for a correct improvement.",
     "loadLocalAiRequests MERGES persisted entries into the in-memory cache and never clears it, so a test asserting on its return value can pass/fail on in-memory state rather than what was persisted - assert on the storage JSON when testing persistence.",
-    "Run scripts/check-fork-divergence.js BEFORE committing any edit to a file you have not confirmed is in the manifest: a correct fix in an upstream-identical file still creates new divergence (two paths here), and the policy is to revert it when production reachability is theoretical and the fix belongs upstream."
+    "Run scripts/check-fork-divergence.js BEFORE committing any edit to a file you have not confirmed is in the manifest: a correct fix in an upstream-identical file still creates new divergence (two paths here), and the policy is to revert it when production reachability is theoretical and the fix belongs upstream.",
+    "The client normalizes a non-Error rejection to a generic 'AI request failed' Error (cycle 172), which drops axios-style `.code` - so any error-CLASSIFYING predicate (network vs provider) must be fed an Error instance in tests, and must not rely on `.code` for a non-Error rejection (message patterns are the fallback)."
   ]
 }

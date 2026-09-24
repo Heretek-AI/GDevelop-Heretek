@@ -2842,6 +2842,27 @@ const CONTEXT_OVERFLOW_PATTERN = /context length|context window|context size|max
  * Whether an error is the server refusing an over-window request. Used to
  * decide a single retry with a smaller message budget on the same endpoint.
  */
+// A local server that is still starting (or a transient network split) can
+// refuse a connection and succeed moments later. One short retry turns a
+// spurious failure into a successful turn.
+const NETWORK_RETRY_DELAY_MS = 500;
+const delay = (ms: number): Promise<void> =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Whether an error is a transport-level failure (no HTTP response): the server
+ * is unreachable, the connection was reset, DNS failed, etc. A provider error
+ * with a status (4xx/5xx) is NOT transport-level and must not be retried here.
+ */
+export const isNetworkLevelError = (error: any): boolean => {
+  if (!error || error.response) return false;
+  const code = error.code ? String(error.code) : '';
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|network error|failed to fetch|load failed|socket hang up/i.test(
+    `${code} ${message}`
+  );
+};
+
 export const isContextOverflowError = (error: any): boolean => {
   const haystacks: Array<string> = [];
   const data = error && error.response && error.response.data;
@@ -4030,6 +4051,15 @@ export const customCreateAiRequest = async ({
           '[CustomAIClient] The first request exceeded the context window; retrying once with a smaller prompt.'
         );
         assistantResponse = await sendTurn();
+      } else if (
+        !abortController.signal.aborted &&
+        isNetworkLevelError(error)
+      ) {
+        console.warn(
+          '[CustomAIClient] The endpoint is unreachable; retrying once shortly.'
+        );
+        await delay(NETWORK_RETRY_DELAY_MS);
+        assistantResponse = await sendTurn();
       } else {
         throw error;
       }
@@ -4286,6 +4316,15 @@ export const customAddMessageToAiRequest = async ({
           console.warn(
             '[CustomAIClient] The request exceeded the context window; retrying once with a smaller prompt.'
           );
+          assistantResponse = await sendTurn();
+        } else if (
+          !abortController.signal.aborted &&
+          isNetworkLevelError(error)
+        ) {
+          console.warn(
+            '[CustomAIClient] The endpoint is unreachable; retrying once shortly.'
+          );
+          await delay(NETWORK_RETRY_DELAY_MS);
           assistantResponse = await sendTurn();
         } else {
           throw error;
@@ -4559,6 +4598,15 @@ export const customCreateSubAgentAiRequest = async ({
           console.warn(
             '[CustomAIClient] The sub-agent request exceeded the context window; retrying once with a smaller prompt.'
           );
+          assistantResponse = await sendTurn();
+        } else if (
+          !abortController.signal.aborted &&
+          isNetworkLevelError(error)
+        ) {
+          console.warn(
+            '[CustomAIClient] The endpoint is unreachable; retrying once shortly.'
+          );
+          await delay(NETWORK_RETRY_DELAY_MS);
           assistantResponse = await sendTurn();
         } else {
           throw error;
