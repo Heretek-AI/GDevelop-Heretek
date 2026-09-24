@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 189,
+  "last_cycle": 190,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1108,6 +1108,12 @@
       "target": "Live Phase 5 harness run vs local Ollama; fix the CORS preflight header",
       "metric_delta": "Executed the real Phase 5 loop against a LOCAL OpenAI-compatible endpoint (Ollama on :11434 with deepseek-v4.1-flash:cloud) - pure local-first, no credentials. First live send FAILED with the exact cause captured from the console: 'Access to XMLHttpRequest ... blocked by CORS policy: Request header field x-title is not allowed by Access-Control-Allow-Headers in preflight response' - the client sent OpenRouter attribution headers (HTTP-Referer, X-Title) on every request, so the browser build could not reach Ollama at all (invariant 1 broken). Removed both attribution headers from sendChatCompletion and testConnection. After the fix (dev watcher recompiled), Retry succeeded: OPTIONS 204 + POST 200, and the chat shows status ready, 2 messages, a real model reply ('Hello! I'm GDevelop AI Assistant ... I can call create_or_replace_object ...'). 1 test red pre-fix, mutation-checked. Original editor config restored (Heretek URL/model). 1628/1628 across 81 suites, eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): stop sending attribution headers that break local CORS"
+    },
+    {
+      "cycle": 190,
+      "target": "Bounded live studio-run attempt (plan + sub-agent) via the WebUI",
+      "metric_delta": "No code change. Attempted the multi-turn studio run against local Ollama via Chrome DevTools: re-pointed the editor at :11434 (saving and later restoring the original Heretek config), drove the Ask AI new-chat form, and filled a scoped plan+spawn prompt. The drawer repeatedly re-rendered back to the history list between fill and send, so the new chat could not be submitted reliably in this environment; the single-turn live BYOK round-trip was already proven green in cycle 189 (preflight 204 + POST 200, real model reply). Editor config restored to the Heretek URL/model. Recorded honestly rather than claimed: the multi-turn benchmark is best run via the @feedback-loop skill interactively.",
+      "commit": "chore(autonomous): record the bounded live studio-run attempt"
     }
   ],
   "backlog": [
@@ -1296,6 +1302,7 @@
     "When two meters share inputs, change both or neither: adding tools to the occupancy numerator broke the cost-meter relational test, which exposed that the cost meter omitted the same term. A failing sibling test after a correct change is evidence of a second instance of the bug, not a bad test - read it before reverting.",
     "Budget what you send, not what you built: the compaction measured the head template while the JSON instruction tail was appended after measurement - always measure the exact messages array the request sends (measurePrompt over system+user), the same way trimMessagesToBudget measures what it trims.",
     "Chrome DevTools MCP via code mode: the runtime has no setTimeout (use wait_for or the tool's own waits), and evaluate_script requires a function-declaration string (e.g. '() => {...}'), not an IIFE - an invoked string returns a value and fails with 'fn is not a function'.",
-    "A local OpenAI-compatible server's CORS preflight only allows a fixed header set; sending optional attribution headers (HTTP-Referer/X-Title) blocks the whole request in the browser build before it reaches the model. Keep the outbound header set minimal (Content-Type) for local-first, and verify new headers against a real Ollama preflight, not just axios mocks - mocks do not model CORS."
+    "A local OpenAI-compatible server's CORS preflight only allows a fixed header set; sending optional attribution headers (HTTP-Referer/X-Title) blocks the whole request in the browser build before it reaches the model. Keep the outbound header set minimal (Content-Type) for local-first, and verify new headers against a real Ollama preflight, not just axios mocks - mocks do not model CORS.",
+    "Driving the Ask AI new-chat form via Chrome DevTools MCP is unreliable here: the drawer re-renders back to the history list between fill and send. For the multi-turn benchmark, use the @feedback-loop skill / interactive session rather than synthetic DOM driving; a single-turn live BYOK check is enough to validate the transport."
   ]
 }
