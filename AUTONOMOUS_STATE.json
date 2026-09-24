@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 200,
+  "last_cycle": 201,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1174,6 +1174,12 @@
       "target": "Recover a context-overflow turn with one retry at a smaller budget (Tier 2)",
       "metric_delta": "The trimmer already fits most requests, but an over-window 400 (unknown model family defaulting high, a giant single message, or the tool schema filling a small window) lost the turn entirely. Added a shared CONTEXT_OVERFLOW_PATTERN + exported isContextOverflowError(error) (reused by the error-hint table so the two cannot disagree), and in customAddMessageToAiRequest a bounded recovery: on an over-window error, retry ONCE on the same endpoint with a halved message budget, never on abort. +2 tests: the retry drops the prompt from >4096 to <=2048 tokens and succeeds with exactly 2 POSTs; a 500 does NOT retry (and the predicate's true/false/null cases). Retry mutation-checked (removing it fails the retry test). 1637/1637 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. Scoped to the continue path; create/sub-agent paths keep their existing behavior (documented, not silently partial).",
       "commit": "feat(ai): retry a context-overflow turn at a smaller budget"
+    },
+    {
+      "cycle": 201,
+      "target": "Extend context-overflow recovery to the create and sub-agent paths (Tier 2 parity)",
+      "metric_delta": "Cycle 200 scoped the overflow retry to the continue path; the create (which embeds the project structure, so MOST likely to overflow) and sub-agent paths still failed outright. Both now retry once at a halved message budget, reusing isContextOverflowError and the same non-abort guard. +2 tests (each: reject-once over-window then succeed → 2 POSTs, second prompt strictly smaller), each mutation-checked (removing the retry fails its test). 1639/1639 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. Incident: a scripted restore spliced the file (13 no-undef errors); recovered by reverting both files to HEAD and re-applying the three edits one at a time with an eslint check after each — recorded as a heuristic.",
+      "commit": "feat(ai): recover create and sub-agent turns from context overflow"
     }
   ],
   "backlog": [
@@ -1368,6 +1374,7 @@
     "Ollama's OpenAI-compatible SSE sends `delta.reasoning` (not `reasoning_content`) and streams it for many chunks before any `delta.content`; any UI signal derived from partial content (the cold-start hint, the streaming tail) must account for reasoning-only progress or it reports 'waiting for the first token' while the model is clearly working.",
     "Telemetry the console already prints should also be stored in a registry keyed by request id: 'inspectable' in this objective means readable from React state, not just visible in devtools. Thread a callback (onProviderTelemetry) through the client like onStreamDelta rather than having the client guess the request id.",
     "Auditing revertibility with `git show <sha> | git apply --reverse --check` is wrong for a commit older than HEAD: git apply checks against the working tree, so any later commit touching the same lines makes it conflict regardless of true revertibility. Verify with `git revert --no-commit` on the tip or a newest-first range instead, and confirm the history is linear (no merges) first.",
-    "Driving a React controlled input via Chrome DevTools: fill() sets the DOM value but does not fire the input event React listens for (the send button stays disabled); use click to focus then press_key/type_text so real key events update state. This is why earlier new-chat sends failed intermittently."
+    "Driving a React controlled input via Chrome DevTools: fill() sets the DOM value but does not fire the input event React listens for (the send button stays disabled); use click to focus then press_key/type_text so real key events update state. This is why earlier new-chat sends failed intermittently.",
+    "A find-based python splice is unsafe when the same anchor text appears in more than one turn path (three near-identical send blocks here): the restore matched the wrong occurrence and spliced a function body into another. After such an edit, run eslint immediately; if it reports variables 'not defined' in a region you did not touch, the splice is wrong - revert the file to HEAD and re-apply each edit with its own unique anchor + lint check."
   ]
 }

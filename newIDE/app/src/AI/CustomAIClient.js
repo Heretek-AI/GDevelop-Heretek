@@ -3959,9 +3959,10 @@ export const customCreateAiRequest = async ({
   // Backend-resolved tools are withheld from the offer and the budget alike.
   const createConfig = getEffectiveConfigForRequest(reqId);
   const createTools = withoutBackendOnlyTools(GDEVELOP_OPENAI_TOOLS);
-  const budgetedMessages = trimMessagesToBudget(
+  const createMessageBudget = getMessageBudget(createConfig, createTools);
+  let budgetedMessages = trimMessagesToBudget(
     openAiMessages,
-    getMessageBudget(createConfig, createTools)
+    createMessageBudget
   );
   noteSystemCompactedIfChanged(reqId, openAiMessages, budgetedMessages);
   if (budgetedMessages.length < openAiMessages.length) {
@@ -3975,9 +3976,8 @@ export const customCreateAiRequest = async ({
 
   const abortController = registerTurnAbortController(reqId);
   pendingCreateAiRequestIds[reqId] = true;
-  let assistantResponse;
-  try {
-    assistantResponse = await sendChatCompletion({
+  const sendTurn = () =>
+    sendChatCompletion({
       messages: budgetedMessages,
       tools: createTools,
       config: createConfig,
@@ -3998,6 +3998,26 @@ export const customCreateAiRequest = async ({
         };
       },
     });
+  let assistantResponse;
+  try {
+    try {
+      assistantResponse = await sendTurn();
+    } catch (error) {
+      // The first turn embeds the project structure, so it is the most likely
+      // to overflow: retry once at a halved budget before failing the create.
+      if (!abortController.signal.aborted && isContextOverflowError(error)) {
+        budgetedMessages = trimMessagesToBudget(
+          openAiMessages,
+          Math.max(256, Math.floor(createMessageBudget / 2))
+        );
+        console.warn(
+          '[CustomAIClient] The first request exceeded the context window; retrying once with a smaller prompt.'
+        );
+        assistantResponse = await sendTurn();
+      } else {
+        throw error;
+      }
+    }
   } catch (error) {
     // Persist the request even when the first turn fails so the chat has a
     // transcript (user message) and the error row can offer Retry → continue,
@@ -4438,12 +4458,13 @@ export const customCreateSubAgentAiRequest = async ({
         ? getToolsForRole((roleId: any), GDEVELOP_OPENAI_TOOLS)
         : READ_ONLY_OPENAI_TOOLS
     );
-    const budgetedMessages = trimMessagesToBudget(
+    const subAgentMessageBudget = getMessageBudget(
+      getEffectiveConfigForRequest(parentAiRequestId || reqId),
+      subAgentTools
+    );
+    let budgetedMessages = trimMessagesToBudget(
       openAiMessages,
-      getMessageBudget(
-        getEffectiveConfigForRequest(parentAiRequestId || reqId),
-        subAgentTools
-      )
+      subAgentMessageBudget
     );
     noteSystemCompactedIfChanged(
       parentAiRequestId || reqId,
@@ -4464,9 +4485,8 @@ export const customCreateSubAgentAiRequest = async ({
       reqId,
       parentAiRequestId
     );
-    let assistantResponse;
-    try {
-      assistantResponse = await sendChatCompletion({
+    const sendTurn = () =>
+      sendChatCompletion({
         messages: budgetedMessages,
         tools: subAgentTools,
         config: getEffectiveConfigForRequest(parentAiRequestId || reqId),
@@ -4487,6 +4507,26 @@ export const customCreateSubAgentAiRequest = async ({
           };
         },
       });
+    let assistantResponse;
+    try {
+      try {
+        assistantResponse = await sendTurn();
+      } catch (error) {
+        // Sub-agents receive the project JSON too, so they can overflow the
+        // same way: one retry at a halved budget before failing the child.
+        if (!abortController.signal.aborted && isContextOverflowError(error)) {
+          budgetedMessages = trimMessagesToBudget(
+            openAiMessages,
+            Math.max(256, Math.floor(subAgentMessageBudget / 2))
+          );
+          console.warn(
+            '[CustomAIClient] The sub-agent request exceeded the context window; retrying once with a smaller prompt.'
+          );
+          assistantResponse = await sendTurn();
+        } else {
+          throw error;
+        }
+      }
     } finally {
       releaseTurnAbortController(reqId);
       delete localAiRequestPartialContent[parentAiRequestId || reqId];

@@ -1574,6 +1574,103 @@ describe('CustomAIClient', () => {
       expect(names).toContain('create_scene');
     });
 
+    it('retries the first turn at a smaller budget on overflow', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: {
+            error: {
+              message:
+                "this model's maximum context length is 4096 tokens, however you requested 8000 tokens (the input is too large)",
+            },
+          },
+        },
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const hugeProject = JSON.stringify({
+        scenes: Array.from({ length: 800 }, (_, i) => ({
+          name: 'Scene' + i,
+          events: Array.from({ length: 20 }, () => ({ code: 'y'.repeat(150) })),
+        })),
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'start',
+        gameProjectJson: hugeProject,
+        mode: 'agent',
+      });
+      expect(created.status).not.toBe('error');
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      const first = estimateMessagesTokens(
+        axios.post.mock.calls[0][1].messages
+      );
+      const second = estimateMessagesTokens(
+        axios.post.mock.calls[1][1].messages
+      );
+      expect(second).toBeLessThan(first);
+    });
+
+    it('retries a sub-agent turn at a smaller budget on overflow', async () => {
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce({
+        response: {
+          status: 400,
+          data: {
+            error: {
+              message:
+                "this model's maximum context length is 4096 tokens, however you requested 8000 tokens (the input is too large)",
+            },
+          },
+        },
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const hugeProject = JSON.stringify({
+        scenes: Array.from({ length: 800 }, (_, i) => ({
+          name: 'Scene' + i,
+          events: Array.from({ length: 20 }, () => ({ code: 'y'.repeat(150) })),
+        })),
+      });
+      const child = await customCreateSubAgentAiRequest({
+        parentAiRequestId: 'local-ai-parent',
+        roleId: 'developer',
+        userRequest: 'build it',
+        gameProjectJson: hugeProject,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+      expect(child.id).toBeTruthy();
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      const first = estimateMessagesTokens(
+        axios.post.mock.calls[0][1].messages
+      );
+      const second = estimateMessagesTokens(
+        axios.post.mock.calls[1][1].messages
+      );
+      expect(second).toBeLessThan(first);
+    });
+
     it('retries once with a smaller prompt when the window overflows', async () => {
       setCustomEndpointConfig({
         enabled: true,
