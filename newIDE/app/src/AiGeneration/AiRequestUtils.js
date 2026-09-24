@@ -281,14 +281,36 @@ export const getLocalAiRequestContextUsedRatio = (
  */
 export const summarizeSubAgentActivity = (aiRequest: {
   output?: Array<any>,
-}): { total: number, done: number, running: number } => {
+}): { total: number, done: number, running: number, roles: Object } => {
   const calls = getAllSubAgentFunctionCalls({ aiRequest: (aiRequest: any) });
   // A spawn call is counted once per call_id: a transcript that repeats the
   // same function_call (e.g. after a fork/merge) must not inflate the count.
-  const uniqueCallIds = new Set();
+  const firstCallByCallId = new Map();
   for (const call of calls) {
-    if (typeof call.call_id === 'string') uniqueCallIds.add(call.call_id);
+    if (
+      typeof call.call_id === 'string' &&
+      !firstCallByCallId.has(call.call_id)
+    ) {
+      firstCallByCallId.set(call.call_id, call);
+    }
   }
+  // Role breakdown for the audit summary, read from the spawn arguments. A
+  // malformed call simply counts as no role.
+  const roles = {};
+  firstCallByCallId.forEach(call => {
+    let role = null;
+    try {
+      const parsed =
+        typeof call.arguments === 'string'
+          ? JSON.parse(call.arguments)
+          : call.arguments;
+      if (parsed && typeof parsed.role === 'string' && parsed.role)
+        role = parsed.role;
+    } catch (ignored) {
+      // Malformed arguments: no role for this sub-agent.
+    }
+    if (role) roles[role] = (roles[role] || 0) + 1;
+  });
   const answeredCallIds = new Set();
   for (const message of aiRequest.output || []) {
     if (
@@ -300,11 +322,11 @@ export const summarizeSubAgentActivity = (aiRequest: {
     }
   }
   let done = 0;
-  uniqueCallIds.forEach(callId => {
+  firstCallByCallId.forEach((call, callId) => {
     if (answeredCallIds.has(callId)) done++;
   });
-  const total = uniqueCallIds.size;
-  return { total, done, running: total - done };
+  const total = firstCallByCallId.size;
+  return { total, done, running: total - done, roles };
 };
 
 export const isUserMessage = (message: any): boolean =>

@@ -1422,6 +1422,17 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
               >
                 {`${subAgents.total} sub-agent${
                   subAgents.total === 1 ? '' : 's'
+                }${
+                  Object.keys(subAgents.roles).length > 0
+                    ? ` (${Object.keys(subAgents.roles)
+                        .map(
+                          role =>
+                            `${subAgents.roles[role]} ${role}${
+                              subAgents.roles[role] === 1 ? '' : 's'
+                            }`
+                        )
+                        .join(', ')})`
+                    : ''
                 }: ${subAgents.done} finished${
                   subAgents.running > 0 ? `, ${subAgents.running} working` : ''
                 }`}

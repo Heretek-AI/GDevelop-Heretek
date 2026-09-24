@@ -986,6 +986,7 @@ describe('summarizeSubAgentActivity', () => {
       total: 3,
       done: 2,
       running: 1,
+      roles: {},
     });
   });
 
@@ -1005,7 +1006,40 @@ describe('summarizeSubAgentActivity', () => {
       total: 1,
       done: 1,
       running: 0,
+      roles: {},
     });
+  });
+
+  it('breaks the count down by role', () => {
+    const withRole = (callId, subAgentId, role) => ({
+      type: 'function_call',
+      status: 'completed',
+      call_id: callId,
+      name: 'spawn_agent',
+      arguments: JSON.stringify({ role, short_title: 'T', task: 'D.' }),
+      subAgentAiRequestId: subAgentId,
+    });
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        withRole('c1', 'sub-1', 'designer'),
+        withRole('c2', 'sub-2', 'developer'),
+        withRole('c3', 'sub-3', 'developer'),
+        // Malformed arguments count with no role.
+        {
+          type: 'function_call',
+          status: 'completed',
+          call_id: 'c4',
+          name: 'spawn_agent',
+          arguments: 'not json',
+          subAgentAiRequestId: 'sub-4',
+        },
+      ]),
+      makeFunctionCallOutput('c1'),
+    ]);
+    const summary = summarizeSubAgentActivity((request: any));
+    expect(summary.total).toBe(4);
+    expect(summary.done).toBe(1);
+    expect(summary.roles).toEqual({ designer: 1, developer: 2 });
   });
 
   it('is all zero for a request with no sub-agents', () => {
@@ -1016,11 +1050,13 @@ describe('summarizeSubAgentActivity', () => {
       total: 0,
       done: 0,
       running: 0,
+      roles: {},
     });
     expect(summarizeSubAgentActivity((({ output: null }: any): any))).toEqual({
       total: 0,
       done: 0,
       running: 0,
+      roles: {},
     });
   });
 });

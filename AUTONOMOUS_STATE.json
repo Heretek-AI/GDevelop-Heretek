@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 217,
+  "last_cycle": 218,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1276,6 +1276,12 @@
       "target": "Count distinct sub-agents in the audit summary (dedupe by call_id)",
       "metric_delta": "summarizeSubAgentActivity counted every spawn call, so a transcript repeating the same function_call (a fork/merge, or the same call re-emitted) inflated the multi-agent count. It now dedupes by call_id before counting, so the chat line reports distinct sub-agents. +1 test (the same call twice with one output -> total 1, done 1), mutation-checked (reverting the dedupe yields total 2). 1644/1644 across 81 suites, eslint+prettier clean, divergence clean. No component change this cycle (build last verified at 216).",
       "commit": "fix(ai): count distinct sub-agents in the audit summary"
+    },
+    {
+      "cycle": 218,
+      "target": "Role breakdown in the multi-agent audit summary (Tier 2)",
+      "metric_delta": "Extended summarizeSubAgentActivity to count sub-agents by role (parsed from each spawn call's arguments; malformed arguments count with no role) and rendered it in the chat: LIVE-OBSERVED '3 sub-agents (1 designer, 1 developer, 1 tester): 3 finished' with the scripted 3-spawn mock. This is a real per-agent audit surface (which roles ran and how many) built purely from the request output - the kind of data a dashboard would consume. +1 test (roles {designer:1, developer:2} with a malformed call excluded); role counting mutation-checked; existing summary tests updated for the added `roles` field. 1645/1645 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
+      "commit": "feat(ai): break the multi-agent audit summary down by role"
     }
   ],
   "backlog": [
@@ -1476,6 +1482,7 @@
     "Invariant-2 OSINT must be a real assessment, not a reflex swap: ajv is the maintained validator, but adopting it as a direct dependency for a hot-path per-tool-call check in the editor bundle costs more than the small, schema-driven, test-pinned bespoke validator it would replace. Record the reasoning so it is not re-opened each session.",
     "In this build the standalone Ask AI form does not host a project for the editor function map, so project-requiring tools (create_or_update_plan, create_scene, ...) fail there even after initialize_project creates one; the editor container with a project open is required for those. initialize_project itself works standalone (EditorFunctionWithoutProject).",
     "Deterministic harness > model: scripted MOCK_SCRIPT turns exposed a studio defect (plan never flips to done) that model-dependent runs had hidden as 'model variance'. The write gate only serializes gated writes; the model turn writes the cache directly, so a gated write can still be clobbered by a turn's snapshot-based write.",
-    "JSX splits a literal adjacent to an expression across lines into words: `<Trans>{n} sub-agent{n===1?'':'s'}</Trans>` rendered 'sub-agent s'. Build such a sentence as a single interpolated string, not adjacent text/expression nodes."
+    "JSX splits a literal adjacent to an expression across lines into words: `<Trans>{n} sub-agent{n===1?'':'s'}</Trans>` rendered 'sub-agent s'. Build such a sentence as a single interpolated string, not adjacent text/expression nodes.",
+    "Adding a field to a summarizer's return breaks exact-equality tests: update the callers' expectations (here three tests) in the same change, or the suite goes red for a correct improvement."
   ]
 }
