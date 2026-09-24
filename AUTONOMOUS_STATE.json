@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 241,
+  "last_cycle": 242,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1420,6 +1420,12 @@
       "target": "Deliver role denials, loop-guard warnings and spawn failures on MIXED batches too",
       "metric_delta": "Applying the cycle-239/240 class to MIXED batches: the final send passed only loopGuardResults + editor results, so a batch with editor calls AND a role denial / spawn failure recorded those outcomes but never sent them (the early-return only covers the empty-editor-case). The final send now includes studioDeniedResults + loopGuardResults + spawnFailureResults + mergedResults. LIVE-VERIFIED: a tester child scripted to emit BOTH a denied call (create_scene) and an allowed call (describe_instances) in one batch produced function_call_outputs for both - the denial ('The tool create_scene is not available for the QA tester role.') and the allowed result ('No project opened.') - so the model receives every outcome. (The stored transcript shows the denial twice; the transform dedupes tool outputs by call_id before the model, so the model sees it once.) 1652/1652 across 81 suites, eslint+prettier clean, divergence clean; client-only.",
       "commit": "fix(ai): deliver all batch outcomes to the model on mixed batches"
+    },
+    {
+      "cycle": 242,
+      "target": "Full-suite regression after the outcome-delivery fixes (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 239-241 (role-denied delivery, loop-guard warning delivery, mixed-batch delivery): 185 suites, 2370 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md fixed-defects list with the recorded-but-unsent outcome class.",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [

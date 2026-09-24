@@ -92,7 +92,10 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 - Context-overflow recovery on create/continue/sub-agent paths.
 - Streamed tool-call fragments corrupted when a chunk sent an object.
 - Reasoning-only streams reported no progress.
-- Provider telemetry not cleared on delete; sub-agent children evicting real chats.
+- Provider telemetry not cleared on delete; sub-agent children evicting real chats
+- Recorded-but-unsent outcomes: role denials, the loop-guard warning, spawn
+  failures and mixed batches never reached the model (recorded client-side only),
+  looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
 - Per-role specialist flow offline with a project open (cycle 236): designer
