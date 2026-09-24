@@ -154,6 +154,14 @@ describe('Studio roles', () => {
     });
   });
 
+  it('the manager must delegate rather than narrate (live run, cycle 197)', () => {
+    // A live benchmark run planned and said it would delegate, then ended the
+    // turn without calling spawn_agent. The prompt now forbids that.
+    const prompt = STUDIO_ROLES.manager.systemPrompt;
+    expect(prompt).toContain('Never end your turn with prose');
+    expect(prompt).toContain('must be a spawn_agent call');
+  });
+
   it('the manager forwards established facts so sub-agents do not re-derive them', () => {
     // Observed failure: a developer re-probed the run_script sandbox and the
     // texture constraints for ten turns after the designer had settled them,

@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 197,
+  "last_cycle": 198,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1156,10 +1156,16 @@
       "target": "Dispatch the canonical city-builder benchmark live against local Ollama",
       "metric_delta": "No code change. Sent the full prompt-city.md benchmark through the Ask AI composer to local Ollama (via the newly-reliable type_text automation; fill() does not fire React onChange). The run completed cleanly - status ready, 9 messages, 5 tool calls [create_or_update_plan, inspect_project_properties_resources, read_game_project_json, initialize_project, create_or_update_plan], every POST 200, no errors. It did NOT delegate: the last assistant text says 'I'll start by creating the plan, then delegate to the designer' yet no spawn_agent was emitted, so the turn ended after planning. The delegation path itself is proven (the persisted HarborTown run has 12 spawns; spawnSubAgent/role tests cover it), so this is model-compliance variance, not a harness defect. Config restored. Finding for Tier 1: the manager prompt should forbid ending a turn with prose after planning while tasks are undelegated.",
       "commit": "chore(autonomous): record the live city-builder benchmark dispatch"
+    },
+    {
+      "cycle": 198,
+      "target": "Harden the manager prompt to require delegation (+ live re-run measurement)",
+      "metric_delta": "Tier 1 follow-up to cycle 197: added an explicit manager rule - never end a turn with prose while a ready task is undelegated; the next action after planning must be spawn_agent - with a Roles.spec test (mutation-checked: removing the rule fails it). Re-ran the benchmark live against the SAME local model after reload: the run ended at status ready after 7 messages/5 tool calls [read_game_project_json, inspect_project_properties_resources, initialize_project, read x2] and did NOT plan or spawn; the model narrated 'Let me initialize one' and stopped. So prompt hardening is committed and tested, but one live run shows no compliance change - the local model does not reliably follow the multi-step protocol (the persisted HarborTown run did 12 spawns, so the capability and the harness are present; this is model variance). Config restored. Honest measurement, not a claimed improvement.",
+      "commit": "feat(ai): require delegation in the manager prompt"
     }
   ],
   "backlog": [
-    "Tier 1 (from cycle 197 live run): the manager sometimes plans and narrates delegation but ends the turn without calling spawn_agent. Strengthen Roles.manager.systemPrompt to require spawn_agent as the next action while any ready task is undelegated, and re-run the benchmark to measure compliance.",
+    "Tier 1 (cycle 197/198): the local model stops after planning/inspection instead of delegating; harness is correct (persisted run had 12 spawns), so measure the hardened manager prompt across several runs / a stronger model before concluding. Consider a client-side nudge: if a manager turn ends with undelegated ready tasks and no prose answer, continue it once automatically.",
     "Phase 5 live run now WORKS against local Ollama (cycle 189: preflight 204 + POST 200, real reply). Run the full @feedback-loop city-builder benchmark against :11434 when a run budget allows; hosted Heretek needs config.local.json.",
     "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
     "Extract ChatMessages' renderItems classification into a pure leaf so the render-path guards become unit-testable (currently guarded by precedent, verified only by build/lint/suite).",

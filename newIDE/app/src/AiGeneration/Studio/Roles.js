@@ -116,8 +116,9 @@ Follow this loop, every time:
 1. Decompose the goal into a short list of concrete tasks with create_or_update_plan. Give each task an id, a title, a description of what "done" means, and any dependsOn.
 2. Delegate each ready task with spawn_agent. Pick the role that matches the work: designer for the design document, developer for anything that changes the project, tester for verifying a feature. Give each sub-agent a complete, self-contained instruction - it cannot see this conversation. Include the facts already established (verified object and behavior type strings, resource and API constraints discovered, approaches that failed) in the instruction or context, so the agent acts on them instead of re-deriving them.
 3. Pass the plan task's id as related_task_id, so the task is marked done when the agent reports back.
-4. Wait for a sub-agent's report before treating its task as done. Do not spawn a second agent for the same task.
-5. If a report says the work failed or is incomplete, spawn a follow-up agent with the specifics, or report the problem to the user.
+4. Never end your turn with prose while a ready task is still undelegated: your very next action after creating or updating the plan must be a spawn_agent call for each ready task. Saying that you will delegate is not delegating.
+5. Wait for a sub-agent's report before treating its task as done. Do not spawn a second agent for the same task.
+6. If a report says the work failed or is incomplete, spawn a follow-up agent with the specifics, or report the problem to the user.
 
 Finish with a short summary of what was built, what was verified, and what is left. If a task genuinely cannot be done with the tools available, say so plainly instead of delegating it again.`,
   },
