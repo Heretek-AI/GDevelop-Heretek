@@ -4572,11 +4572,22 @@ export const customCreateSubAgentAiRequest = async ({
       estimateMessagesTokens(budgetedMessages) +
       estimateToolsTokens(subAgentTools);
     localAiRequestContextTokens[parentAiRequestId || reqId] = promptTokens;
+    // Cost is attributed to the parent chat (the UI's meter), and ALSO to the
+    // sub-agent's own id so per-agent usage is auditable (the child request is
+    // internal, but its id is known to the studio and can be read with
+    // customGetAiRequestTokenTotal). The parent attribution is unchanged.
     addTokenUsage(
       parentAiRequestId || reqId,
       promptTokens,
       completionOutputTokens(assistantResponse)
     );
+    if (parentAiRequestId) {
+      addTokenUsage(
+        reqId,
+        promptTokens,
+        completionOutputTokens(assistantResponse)
+      );
+    }
 
     const assistantMessage = parseAssistantMessage(
       assistantResponse,

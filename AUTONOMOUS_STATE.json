@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 219,
+  "last_cycle": 220,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1288,6 +1288,12 @@
       "target": "Full-suite regression after the multi-agent UI additions (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 216-218 (multi-agent audit summary + role breakdown in ChatMessages): 185 suites, 2363 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 218.",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 220,
+      "target": "Per-agent token accounting, surfaced in the audit line (Tier 2)",
+      "metric_delta": "Sub-agent turns billed tokens only to the parent chat, so per-agent usage was not auditable. Each sub-agent turn now ALSO records its tokens under its own id (customGetAiRequestTokenTotal(childId)), with the parent attribution unchanged, and the chat's audit line shows the summed sub-agent tokens. LIVE-OBSERVED: '3 sub-agents (1 designer, 1 developer, 1 tester): 3 finished . ~11,359 sub-agent tokens' with the scripted mock. This completes the objective's per-agent audit data model (which roles, how many, finished/running, and now per-agent tokens) and surfaces it. +1 test (child AND parent totals > 0 after a sub-agent turn), mutation-checked (removing the child attribution yields 0). 1646/1646 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
+      "commit": "feat(ai): bill sub-agent tokens to the sub-agent and show them"
     }
   ],
   "backlog": [

@@ -1621,6 +1621,35 @@ describe('CustomAIClient', () => {
       expect(second).toBeLessThan(first);
     });
 
+    it('records a sub-agent turn against the parent AND the child', async () => {
+      // Cost is billed to the parent chat (the UI meter) and also to the
+      // sub-agent's own id, so per-agent usage is auditable.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const child = await customCreateSubAgentAiRequest({
+        parentAiRequestId: 'local-ai-parent-x',
+        roleId: 'developer',
+        userRequest: 'build it',
+        gameProjectJson: null,
+        projectSpecificExtensionsSummaryJson: null,
+        spawnContextNote: null,
+      });
+      expect(customGetAiRequestTokenTotal(child.id)).toBeGreaterThan(0);
+      expect(customGetAiRequestTokenTotal('local-ai-parent-x')).toBeGreaterThan(
+        0
+      );
+    });
+
     it('retries a sub-agent turn at a smaller budget on overflow', async () => {
       setCustomEndpointConfig({
         enabled: true,
