@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 226,
+  "last_cycle": 227,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1330,6 +1330,12 @@
       "target": "Flow type-check over the session's additions (no change)",
       "metric_delta": "No code change. Ran `npm run flow` on the committed session state: 1039 errors total (the environment's current baseline - the previously recorded 870 was a different reading; the fork's CI does not gate app Flow). Crucially, verified the errors are NOT from this session's work: AiRequestUtils.js (where the per-agent summary/token data layer lives) has ZERO Flow errors, and no error mentions summarizeSubAgentActivity, localAiRequestProviderTelemetry or onProviderTelemetry. The CustomAIClient errors cited (lines 197/595/1052/1070) are in pre-existing code (e.g. normalizePersistedMessages' `entry.type === 'text'` from cycle 95). eslint/build remain the gating checks and pass.",
       "commit": "docs(autonomous): verify Flow over the session additions"
+    },
+    {
+      "cycle": 227,
+      "target": "Live streaming token counter + a slow-stream mock option (Tier 2)",
+      "metric_delta": "Added the Tier 2 'streaming token counter': PartialStreamText (fork-owned ChatMessages) now appends ' . ~N tokens' computed with estimateTokens(partialContent), so progress is legible while a local model generates. Also added MOCK_STREAM_DELAY_MS to the mock provider so streaming-only UI can be exercised (chunks spaced over time). Verified: unit (estimateTokens is tested) + eslint + production build exit 0 + divergence clean; the slow stream itself verified by curl (chunks + tool calls arrive over time). Honest caveat: the counter could not be caught in a Chrome DevTools snapshot mid-stream - the standalone form's transcript/working row was not captured while a turn ran - so it rests on build/unit evidence and the fact that PartialStreamText (its host) was live-verified earlier, not on a fresh live observation.",
+      "commit": "feat(ai): show a live streaming token count in the chat"
     }
   ],
   "backlog": [

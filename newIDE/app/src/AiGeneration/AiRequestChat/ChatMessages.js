@@ -73,6 +73,7 @@ import {
   customGetAiRequestTokenTotal,
   customGetAiRequestPartialContent,
   customGetAiRequestProviderTelemetry,
+  estimateTokens,
 } from '../../AI/CustomAIClient';
 
 /**
@@ -93,9 +94,15 @@ const PartialStreamText = ({ aiRequestId }: {| aiRequestId: string |}) => {
   );
   if (!partialContent) return null;
   const tail = partialContent.slice(-160);
+  // Tier 2 streaming token counter: an approximate running count of the
+  // streamed content, so progress is legible while a local model generates.
+  const streamedTokens = estimateTokens(partialContent);
   return (
     <Text noMargin displayInlineAsSpan size="body-small" color="secondary">
       {tail}
+      {streamedTokens > 0
+        ? ` · ≈${streamedTokens.toLocaleString()} tokens`
+        : ''}
     </Text>
   );
 };

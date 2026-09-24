@@ -165,13 +165,23 @@ const server = http.createServer((req, res) => {
           Object.assign({ 'Content-Type': 'text/event-stream' }, CORS, headers)
         );
         const chunks = reply.match(/.{1,24}/g) || (reply ? [reply] : []);
-        for (const chunk of chunks) {
+        // MOCK_STREAM_DELAY_MS spaces out chunks so UI that only shows while a
+        // stream is live (e.g. the streaming token counter) can be observed.
+        const streamDelayMs = Number(process.env.MOCK_STREAM_DELAY_MS) || 0;
+        const writeChunk = index => {
+          if (index >= chunks.length) return sendTail();
           res.write(
             'data: ' +
-              JSON.stringify({ choices: [{ delta: { content: chunk } }] }) +
+              JSON.stringify({ choices: [{ delta: { content: chunks[index] } }] }) +
               '\n\n'
           );
-        }
+          if (streamDelayMs > 0) {
+            setTimeout(() => writeChunk(index + 1), streamDelayMs);
+          } else {
+            writeChunk(index + 1);
+          }
+        };
+        const sendTail = () => {
         if (toolCalls.length > 0) {
           res.write(
             'data: ' +
@@ -205,6 +215,9 @@ const server = http.createServer((req, res) => {
         );
         res.write('data: [DONE]\n\n');
         return res.end();
+        };
+        writeChunk(0);
+        return;
       }
 
       const message = { role: 'assistant', content: reply };
