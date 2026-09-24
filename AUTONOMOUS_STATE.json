@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 230,
+  "last_cycle": 231,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1354,6 +1354,12 @@
       "target": "One bounded retry when the endpoint is unreachable (Tier 2 resilience)",
       "metric_delta": "A local server that is still starting (or a transient network split) can refuse a connection and succeed moments later; previously that failed the turn. Added isNetworkLevelError (transport-level only: no HTTP response AND a connection-failure code/message - a provider 4xx/5xx is excluded) and a single retry after 500ms on all three turn paths (create/continue/sub-agent), bounded by the existing nested catch so it runs at most once per turn. +1 test (ECONNREFUSED then success -> not error, 2 POSTs; predicate truth table incl. 500-excluded and null), mutation-checked (neutralizing the branch fails it). Test-discovery note: axios rejects with an Error, but a plain-object rejection loses its code to the client's non-Error normalization (cycle 172), so the fixture must be an Error with .code. 1649/1649 across 81 suites, eslint+prettier clean, divergence clean. Client-only change; build last verified at 227.",
       "commit": "feat(ai): retry once when the endpoint is unreachable"
+    },
+    {
+      "cycle": 231,
+      "target": "Production build + deterministic regression after the network-retry change (no change)",
+      "metric_delta": "No code change. (1) Production build over cycle 230's client change: exit 0. (2) Re-ran the deterministic 3-spawn mock end-to-end after that change: the chat still shows '3 sub-agents (1 designer, 1 developer, 1 tester): 3 finished . ~11,359 sub-agent tokens', so the retry addition did not regress the multi-agent loop. Config restored, mock stopped.",
+      "commit": "chore(autonomous): build and deterministic regression after the retry change"
     }
   ],
   "backlog": [
