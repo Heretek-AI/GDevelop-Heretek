@@ -39,6 +39,8 @@ import {
   withoutBackendOnlyTools,
   buildSystemPrompt,
   getEffectiveConfigForRequest,
+  parseProviderTelemetry,
+  customGetAiRequestProviderTelemetry,
   estimateTokens,
   estimateToolsTokens,
   getMessageBudget,
@@ -1428,6 +1430,61 @@ describe('CustomAIClient', () => {
       } finally {
         debugSpy.mockRestore();
       }
+    });
+
+    it('parses telemetry into numbers and stores it per request', async () => {
+      // The auditing data layer: the console line existed but nothing was
+      // inspectable from React state. parseProviderTelemetry is stored against
+      // the chat so a dashboard can read it.
+      expect(
+        parseProviderTelemetry({
+          'x-omniroute-model': 'deepseek-v4.1-flash',
+          'x-omniroute-latency-ms': '3361',
+          'x-omniroute-tokens-in': '8856',
+          'x-omniroute-tokens-out': '90',
+          'x-omniroute-cache': 'MISS',
+        })
+      ).toEqual({
+        model: 'deepseek-v4.1-flash',
+        latencyMs: 3361,
+        tokensIn: 8856,
+        tokensOut: 90,
+        cache: 'MISS',
+      });
+      expect(parseProviderTelemetry({})).toBeNull();
+      // A non-numeric latency is dropped, not stored as NaN.
+      expect(
+        parseProviderTelemetry({ 'x-omniroute-latency-ms': 'soon' })
+      ).toBeNull();
+
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        headers: {
+          'x-omniroute-model': 'llama3.2',
+          'x-omniroute-latency-ms': '120',
+          'x-omniroute-tokens-in': '30',
+          'x-omniroute-tokens-out': '7',
+        },
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+
+      const created = await customCreateAiRequest({
+        userRequest: 'telemetry probe',
+        mode: 'chat',
+      });
+      const stored = customGetAiRequestProviderTelemetry(created.id);
+      expect(stored && stored.model).toBe('llama3.2');
+      expect(stored && stored.latencyMs).toBe(120);
+      expect(stored && stored.tokensIn).toBe(30);
+      expect(typeof stored.at).toBe('string');
     });
 
     it('reads headers exposed through .get (fetch Headers are index-opaque)', () => {

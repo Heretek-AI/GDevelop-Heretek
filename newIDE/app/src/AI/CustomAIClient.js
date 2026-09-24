@@ -401,6 +401,19 @@ export const customGetAiRequestContextTokens = (aiRequestId: string): number =>
   localAiRequestContextTokens[aiRequestId] || 0;
 
 /**
+ * Last provider telemetry seen for a request (per-turn latency, tokens, model,
+ * cache), from routing/proxy headers (`x-omniroute-*`) when the endpoint sends
+ * them. Makes the per-turn observability the console also prints inspectable
+ * from React state (the auditing data layer for a per-agent dashboard). Sub
+ * -agent turns attribute to their parent chat, like the other registries.
+ */
+const localAiRequestProviderTelemetry: { [id: string]: Object } = {};
+
+export const customGetAiRequestProviderTelemetry = (
+  aiRequestId: string
+): ?Object => localAiRequestProviderTelemetry[aiRequestId] || null;
+
+/**
  * Tokens a completion billed for: its answer plus any chain of thought.
  *
  * A reasoning model can spend most of its output on `reasoning_content`
@@ -983,6 +996,9 @@ export const _resetCustomAiClientForTesting = () => {
   }
   for (const key of Object.keys(localAiRequestContextTokens)) {
     delete localAiRequestContextTokens[key];
+  }
+  for (const key of Object.keys(localAiRequestProviderTelemetry)) {
+    delete localAiRequestProviderTelemetry[key];
   }
   for (const key of Object.keys(localAiRequestModelOverrides)) {
     delete localAiRequestModelOverrides[key];
@@ -2872,7 +2888,7 @@ const getErrorHint = (error: any): string => {
  * thrashing agent runs, without touching the request itself. Null when the
  * response carries no telemetry headers.
  */
-export const formatProviderTelemetry = (headers: any): string | null => {
+export const parseProviderTelemetry = (headers: any): ?Object => {
   if (!headers || typeof headers !== 'object') return null;
   const get = (name: string): ?string => {
     // Prefer .get when present: fetch Headers expose nothing by index, and
@@ -2881,17 +2897,51 @@ export const formatProviderTelemetry = (headers: any): string | null => {
       typeof headers.get === 'function' ? headers.get(name) : headers[name];
     return typeof raw === 'string' && raw ? raw : null;
   };
-  const parts = [];
+  const toNumber = (value: ?string): ?number => {
+    if (value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
   const model = get('x-omniroute-model');
-  if (model) parts.push(`model=${model}`);
-  const latency = get('x-omniroute-latency-ms');
-  if (latency) parts.push(`latencyMs=${latency}`);
-  const tokensIn = get('x-omniroute-tokens-in');
-  const tokensOut = get('x-omniroute-tokens-out');
-  if (tokensIn || tokensOut)
-    parts.push(`tokens=${tokensIn || '?'}in/${tokensOut || '?'}out`);
+  const latencyMs = toNumber(get('x-omniroute-latency-ms'));
+  const tokensIn = toNumber(get('x-omniroute-tokens-in'));
+  const tokensOut = toNumber(get('x-omniroute-tokens-out'));
   const cache = get('x-omniroute-cache');
-  if (cache) parts.push(`cache=${cache}`);
+  if (
+    !model &&
+    latencyMs === null &&
+    tokensIn === null &&
+    tokensOut === null &&
+    !cache
+  ) {
+    return null;
+  }
+  const telemetry: Object = {};
+  if (model) telemetry.model = model;
+  if (latencyMs !== null) telemetry.latencyMs = latencyMs;
+  if (tokensIn !== null) telemetry.tokensIn = tokensIn;
+  if (tokensOut !== null) telemetry.tokensOut = tokensOut;
+  if (cache) telemetry.cache = cache;
+  return telemetry;
+};
+
+export const formatProviderTelemetry = (headers: any): string | null => {
+  const telemetry = parseProviderTelemetry(headers);
+  if (!telemetry) return null;
+  const parts = [];
+  if (telemetry.model) parts.push(`model=${telemetry.model}`);
+  if (typeof telemetry.latencyMs === 'number')
+    parts.push(`latencyMs=${telemetry.latencyMs}`);
+  if (
+    typeof telemetry.tokensIn === 'number' ||
+    typeof telemetry.tokensOut === 'number'
+  )
+    parts.push(
+      `tokens=${telemetry.tokensIn != null ? telemetry.tokensIn : '?'}in/${
+        telemetry.tokensOut != null ? telemetry.tokensOut : '?'
+      }out`
+    );
+  if (telemetry.cache) parts.push(`cache=${telemetry.cache}`);
   return parts.length > 0 ? parts.join(' ') : null;
 };
 
@@ -2908,6 +2958,7 @@ const streamChatCompletion = async ({
   signal,
   timeoutMs,
   onStreamDelta,
+  onProviderTelemetry,
 }: {|
   endpointUrl: string,
   headers: { [string]: string },
@@ -2915,6 +2966,7 @@ const streamChatCompletion = async ({
   signal?: ?AbortSignal,
   timeoutMs: number,
   onStreamDelta?: (partialContent: string) => void,
+  onProviderTelemetry?: (telemetry: Object) => void,
 |}): Promise<Object> => {
   const combinedController = new AbortController();
   const abortFromCaller = () => combinedController.abort();
@@ -2977,6 +3029,10 @@ const streamChatCompletion = async ({
     const streamTelemetry = formatProviderTelemetry(response.headers);
     if (streamTelemetry) {
       console.debug(`[BYOK] ${endpointUrl} ${streamTelemetry}`);
+    }
+    if (onProviderTelemetry) {
+      const parsed = parseProviderTelemetry(response.headers);
+      if (parsed) onProviderTelemetry(parsed);
     }
     // Some proxies and a few local servers ignore `stream: true` and answer
     // with an ordinary JSON completion. Reading that as SSE yields no `data:`
@@ -3244,12 +3300,14 @@ export const sendChatCompletion = async ({
   config,
   signal,
   onStreamDelta,
+  onProviderTelemetry,
 }: {|
   messages: Array<Object>,
   tools?: ?Array<Object>,
   config?: ?CustomAIConfig,
   signal?: ?AbortSignal,
   onStreamDelta?: (partialContent: string) => void,
+  onProviderTelemetry?: (telemetry: Object) => void,
 |}): Promise<Object> => {
   const currentConfig = config || getCustomEndpointConfig();
   const baseUrl = normalizeBaseUrl(currentConfig.baseUrl);
@@ -3314,6 +3372,7 @@ export const sendChatCompletion = async ({
         signal,
         timeoutMs,
         onStreamDelta,
+        onProviderTelemetry,
       });
     } catch (streamError) {
       // A user abort must not trigger a retry: the caller signal is already
@@ -3353,6 +3412,10 @@ export const sendChatCompletion = async ({
     const providerTelemetry = formatProviderTelemetry(response.headers);
     if (providerTelemetry) {
       console.debug(`[BYOK] ${endpointUrl} ${providerTelemetry}`);
+    }
+    if (onProviderTelemetry) {
+      const parsed = parseProviderTelemetry(response.headers);
+      if (parsed) onProviderTelemetry(parsed);
     }
 
     if (
@@ -3904,6 +3967,14 @@ export const customCreateAiRequest = async ({
       onStreamDelta: partialContent => {
         localAiRequestPartialContent[reqId] = partialContent;
       },
+      // Same accounting as the other registries: inspectable per-request
+      // provider telemetry for the chat it belongs to.
+      onProviderTelemetry: telemetry => {
+        localAiRequestProviderTelemetry[reqId] = {
+          ...telemetry,
+          at: new Date().toISOString(),
+        };
+      },
     });
   } catch (error) {
     // Persist the request even when the first turn fails so the chat has a
@@ -4131,6 +4202,12 @@ export const customAddMessageToAiRequest = async ({
         onStreamDelta: partialContent => {
           localAiRequestPartialContent[aiRequestId] = partialContent;
         },
+        onProviderTelemetry: telemetry => {
+          localAiRequestProviderTelemetry[aiRequestId] = {
+            ...telemetry,
+            at: new Date().toISOString(),
+          };
+        },
       });
     } catch (error) {
       releaseTurnAbortController(aiRequestId);
@@ -4354,6 +4431,14 @@ export const customCreateSubAgentAiRequest = async ({
           localAiRequestPartialContent[
             parentAiRequestId || reqId
           ] = partialContent;
+        },
+        // Sub-agent telemetry attributes to the parent chat, the key the UI
+        // and the other registries use.
+        onProviderTelemetry: telemetry => {
+          localAiRequestProviderTelemetry[parentAiRequestId || reqId] = {
+            ...telemetry,
+            at: new Date().toISOString(),
+          };
         },
       });
     } finally {

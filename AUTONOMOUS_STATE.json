@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 191,
+  "last_cycle": 192,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1120,6 +1120,12 @@
       "target": "Stream reasoning as progress so the cold-start hint clears (Tier 2)",
       "metric_delta": "Verified Ollama's live SSE shape first: text/event-stream, data: lines with choices[0].delta.content AND delta.reasoning - confirming the dual-field support added in cycles 155/161 was necessary. That exposed a UX gap: onStreamDelta reported only `content`, so a reasoning model (deepseek streams many reasoning chunks before the first answer token) produced empty partial content, and the chat's cold-start hint claimed it was still waiting for the first token while bytes were arriving. Now onStreamDelta reports content || reasoning. +1 test red pre-fix, mutation-checked; the content path and cold-start tests still pass. 1629/1629 across 81 suites, eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): stream reasoning as progress before the first answer token"
+    },
+    {
+      "cycle": 192,
+      "target": "Make provider telemetry inspectable per request (Tier 2 audit data layer)",
+      "metric_delta": "The x-omniroute-* telemetry was console-only; the objective wants full request/response inspectability. Added parseProviderTelemetry (numbers, drops non-numeric, null when nothing), refactored formatProviderTelemetry onto it, a per-request registry localAiRequestProviderTelemetry with customGetAiRequestProviderTelemetry(id), an onProviderTelemetry callback threaded through sendChatCompletion AND streamChatCompletion, and storage on all three turn paths (sub-agent attributes to the parent). Cleared by the test reset. +1 test (parse shape, non-numeric drop, live storage via a create with telemetry headers) red pre-fix, mutation-checked (removing the callback yields null). 1630/1630 across 81 suites, eslint+prettier clean, divergence clean.",
+      "commit": "feat(ai): expose per-request provider telemetry"
     }
   ],
   "backlog": [
@@ -1310,6 +1316,7 @@
     "Chrome DevTools MCP via code mode: the runtime has no setTimeout (use wait_for or the tool's own waits), and evaluate_script requires a function-declaration string (e.g. '() => {...}'), not an IIFE - an invoked string returns a value and fails with 'fn is not a function'.",
     "A local OpenAI-compatible server's CORS preflight only allows a fixed header set; sending optional attribution headers (HTTP-Referer/X-Title) blocks the whole request in the browser build before it reaches the model. Keep the outbound header set minimal (Content-Type) for local-first, and verify new headers against a real Ollama preflight, not just axios mocks - mocks do not model CORS.",
     "Driving the Ask AI new-chat form via Chrome DevTools MCP is unreliable here: the drawer re-renders back to the history list between fill and send. For the multi-turn benchmark, use the @feedback-loop skill / interactive session rather than synthetic DOM driving; a single-turn live BYOK check is enough to validate the transport.",
-    "Ollama's OpenAI-compatible SSE sends `delta.reasoning` (not `reasoning_content`) and streams it for many chunks before any `delta.content`; any UI signal derived from partial content (the cold-start hint, the streaming tail) must account for reasoning-only progress or it reports 'waiting for the first token' while the model is clearly working."
+    "Ollama's OpenAI-compatible SSE sends `delta.reasoning` (not `reasoning_content`) and streams it for many chunks before any `delta.content`; any UI signal derived from partial content (the cold-start hint, the streaming tail) must account for reasoning-only progress or it reports 'waiting for the first token' while the model is clearly working.",
+    "Telemetry the console already prints should also be stored in a registry keyed by request id: 'inspectable' in this objective means readable from React state, not just visible in devtools. Thread a callback (onProviderTelemetry) through the client like onStreamDelta rather than having the client guess the request id."
   ]
 }
