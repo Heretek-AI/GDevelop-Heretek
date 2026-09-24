@@ -98,6 +98,22 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- `@feedback-loop` end-to-end against the hosted proxy (cycle 254): ran the
+  actual skill with `config.local.json` (key read by a localhost-only helper the
+  page fetched, so it never entered an agent command/log; Preferences form
+  filled, Test Connection OK, footer `BYOK: opencode-zen/deepseek-v4.1-flash`).
+  Sent `prompt-city.md` verbatim. Model worked: recon (2 calls) → plan (4 tasks)
+  → design (spawn task_1 → designer, 20 msgs) → build (spawn task_2 → developer,
+  79 msgs / 44 calls). Provider: 45 completions, 44×200, 0×5xx. Plan/link/
+  transcript/token-meter all correct; `nudgeCount` 0 (never stalled).
+  Two harness causes found: (1) the model called `initialize_project` mid-run,
+  which re-created the project and dropped the chat selection, so the pending
+  `create_or_update_plan` stalled until the chat was re-selected (processing is
+  selected-request-only); (2) the developer spent many turns on
+  `change_behavior_property`, which reports "nothing changed" for every
+  property-name variant. Verdict + per-phase metrics appended to the skill's
+  `runs/RUNS.md` (Run 4); the "keep the running chat selected" workaround was
+  added to the skill's `SKILL.md`.
 - Real-model full-flow run with the session's fixes (cycle 253): local Ollama
   (`deepseek-v4.1-flash:cloud`, `http://localhost:11434/v1`), project opened via
   `initialize_project`. The manager read the project, created a 4-task plan,

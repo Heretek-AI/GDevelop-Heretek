@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 253,
+  "last_cycle": 254,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1492,9 +1492,17 @@
       "target": "Phase 5: real-model end-to-end run of the multi-agent flow with the session's fixes (no change)",
       "metric_delta": "No code change. Ran the canonical city-builder benchmark against local Ollama (deepseek-v4.1-flash:cloud) with a project opened via initialize_project. Confirmed the recent features integrate with a REAL model: the manager read the project, made a 4-task plan, spawned the designer for task_1; the spawn carried taskId 'task_1' and the plan showed task_1 in_progress with agentCallId call_a0iex1p6 (cycle 251); the dashboard showed '1 sub-agent (1 designer): 0 finished, 1 working - 62,020 sub-agent tokens' (cycles 247-248); and expanding the row rendered the designer's own transcript, including read_game_project_json/inspect_variables/describe_instances/add_or_edit_variable and a self-correction after a schema error (cycle 252). The run then paused on the inline edit-approval prompt (the designer is not read-only and auto-edit was off); no nudge fired because a sub-agent was live - both correct. No regression from cycles 247-252.",
       "commit": "docs(autonomous): real-model end-to-end run of the multi-agent flow"
+    },
+    {
+      "cycle": 254,
+      "target": "Phase 5: run the actual @feedback-loop skill end-to-end against the hosted endpoint",
+      "metric_delta": "Ran the real skill (config.local.json found in the skill dir, not the repo root): key read by a localhost-only helper the page fetched so it never entered an agent command/log; Preferences form filled (Base URL + model + key), Test Connection OK, footer 'BYOK: opencode-zen/deepseek-v4.1-flash'. Sent prompt-city.md verbatim. Model progress: recon 2 -> plan 4 tasks -> design (spawn task_1, designer 20 msgs) -> build (spawn task_2, developer 79 msgs / 44 calls). Provider 45 completions, 44x200, 0x5xx. The fork's plan/delegation-taskId/child-transcript/token-meter all correct and visible; nudgeCount 0 (no stall). Two harness causes: (a) initialize_project mid-run re-created the project and dropped chat selection, stalling the pending create_or_update_plan until re-selected (selected-request-only processing); (b) change_behavior_property reports 'nothing changed' for every name variant. Wrote Run 4 + verdict to the skill's runs/RUNS.md and added the 'keep the running chat selected' workaround to the skill's SKILL.md. No repo code change this cycle.",
+      "commit": "docs(autonomous): run @feedback-loop end-to-end against the hosted proxy"
     }
   ],
   "backlog": [
+    "Harness fix (from feedback-loop Run 4): a live local request's pending function calls are processed only while it is the selected chat, so switching chats (or a mid-run initialize_project) stalls it. Options: keep processing a request that is actively watched/has pending calls even when not selected (guard against unrelated stale chats), or auto-re-select after initialize_project. Needs a spec + mutation check.",
+    "Harness fix candidate (from feedback-loop Run 4): change_behavior_property reports 'nothing changed' for every property-name variant the developer tried; make the accepted property names discoverable (tool description / aliases / an error that lists valid names) + a spec.",
     "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
