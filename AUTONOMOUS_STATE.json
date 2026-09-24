@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 187,
+  "last_cycle": 188,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1096,6 +1096,12 @@
       "target": "Unit-test the preferences backfill by extracting it to the tested leaf",
       "metric_delta": "loadPreferencesFromLocalStorage's merge (backfill missing keys from defaults, theme renames, deprecated-warning tri-state) lived in the untestable PreferencesProvider (React/Electron/core). Extracted to the existing PreferencesStorage leaf as mergeStoredPreferencesWithDefaults and wired the provider to it; +6 tests pin the contract earlier cycles relied on - a MISSING key is backfilled, a PRESENT key is kept even when falsy/wrong-typed (the app validates at point of use), unknown keys survive, input not mutated, both theme renames, the tri-state mapping, and null for a non-object stored value. Backfill rule and theme migration each mutation-checked. Provider change verified live by the dev-server watcher (compiled successfully, no issues) plus the 81-suite run. 1626/1626 across 81 suites (was 1617), eslint+prettier clean, divergence clean.",
       "commit": "refactor(preferences): extract the stored-preferences merge to the tested leaf"
+    },
+    {
+      "cycle": 188,
+      "target": "Sanitize plan tasks at the getLatestActivePlan chokepoint",
+      "metric_delta": "getLatestActivePlan confirmed Array.isArray(output.plan.tasks) but not its ELEMENTS: `tasks.some(task => task.status)` threw on a null in the model-authored plan JSON, and that same array feeds OrchestratorPlan's own filter (upstream-identical, so NOT edited) and the studio's readiness/plan-update passes. Fixed at the single choke point: non-object task entries are dropped before the plan is returned, closing the class for every consumer without touching upstream files. +1 test red pre-fix, mutation-checked. 1627/1627 across 81 suites (was 1626), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): sanitize plan tasks at the getLatestActivePlan chokepoint"
     }
   ],
   "backlog": [

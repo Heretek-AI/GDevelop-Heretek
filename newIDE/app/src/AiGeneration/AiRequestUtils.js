@@ -532,7 +532,16 @@ export const getLatestActivePlan = (
         // output is model-authored, so neither the array nor the shape is
         // guaranteed by the time this runs.
         if (output && output.plan && Array.isArray(output.plan.tasks)) {
-          latestPlan = output.plan;
+          // Sanitize here, at the single choke point every consumer reads:
+          // drop non-object task entries so `tasks.some(task => task.status)`
+          // below (and OrchestratorPlan's filter, and the studio's scans)
+          // cannot throw on a hole in the model-authored plan JSON.
+          latestPlan = {
+            ...output.plan,
+            tasks: output.plan.tasks.filter(
+              task => task && typeof task === 'object'
+            ),
+          };
           break;
         }
       } catch (e) {

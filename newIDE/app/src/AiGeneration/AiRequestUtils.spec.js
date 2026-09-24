@@ -115,6 +115,22 @@ describe('getLatestActivePlan', () => {
     }
   });
 
+  it('drops null task entries instead of throwing on the active check', () => {
+    // Plan tasks are model-authored JSON (and persisted output), not
+    // shape-validated per element: `tasks.some(task => task.status)` threw on
+    // a null entry, and the same array feeds OrchestratorPlan and the studio.
+    const request = makeAiRequest([
+      planMessage([
+        null,
+        { id: 'b', title: 'B', description: 'b', status: 'pending' },
+      ]),
+    ]);
+    const plan = getLatestActivePlan(request);
+    expect(plan).toBeTruthy();
+    expect(plan.tasks).toHaveLength(1);
+    expect(plan.tasks[0].id).toBe('b');
+  });
+
   it('ignores a malformed plan message and finds nothing', () => {
     const request = makeAiRequest([
       { type: 'function_call_output', call_id: 'c1', output: '{not json' },
