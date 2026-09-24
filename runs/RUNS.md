@@ -98,6 +98,16 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Manager-role fix verified end-to-end (cycle 259): a fresh `@feedback-loop` run
+  (Empty project pre-created; `prompt-city.md`) showed the top-level orchestrator
+  make **4 spawns (designer ×2, developer ×2) and 0 direct project edits** over
+  53 messages, with the plan tracking the model's own ids (`task_design done`,
+  `task_build done`, `task_economy in_progress`, `task_test pending`). The
+  pre-fix run made 15 manager mutations. The manager's reasoning even
+  acknowledged its restricted toolset. Screenshot
+  /tmp/opencode/cycle259-manager-fixed.png; recorded as Run 6 in the skill's
+  runs/RUNS.md. One child developer errored - sub-agent failure recovery to
+  watch next.
 - Harness fix: the orchestrator now runs as the studio manager (cycle 258):
   feedback-loop Run 5 showed the top-level orchestrator (mode `orchestrator`)
   planned and spawned 2 agents but also called **14 project-mutating tools
