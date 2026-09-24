@@ -98,6 +98,14 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Per-agent token totals survive a reload (cycle 248): the token meters are
+  persisted under `gd-custom-ai-token-totals` (bounded, corrupt-entry safe) and
+  reloaded at startup, so the per-agent audit dashboard keeps its figures after
+  a page refresh. Verified live: after seeding the real benchmark's two child
+  totals and reloading, the expanded panel showed
+  `designer ... · ≈1,234 tokens` and `developer ... · ≈567 tokens`
+  (summary `· ≈1,801 sub-agent tokens`); screenshot
+  /tmp/opencode/cycle248-persisted-tokens.png.
 - Per-agent audit dashboard (cycle 247): the chat's sub-agent summary is now an
   expandable panel - one row per spawned agent (role, short title, linked plan
   task, live/finished, its own token meter) - backed by the pure, tested

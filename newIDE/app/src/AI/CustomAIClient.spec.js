@@ -63,6 +63,8 @@ import {
   loadLocalAiRequests,
   withLocalAiTurnLock,
   loadLocalAiRequestModelOverridesForTesting,
+  loadLocalAiRequestTokenTotalsForTesting,
+  recordLocalAiRequestTokenUsageForTesting,
   saveLocalAiRequests,
   _resetCustomAiClientForTesting as _resetForStreamTests,
 } from './CustomAIClient';
@@ -3484,6 +3486,82 @@ describe('CustomAIClient', () => {
       expect(customGetAiRequestModelOverride('local-ai-4')).toBe('');
       expect(customGetAiRequestModelOverride('local-ai-5')).toBe('');
       expect(customGetAiRequestModelOverride('local-ai-6')).toBe('ok');
+    });
+  });
+
+  describe('per-agent token totals survive a reload', () => {
+    const memoryStorage = {};
+    const fakeStorage = {
+      getItem: key => (key in memoryStorage ? memoryStorage[key] : null),
+      setItem: (key, value) => {
+        memoryStorage[key] = String(value);
+      },
+      removeItem: key => {
+        delete memoryStorage[key];
+      },
+    };
+    beforeEach(() => {
+      Object.keys(memoryStorage).forEach(key => delete memoryStorage[key]);
+      global.localStorage = fakeStorage;
+      _resetCustomAiClientForTesting();
+    });
+    afterEach(() => {
+      delete global.localStorage;
+    });
+
+    it('persists a sub-agent total and reloads it in a fresh session', () => {
+      // Sub-agent meters were in-memory only, so the per-agent audit dashboard
+      // lost every figure (children included) on the next page load.
+      recordLocalAiRequestTokenUsageForTesting('sub-1', 100, 50);
+      expect(
+        JSON.parse(memoryStorage['gd-custom-ai-token-totals'])['sub-1']
+      ).toBe(150);
+
+      // Simulate a fresh session: drop in-memory state, then re-read.
+      _resetCustomAiClientForTesting();
+      expect(customGetAiRequestTokenTotal('sub-1')).toBe(0);
+      loadLocalAiRequestTokenTotalsForTesting();
+      expect(customGetAiRequestTokenTotal('sub-1')).toBe(150);
+    });
+
+    it('accumulates across turns before persisting', () => {
+      recordLocalAiRequestTokenUsageForTesting('sub-2', 10, 5);
+      recordLocalAiRequestTokenUsageForTesting('sub-2', 20, 15);
+      expect(customGetAiRequestTokenTotal('sub-2')).toBe(50);
+      expect(
+        JSON.parse(memoryStorage['gd-custom-ai-token-totals'])['sub-2']
+      ).toBe(50);
+    });
+
+    it('ignores a corrupt payload and non-finite / negative values', () => {
+      memoryStorage['gd-custom-ai-token-totals'] = '{not json';
+      expect(() => loadLocalAiRequestTokenTotalsForTesting()).not.toThrow();
+      expect(customGetAiRequestTokenTotal('local-ai-x')).toBe(0);
+
+      memoryStorage['gd-custom-ai-token-totals'] = JSON.stringify({
+        'local-ai-neg': -5,
+        'local-ai-str': '42',
+        'local-ai-null': null,
+        'local-ai-bool': true,
+        'local-ai-ok': 42,
+      });
+      loadLocalAiRequestTokenTotalsForTesting();
+      expect(customGetAiRequestTokenTotal('local-ai-neg')).toBe(0);
+      expect(customGetAiRequestTokenTotal('local-ai-str')).toBe(0);
+      expect(customGetAiRequestTokenTotal('local-ai-null')).toBe(0);
+      expect(customGetAiRequestTokenTotal('local-ai-bool')).toBe(0);
+      expect(customGetAiRequestTokenTotal('local-ai-ok')).toBe(42);
+    });
+
+    it('caps the stored map so it cannot grow without bound', () => {
+      for (let i = 0; i < 520; i++) {
+        recordLocalAiRequestTokenUsageForTesting(`local-ai-${i}`, 1, 0);
+      }
+      const persisted = JSON.parse(memoryStorage['gd-custom-ai-token-totals']);
+      expect(Object.keys(persisted).length).toBe(500);
+      // The oldest entries are the ones dropped.
+      expect(persisted['local-ai-0']).toBeUndefined();
+      expect(persisted['local-ai-519']).toBe(1);
     });
   });
 

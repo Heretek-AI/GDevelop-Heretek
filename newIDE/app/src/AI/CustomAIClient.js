@@ -69,7 +69,14 @@ export const DEFAULT_CUSTOM_AI_CONFIG: CustomAIConfig = {
 const LOCAL_STORAGE_CONFIG_KEY = 'gd-custom-ai-config';
 const LOCAL_STORAGE_REQUESTS_KEY = 'gd-custom-ai-requests';
 const LOCAL_STORAGE_MODEL_OVERRIDES_KEY = 'gd-custom-ai-model-overrides';
+const LOCAL_STORAGE_TOKEN_TOTALS_KEY = 'gd-custom-ai-token-totals';
 const MAX_LOCAL_SAVED_REQUESTS = 20;
+/**
+ * Cap on persisted per-request token totals. The map is keyed by request id
+ * (sub-agent children included, so it outgrows the 20 saved chats), and must
+ * not grow without bound across sessions.
+ */
+const MAX_LOCAL_SAVED_TOKEN_TOTALS = 500;
 
 /**
  * In-memory configuration cache.
@@ -435,10 +442,69 @@ const addTokenUsage = (
     (localAiRequestTokenTotals[aiRequestId] || 0) +
     promptTokens +
     responseTokens;
+  saveLocalAiRequestTokenTotals();
 };
 
 export const customGetAiRequestTokenTotal = (aiRequestId: string): number =>
   localAiRequestTokenTotals[aiRequestId] || 0;
+
+/**
+ * Per-request token totals, persisted.
+ *
+ * The token meters used to be in-memory only, so a reloaded chat lost every
+ * figure - sub-agent totals included (the per-agent audit dashboard sums the
+ * children's meters). The numbers are tiny, so they are stored on their own
+ * rather than folded into every saved request. Bounded by
+ * `MAX_LOCAL_SAVED_TOKEN_TOTALS`: the oldest entries beyond the cap are dropped
+ * (object key order is insertion order), so the map cannot grow forever.
+ */
+const saveLocalAiRequestTokenTotals = (): void => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const keys = Object.keys(localAiRequestTokenTotals);
+    const excess = keys.length - MAX_LOCAL_SAVED_TOKEN_TOTALS;
+    for (let i = 0; i < excess; i++) {
+      delete localAiRequestTokenTotals[keys[i]];
+    }
+    localStorage.setItem(
+      LOCAL_STORAGE_TOKEN_TOTALS_KEY,
+      JSON.stringify(localAiRequestTokenTotals)
+    );
+  } catch (err) {
+    console.warn('Error saving local AI token totals:', err);
+  }
+};
+
+const loadLocalAiRequestTokenTotals = (): void => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const persisted = localStorage.getItem(LOCAL_STORAGE_TOKEN_TOTALS_KEY);
+    if (!persisted) return;
+    const parsed = JSON.parse(persisted);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+    for (const key of Object.keys(parsed)) {
+      const value = parsed[key];
+      // Only a non-negative finite number: a corrupt entry must not become a
+      // token count (which is rendered and summed).
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        localAiRequestTokenTotals[key] = value;
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading local AI token totals:', err);
+  }
+};
+
+/** Exposed so a test can simulate a fresh session's load. */
+export const loadLocalAiRequestTokenTotalsForTesting = (): void =>
+  loadLocalAiRequestTokenTotals();
+
+/** Exposed so a test can seed a token total without a model call. */
+export const recordLocalAiRequestTokenUsageForTesting = (
+  aiRequestId: string,
+  promptTokens: number,
+  responseTokens: number
+): void => addTokenUsage(aiRequestId, promptTokens, responseTokens);
 
 /**
  * Per-request model override: an empty string clears the override and falls
@@ -1152,9 +1218,10 @@ export const saveLocalAiRequests = () => {
   }
 };
 
-// Initialize requests and per-chat model choices from localStorage
+// Initialize requests, per-chat model choices and token meters from localStorage
 loadLocalAiRequests();
 loadLocalAiRequestModelOverrides();
+loadLocalAiRequestTokenTotals();
 
 /**
  * OpenAI Tool definitions for GDevelop Editor Functions.
@@ -4791,6 +4858,8 @@ export const customDeleteAiRequest = (aiRequestId: string): void => {
   delete localAiRequestProviderTelemetry[aiRequestId];
   delete localAiTurnTails[aiRequestId];
   saveLocalAiRequests();
+  // The token total lived in its own persisted map, so prune it there too.
+  saveLocalAiRequestTokenTotals();
 };
 
 /**
