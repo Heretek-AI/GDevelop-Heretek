@@ -4028,6 +4028,9 @@ export const customAddMessageToAiRequest = async ({
 
     if (functionCallOutputs && functionCallOutputs.length > 0) {
       for (const fcOutput of functionCallOutputs) {
+        // Network-supplied: a hole would throw on the property read.
+        // Network-supplied: a hole would throw on the property read.
+        if (!fcOutput || typeof fcOutput !== 'object') continue;
         output.push({
           type: 'function_call_output',
           call_id: fcOutput.call_id,
@@ -4126,11 +4129,17 @@ export const customAddMessageToAiRequest = async ({
       // sync the React state. Persist local `output` (user message /
       // function-call outputs) so the continue turn has the full transcript.
       const current = localAiRequestsCache[aiRequestId] || existing;
+      // Persisted output is not shape-validated: skip holes and scalars so a
+      // malformed entry cannot replace the real error with a TypeError.
       const existingIds = new Set(
-        (existing.output || []).map(message => message.messageId)
+        (existing.output || [])
+          .filter(message => message && typeof message === 'object')
+          .map(message => message.messageId)
       );
       const cacheOnly = (current.output || []).filter(
         message =>
+          message &&
+          typeof message === 'object' &&
           !existingIds.has(message.messageId) &&
           !output.some(own => own.messageId === message.messageId)
       );
@@ -4173,7 +4182,13 @@ export const customAddMessageToAiRequest = async ({
     // A suggestion or suspension write that landed while the model was
     // answering must not be discarded (W5): re-insert cache-only messages
     // before the turn's own additions.
-    const turnIds = new Set(output.map(message => message.messageId));
+    // `output` is a copy of the persisted array plus this turn's messages, so
+    // a hole reaches this map; filter it like the other persisted-output reads.
+    const turnIds = new Set(
+      output
+        .filter(message => message && typeof message === 'object')
+        .map(message => message.messageId)
+    );
     const cacheOnlyMessages = (currentCachedRequest.output || []).filter(
       message => message && !turnIds.has(message.messageId)
     );

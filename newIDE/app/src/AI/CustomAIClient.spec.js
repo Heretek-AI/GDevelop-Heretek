@@ -3631,6 +3631,59 @@ describe('CustomAIClient', () => {
       expect(forked.output.length).toBe(aiRequest.output.length);
     });
 
+    it('adds a turn when the persisted output has a null hole', async () => {
+      // `output` starts as a copy of the persisted array, and the merge reads
+      // `message.messageId` over it - a hole crashed the whole turn on both
+      // the success (turnIds) and failure (existingIds) paths.
+      const seed = (output: Array<any>) => {
+        customUpdateAiRequest(
+          ({
+            id: 'local-ai-hole-turn',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            userId: LOCAL_BYOK_USER_ID,
+            status: 'ready',
+            error: null,
+            output,
+          }: any)
+        );
+      };
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          choices: [{ message: { role: 'assistant', content: 'ok' } }],
+        },
+      });
+      seed([
+        null,
+        {
+          type: 'message',
+          status: 'completed',
+          role: 'user',
+          content: [{ type: 'user_request', status: 'completed', text: 'hi' }],
+          messageId: 'm-1',
+        },
+      ]);
+
+      const result = await customAddMessageToAiRequest({
+        aiRequestId: 'local-ai-hole-turn',
+        userMessage: 'next',
+      });
+      expect(result.status).not.toBe('error');
+
+      // And the failure path: the model rejects, the handler still returns.
+      // The function-call outputs are network-supplied and may carry a hole.
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce(undefined);
+      await expect(
+        customAddMessageToAiRequest({
+          aiRequestId: 'local-ai-hole-turn',
+          functionCallOutputs: ([null, { call_id: 'c1', output: '{}' }]: any),
+        })
+      ).resolves.toBeTruthy();
+    });
+
     it('actually slices at the given message id (and tolerates a null hole)', async () => {
       // The branch this test name promises was never exercised: the sibling
       // test passes no id, so findIndex-with-an-id (and the null hole a

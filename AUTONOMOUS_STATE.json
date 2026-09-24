@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 173,
+  "last_cycle": 174,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1005,6 +1005,12 @@
       "target": "Guard the untested fork-at-message-id slice against a null hole",
       "metric_delta": "customForkAiRequest's upToMessageId branch read m.messageId with no guard over persisted output - a null hole threw 'Cannot read properties of null (reading messageId)' and lost the fork. Found alongside a coverage gap: the sibling test named 'forks an AI request up to a message id' passes NO id, so the slicing path was never exercised. New test drives it (3-message output with a null hole; slice at m3 keeps all, at m1 keeps one) and is red pre-fix; mutation-checked. 1595/1595 across 80 suites (was 1594), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): guard the fork-at-message-id slice against a null hole"
+    },
+    {
+      "cycle": 174,
+      "target": "Null-tolerate the local turn merge (success and failure paths)",
+      "metric_delta": "customAddMessageToAiRequest reads message.messageId over `output`, which starts as a copy of the persisted array: a hole crashed BOTH the success path (turnIds map) and the failure path (existingIds map), the latter replacing the real model error with a TypeError. Also the network-supplied functionCallOutputs loop read fcOutput.call_id unguarded. Three guards, each mutation-checked individually (reverting any one reproduces its exact TypeError); the fco guard was unproven until the test was extended to pass a null entry (a guard the test cannot reach is dead code). 1596/1596 across 80 suites (was 1595), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): null-tolerate the local turn merge paths"
     }
   ],
   "backlog": [
