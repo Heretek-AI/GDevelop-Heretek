@@ -367,6 +367,19 @@ describe('FinalizeSubAgents', () => {
       ).toBe(2);
     });
 
+    it('ignores a non-object entry in a persisted output', () => {
+      // A persisted output is not shape-validated on load, so a hole or a
+      // scalar can be in the list; this count drives the runaway-agent turn cap
+      // and must not throw on it.
+      expect(
+        countAssistantTurns(
+          makeSubAgent({
+            output: [(null: any), assistantMessage('a'), ('scalar': any)],
+          })
+        )
+      ).toBe(1);
+    });
+
     it('is false below the role cap and true at it', () => {
       const parent = parentWithRole('tester', 'child-1');
       const aiRequests = { 'parent-1': parent };

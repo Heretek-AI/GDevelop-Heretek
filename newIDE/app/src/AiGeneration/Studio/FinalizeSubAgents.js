@@ -37,7 +37,10 @@ export const getSubAgentRoleId = ({
 /** How many model turns a sub-agent has taken: one assistant message each. */
 export const countAssistantTurns = (aiRequest: AiRequest): number =>
   (aiRequest.output || []).filter(
-    message => message.type === 'message' && message.role === 'assistant'
+    // A persisted output is not shape-validated; a null/scalar entry would
+    // throw here, in the turn-cap check that stops a runaway sub-agent.
+    message =>
+      message && message.type === 'message' && message.role === 'assistant'
   ).length;
 
 /**

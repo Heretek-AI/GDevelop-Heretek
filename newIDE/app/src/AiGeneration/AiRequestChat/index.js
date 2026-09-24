@@ -1060,7 +1060,8 @@ export const AiRequestChat: React.ComponentType<{
     }
 
     const userMessagesCount = (aiRequest.output || []).filter(
-      message => message.type === 'message' && message.role === 'user'
+      message =>
+        message && message.type === 'message' && message.role === 'user'
     ).length;
 
     const isForAnotherProjectText = isForAnotherProject ? (
