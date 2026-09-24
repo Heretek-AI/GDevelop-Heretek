@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 190,
+  "last_cycle": 191,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1114,6 +1114,12 @@
       "target": "Bounded live studio-run attempt (plan + sub-agent) via the WebUI",
       "metric_delta": "No code change. Attempted the multi-turn studio run against local Ollama via Chrome DevTools: re-pointed the editor at :11434 (saving and later restoring the original Heretek config), drove the Ask AI new-chat form, and filled a scoped plan+spawn prompt. The drawer repeatedly re-rendered back to the history list between fill and send, so the new chat could not be submitted reliably in this environment; the single-turn live BYOK round-trip was already proven green in cycle 189 (preflight 204 + POST 200, real model reply). Editor config restored to the Heretek URL/model. Recorded honestly rather than claimed: the multi-turn benchmark is best run via the @feedback-loop skill interactively.",
       "commit": "chore(autonomous): record the bounded live studio-run attempt"
+    },
+    {
+      "cycle": 191,
+      "target": "Stream reasoning as progress so the cold-start hint clears (Tier 2)",
+      "metric_delta": "Verified Ollama's live SSE shape first: text/event-stream, data: lines with choices[0].delta.content AND delta.reasoning - confirming the dual-field support added in cycles 155/161 was necessary. That exposed a UX gap: onStreamDelta reported only `content`, so a reasoning model (deepseek streams many reasoning chunks before the first answer token) produced empty partial content, and the chat's cold-start hint claimed it was still waiting for the first token while bytes were arriving. Now onStreamDelta reports content || reasoning. +1 test red pre-fix, mutation-checked; the content path and cold-start tests still pass. 1629/1629 across 81 suites, eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): stream reasoning as progress before the first answer token"
     }
   ],
   "backlog": [
@@ -1303,6 +1309,7 @@
     "Budget what you send, not what you built: the compaction measured the head template while the JSON instruction tail was appended after measurement - always measure the exact messages array the request sends (measurePrompt over system+user), the same way trimMessagesToBudget measures what it trims.",
     "Chrome DevTools MCP via code mode: the runtime has no setTimeout (use wait_for or the tool's own waits), and evaluate_script requires a function-declaration string (e.g. '() => {...}'), not an IIFE - an invoked string returns a value and fails with 'fn is not a function'.",
     "A local OpenAI-compatible server's CORS preflight only allows a fixed header set; sending optional attribution headers (HTTP-Referer/X-Title) blocks the whole request in the browser build before it reaches the model. Keep the outbound header set minimal (Content-Type) for local-first, and verify new headers against a real Ollama preflight, not just axios mocks - mocks do not model CORS.",
-    "Driving the Ask AI new-chat form via Chrome DevTools MCP is unreliable here: the drawer re-renders back to the history list between fill and send. For the multi-turn benchmark, use the @feedback-loop skill / interactive session rather than synthetic DOM driving; a single-turn live BYOK check is enough to validate the transport."
+    "Driving the Ask AI new-chat form via Chrome DevTools MCP is unreliable here: the drawer re-renders back to the history list between fill and send. For the multi-turn benchmark, use the @feedback-loop skill / interactive session rather than synthetic DOM driving; a single-turn live BYOK check is enough to validate the transport.",
+    "Ollama's OpenAI-compatible SSE sends `delta.reasoning` (not `reasoning_content`) and streams it for many chunks before any `delta.content`; any UI signal derived from partial content (the cold-start hint, the streaming tail) must account for reasoning-only progress or it reports 'waiting for the first token' while the model is clearly working."
   ]
 }

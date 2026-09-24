@@ -3123,7 +3123,13 @@ const streamChatCompletion = async ({
         }
       }
       if (choice.finish_reason) finishReason = choice.finish_reason;
-      if (onStreamDelta) onStreamDelta(content);
+      // Progress = answer text, or the reasoning when there is no answer yet:
+      // a reasoning model (DeepSeek-R1, and Ollama's deepseek stream) emits
+      // many reasoning chunks before the first content chunk, and reporting
+      // '' meanwhile made the chat's cold-start hint claim it was still
+      // waiting for a first token while bytes were arriving. Live finding,
+      // cycle 191.
+      if (onStreamDelta) onStreamDelta(content || reasoning);
     };
 
     // The response is live: from here the deadline is measured from the last

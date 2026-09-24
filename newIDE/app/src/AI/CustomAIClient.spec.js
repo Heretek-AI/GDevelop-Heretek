@@ -2053,6 +2053,40 @@ describe('CustomAIClient', () => {
       _resetForStreamTests();
     });
 
+    it('reports reasoning as streaming progress before any answer token', async () => {
+      // Live finding (Ollama, deepseek-v4.1-flash): a reasoning model streams
+      // many `delta.reasoning` chunks before the first `delta.content`, so the
+      // partial-content signal stayed empty and the chat's cold-start hint
+      // claimed it was still waiting for the first token while bytes arrived.
+      const sse =
+        'data: ' +
+        JSON.stringify({
+          choices: [{ delta: { reasoning: 'Let me think' } }],
+        }) +
+        '\n' +
+        'data: ' +
+        JSON.stringify({ choices: [{ delta: { reasoning: ' about it' } }] }) +
+        '\n' +
+        'data: ' +
+        JSON.stringify({ choices: [{ delta: { content: 'Done' } }] }) +
+        '\n' +
+        'data: [DONE]\n';
+      global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(sse));
+      const deltas = [];
+
+      await sendChatCompletion({
+        messages: [{ role: 'user', content: 'hi' }],
+        config: streamConfig,
+        onStreamDelta: partial => deltas.push(partial),
+      });
+
+      // The first progress report is non-empty (the reasoning), not ''.
+      expect(deltas[0]).toBeTruthy();
+      expect(deltas[0]).toContain('Let me think');
+      // Once the answer arrives it takes over.
+      expect(deltas[deltas.length - 1]).toBe('Done');
+    });
+
     it('assembles content and tool calls from SSE chunks', async () => {
       global.fetch = jest.fn().mockResolvedValue(mockStreamResponse(sseBody));
 
