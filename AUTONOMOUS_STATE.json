@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 171,
+  "last_cycle": 172,
   "completed_targets": [
     {
       "cycle": 75,
@@ -993,6 +993,12 @@
       "target": "Budget the event-generation prompt to the model context window",
       "metric_delta": "Real defect, measured 7x over: customCreateAiGeneratedEvent sent unbounded scene text (28,684 tokens vs a 4,096 llama budget) with no trim - big scenes failed over-window and lost the whole generation. Existing events now compact to the input budget (head kept for structural context, omission marker, same message estimator the turns use, no tools ride the call). Two debugging finds en route: the tail instruction block sat outside the measured prompt (folded into buildPrompt), and the marker word didn't match the test's substring (then aligned to the codebase 'truncated' convention). Both tests red pre-fix (over-budget send; unmarked verbatim). 1592/1592 across 80 suites (was 1590), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): budget the event-generation prompt to the context window"
+    },
+    {
+      "cycle": 172,
+      "target": "Normalize a non-Error rejection in sendChatCompletion (undefined crash)",
+      "metric_delta": "A rejected promise with no reason (undefined/null) made sendChatCompletion's catch read `error.response` and throw 'Cannot read properties of undefined (reading response)' - masking the real failure and (via testConnection) reporting that TypeError as the connection-failure reason. Two changes: guard `if (error && error.response)`, and normalize non-Errors to an explanatory 'AI request failed' Error (including the raw reason when present). 2 tests; the first is the true repro, the second discriminates only after strengthening from the unhelpful raw TypeError (found by running it pre-fix and seeing it pass). Mutation-checked (reverting the guard reproduces the TypeError in both). 1594/1594 across 80 suites (was 1592), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): normalize a non-Error rejection in sendChatCompletion"
     }
   ],
   "backlog": [

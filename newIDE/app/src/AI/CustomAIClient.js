@@ -3378,7 +3378,10 @@ export const sendChatCompletion = async ({
     if (axios.isCancel(error) || (signal && signal.aborted)) {
       throw new Error('AI request was aborted.');
     }
-    if (error.response) {
+    // `error` may be undefined (a rejected promise with no reason) or a
+    // non-object: reading `.response` on it threw a misleading TypeError out
+    // of the handler before any normalization ran.
+    if (error && error.response) {
       const status = error.response.status;
       const data = error.response.data;
       const errorMsg =
@@ -3397,8 +3400,20 @@ export const sendChatCompletion = async ({
       );
     }
     // No response at all (server down, network split, DNS): add the local
-    // reachability/model hints when they match.
+    // reachability/model hints when they match. The thrown value may be
+    // undefined (a rejected promise with no reason) or a non-Error, so it
+    // must be normalized before `.message`-style reads: the raw throw leaked a
+    // misleading "Cannot read properties of undefined" TypeError out of this
+    // handler to every caller (testConnection surfaced it as the connection
+    // failure reason).
     const networkHint = getErrorHint(error);
+    if (!(error instanceof Error)) {
+      throw new Error(
+        `AI request failed.${
+          error === undefined || error === null ? '' : ` ${String(error)}`
+        }${networkHint}`
+      );
+    }
     throw networkHint
       ? new Error(`${error.message || 'AI request failed.'}${networkHint}`)
       : error;

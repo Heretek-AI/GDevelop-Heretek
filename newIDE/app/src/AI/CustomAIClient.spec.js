@@ -1169,6 +1169,27 @@ describe('CustomAIClient', () => {
       expect(axios.post.mock.calls[0][1].temperature).toBe(1);
     });
 
+    it('fails with an explanatory error when the request rejects with no reason', async () => {
+      // A rejection with no reason (undefined/null) must not throw a second
+      // TypeError out of the error handler, masking the real failure - and
+      // testConnection below must still return a failure object, not throw.
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce(undefined);
+
+      await expect(
+        sendChatCompletion({
+          messages: [{ role: 'user', content: 'hi' }],
+          config: {
+            enabled: true,
+            baseUrl: 'http://localhost:11434/v1',
+            apiKey: '',
+            model: 'llama3.2',
+            temperature: 0.7,
+          },
+        })
+      ).rejects.toThrow('AI request failed');
+    });
+
     it('replaces a non-finite temperature with the default', async () => {
       axios.post.mockResolvedValueOnce({
         status: 200,
@@ -5161,6 +5182,27 @@ describe('CustomAIClient', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('OK');
+    });
+
+    it('returns a failure object when the probe rejects with no reason', async () => {
+      // $FlowFixMe
+      axios.get.mockRejectedValueOnce(new Error('404'));
+      // $FlowFixMe
+      axios.post.mockRejectedValueOnce(undefined);
+
+      const result = await testConnection({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'qwen2.5-coder',
+        temperature: 0.7,
+      });
+
+      expect(result.success).toBe(false);
+      // The friendly fallback, not the raw TypeError the unguarded catch
+      // produced ("Cannot read properties of undefined (reading 'response')").
+      expect(result.message).toContain('Connection failed');
+      expect(result.message).toContain('AI request failed');
     });
   });
 
