@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 224,
+  "last_cycle": 225,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1318,6 +1318,12 @@
       "target": "Re-verify invariant 1 (no paywall) after the session's changes (no change)",
       "metric_delta": "No code change. Confirmed the fork's client-side unlock is intact after 70 cycles of AI-surface edits: hasValidSubscriptionPlan still returns true unconditionally; the Usage.spec BYOK-unlock tests (grant for any shape incl. none, seed identity, capability gates) pass; the AI surface references only the fork's BYOK-aware session/affordance helpers (canSendAiRequestForSession, canAffordAiRequest, canStartAiRequestCreate, canUseEditorAiTools, canRetryAiRequestForSession, canSendFeedbackForSession), not reintroduced paywalls. Also swept the AI surface for unguarded output reads: no unguarded .output.map/filter/forEach/indexed reads remain.",
       "commit": "docs(autonomous): re-verify the no-paywall invariant"
+    },
+    {
+      "cycle": 225,
+      "target": "Assess an upstream-file guard and revert on policy (verification cycle)",
+      "metric_delta": "No net code change. Auditing the QA/playtest path (GameplayTestTools.js) found the same 'catch reads error.message on a non-Error' class (a rejection with no reason throws a TypeError inside the handler). I implemented the guard + a reproducing test, but the divergence guard flagged BOTH files as upstream-identical (not in fork-divergence.json) - a 2-path new divergence for a defensive guard whose production reachability is only theoretical (our own runner rejecting with no reason). Per MAINTENANCE.md and the fork's standing heuristic (do not add merge surface to upstream-identical files for unreproduced-in-production failures), I reverted both files; divergence is clean and the suite is back to 12/12. Recorded as a candidate UPSTREAM contribution, not a fork edit. This is the policy-correct outcome even though the code was correct.",
+      "commit": "docs(autonomous): assess an upstream-file guard and revert on policy"
     }
   ],
   "backlog": [
@@ -1520,6 +1526,7 @@
     "Deterministic harness > model: scripted MOCK_SCRIPT turns exposed a studio defect (plan never flips to done) that model-dependent runs had hidden as 'model variance'. The write gate only serializes gated writes; the model turn writes the cache directly, so a gated write can still be clobbered by a turn's snapshot-based write.",
     "JSX splits a literal adjacent to an expression across lines into words: `<Trans>{n} sub-agent{n===1?'':'s'}</Trans>` rendered 'sub-agent s'. Build such a sentence as a single interpolated string, not adjacent text/expression nodes.",
     "Adding a field to a summarizer's return breaks exact-equality tests: update the callers' expectations (here three tests) in the same change, or the suite goes red for a correct improvement.",
-    "loadLocalAiRequests MERGES persisted entries into the in-memory cache and never clears it, so a test asserting on its return value can pass/fail on in-memory state rather than what was persisted - assert on the storage JSON when testing persistence."
+    "loadLocalAiRequests MERGES persisted entries into the in-memory cache and never clears it, so a test asserting on its return value can pass/fail on in-memory state rather than what was persisted - assert on the storage JSON when testing persistence.",
+    "Run scripts/check-fork-divergence.js BEFORE committing any edit to a file you have not confirmed is in the manifest: a correct fix in an upstream-identical file still creates new divergence (two paths here), and the policy is to revert it when production reachability is theoretical and the fix belongs upstream."
   ]
 }
