@@ -756,7 +756,15 @@ export const estimateMessagesTokens = (openAiMessages: Array<Object>): number =>
     // (`change_scene_properties_layers_effects_groups`), so this is not
     // rounding noise.
     let toolCallTokens = 0;
-    for (const toolCall of message.tool_calls || []) {
+    // `tool_calls` comes from a network response or a persisted request and is
+    // not shape-validated, so `|| []` is not enough: a truthy non-array (an
+    // object, a number) is not iterable and threw out of the budget
+    // calculation, breaking the whole turn. A malformed field simply costs
+    // nothing.
+    const toolCalls = Array.isArray(message.tool_calls)
+      ? message.tool_calls
+      : [];
+    for (const toolCall of toolCalls) {
       if (!toolCall) continue;
       const fn = toolCall.function || {};
       toolCallTokens +=
@@ -2589,6 +2597,11 @@ export const transformGDevelopMessagesToOpenAi = (
   }
 
   for (const msg of outputMessages || []) {
+    // A persisted request's output is not shape-validated on load
+    // (`normalizePersistedMessages` passes a non-message entry through
+    // unchanged), so a hole or a scalar can be in the list. Reading `msg.role`
+    // unguarded threw out of every turn that replays history.
+    if (!msg || typeof msg !== 'object') continue;
     if (
       msg.role === 'user' ||
       msg.type === 'user' ||

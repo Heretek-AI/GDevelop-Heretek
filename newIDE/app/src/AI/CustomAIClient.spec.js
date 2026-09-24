@@ -217,6 +217,26 @@ describe('CustomAIClient', () => {
   });
 
   describe('transformGDevelopMessagesToOpenAi', () => {
+    it('skips null and scalar entries instead of throwing', () => {
+      // A persisted request's output is not shape-validated on load, and
+      // normalizePersistedMessages passes a non-message entry through
+      // unchanged — so a hole or a scalar reaches this loop, whose first read
+      // is `msg.role`.
+      const messages: any = [
+        null,
+        undefined,
+        'a string',
+        42,
+        {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'user_request', text: 'hi' }],
+        },
+      ];
+      const openAiMessages = transformGDevelopMessagesToOpenAi(messages);
+      expect(openAiMessages.some(m => m.role === 'user')).toBe(true);
+    });
+
     it('formats user messages and system prompt', () => {
       const messages = [
         {
@@ -730,6 +750,19 @@ describe('CustomAIClient', () => {
       expect(trimmed).toContain(last[1]);
       expect(trimmed.length).toBeLessThan(messages.length);
       expect(estimateMessagesTokens(trimmed)).toBeLessThanOrEqual(500);
+
+      // A malformed tool_calls field must not break the estimate: `|| []` kept
+      // a truthy non-array, which is not iterable.
+      expect(() =>
+        estimateMessagesTokens([
+          ({
+            role: 'assistant',
+            content: 'x',
+            tool_calls: { not: 'an array' },
+          }: any),
+          ({ role: 'assistant', content: 'y', tool_calls: 3 }: any),
+        ])
+      ).not.toThrow();
     });
 
     it('does not split a surrogate pair when capping the system prompt', () => {
