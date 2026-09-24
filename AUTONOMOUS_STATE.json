@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 231,
+  "last_cycle": 232,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1360,6 +1360,12 @@
       "target": "Production build + deterministic regression after the network-retry change (no change)",
       "metric_delta": "No code change. (1) Production build over cycle 230's client change: exit 0. (2) Re-ran the deterministic 3-spawn mock end-to-end after that change: the chat still shows '3 sub-agents (1 designer, 1 developer, 1 tester): 3 finished . ~11,359 sub-agent tokens', so the retry addition did not regress the multi-agent loop. Config restored, mock stopped.",
       "commit": "chore(autonomous): build and deterministic regression after the retry change"
+    },
+    {
+      "cycle": 232,
+      "target": "Extract the per-agent token sum into the tested leaf",
+      "metric_delta": "The audit line's per-agent token total was an inline IIFE in ChatMessages (component, untestable). Extracted sumSubAgentTokens(aiRequest, getTokenTotal) into AiRequestUtils - pure, dedupes by child id, ignores missing/non-finite totals, and takes the registry read as an injected getter so the module stays spec-loadable. ChatMessages now calls it. +2 tests (multi-child with a duplicate -> 150; NaN/absent -> 0), dedupe mutation-checked (250 vs 150). 1651/1651 across 81 suites (was 1649), eslint+prettier clean, production build exit 0, divergence clean.",
+      "commit": "refactor(ai): extract the per-agent token sum to the tested leaf"
     }
   ],
   "backlog": [

@@ -27,6 +27,7 @@ import {
   getSubAgentKind,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   summarizeSubAgentActivity,
+  sumSubAgentTokens,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -1058,6 +1059,33 @@ describe('summarizeSubAgentActivity', () => {
       running: 0,
       roles: {},
     });
+  });
+});
+
+describe('sumSubAgentTokens', () => {
+  it('sums each distinct sub-agent once, ignoring bad values', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+        makeSubAgentFunctionCall('c2', 'spawn_agent', 'sub-2'),
+        // The same child twice counts once.
+        makeSubAgentFunctionCall('c3', 'spawn_agent', 'sub-1'),
+      ]),
+    ]);
+    const totals = { 'sub-1': 100, 'sub-2': 50 };
+    expect(sumSubAgentTokens((request: any), id => totals[id] || 0)).toBe(150);
+  });
+
+  it('treats a missing or non-finite total as zero', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+        makeSubAgentFunctionCall('c2', 'spawn_agent', 'sub-2'),
+      ]),
+    ]);
+    expect(
+      sumSubAgentTokens((request: any), id => (id === 'sub-1' ? (NaN: any) : 0))
+    ).toBe(0);
   });
 });
 

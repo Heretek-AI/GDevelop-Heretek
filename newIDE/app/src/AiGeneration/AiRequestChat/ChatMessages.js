@@ -15,8 +15,8 @@ import GDevelopThemeContext from '../../UI/Theme/GDevelopThemeContext';
 import {
   canRetryAiRequest,
   getFunctionCallToFunctionCallOutputMap,
-  getAllSubAgentFunctionCalls,
   summarizeSubAgentActivity,
+  sumSubAgentTokens,
 } from '../AiRequestUtils';
 import { FunctionCallRow } from './FunctionCallRow';
 import { FunctionCallsGroup } from './FunctionCallsGroup';
@@ -1446,15 +1446,9 @@ export const ChatMessages: React.ComponentType<Props> = React.memo<Props>(
                 }${(() => {
                   // Per-agent usage: sum each sub-agent's own token meter
                   // (recorded against the child id since cycle 220).
-                  const tokens = getAllSubAgentFunctionCalls({
+                  const tokens = sumSubAgentTokens(
                     aiRequest,
-                  }).reduce(
-                    (sum, call) =>
-                      sum +
-                      (call.subAgentAiRequestId
-                        ? customGetAiRequestTokenTotal(call.subAgentAiRequestId)
-                        : 0),
-                    0
+                    customGetAiRequestTokenTotal
                   );
                   return tokens > 0
                     ? ` · ≈${tokens.toLocaleString()} sub-agent tokens`

@@ -329,6 +329,29 @@ export const summarizeSubAgentActivity = (aiRequest: {
   return { total, done, running: total - done, roles };
 };
 
+/**
+ * The summed token usage of a request's sub-agents, read through a getter
+ * (the token registry). Kept pure/testable: ChatMessages renders it, and the
+ * registry read is injected rather than imported, so this module stays
+ * dependency-free for its spec.
+ */
+export const sumSubAgentTokens = (
+  aiRequest: { output?: Array<any> },
+  getTokenTotal: string => number
+): number => {
+  const calls = getAllSubAgentFunctionCalls({ aiRequest: (aiRequest: any) });
+  const seen = new Set();
+  let total = 0;
+  for (const call of calls) {
+    const childId = call.subAgentAiRequestId;
+    if (typeof childId !== 'string' || seen.has(childId)) continue;
+    seen.add(childId);
+    const tokens = getTokenTotal(childId);
+    if (typeof tokens === 'number' && Number.isFinite(tokens)) total += tokens;
+  }
+  return total;
+};
+
 export const isUserMessage = (message: any): boolean =>
   !!message && message.type === 'message' && message.role === 'user';
 
