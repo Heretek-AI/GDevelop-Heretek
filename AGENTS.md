@@ -240,6 +240,9 @@ To expose a new C++ class to the editor you usually need **only** an entry in
 | `newIDE/app/src/MainFrame/Preferences/PreferencesProvider.js` | All persisted editor settings + updater IPC |
 | `newIDE/app/src/ProjectsStorage/index.js` | The `StorageProvider` type — add storage backends here |
 | `newIDE/app/src/Utils/GDevelopServices/` | All GDevelop backend API clients + `ApiConfigs.js` (env vars, base URLs) |
+| `newIDE/app/src/AI/CustomAIClient.js` | Fork-only BYOK client: config, `GDEVELOP_OPENAI_TOOLS` schema, SSE streaming, retries + fallback routing |
+| `newIDE/app/src/AiGeneration/Studio/` | The fork's multi-agent studio: roles, plan, spawn/finalize, loop guard, runtime, nudge (see [Fork Divergence](#fork-divergence)) |
+| `scripts/dev/mock-ai-provider.js` | Committed OpenAI-compatible mock for offline end-to-end studio runs |
 | `newIDE/app/scripts/import-GDJS-Runtime.js` | The script you run after editing the engine/extensions |
 | `newIDE/electron-app/app/main.js` | Electron main: windows, updater, CLI commands |
 | `newIDE/electron-app/electron-builder-config.js` | Packaging + the fork's publish target |
@@ -350,10 +353,10 @@ clang-tidy, ASan/UBSan, visual tests).
 
 ## Fork Divergence
 
-**This fork differs from upstream in 186 paths out of ~6,700.** Expect merge conflicts there.
+**This fork differs from upstream in 205 paths out of ~6,700.** Expect merge conflicts there.
 
 **`fork-divergence.json` is the authoritative allowlist** of every path the fork intentionally diverges
-on, in three buckets (`modified` 116, `forkOnly` 63, `upstreamMissing` 7), measured against the
+on, in three buckets (`modified` 119, `forkOnly` 79, `upstreamMissing` 7), measured against the
 `baselineCommit` the manifest records — not against live `upstream/master`, so upstream's own pushes do
 not read as fork divergence. It is generated and enforced by
 `scripts/check-fork-divergence.js`: the `fork-divergence` job in `.github/workflows/ci.yml` fails when a
@@ -363,8 +366,9 @@ path diverges that is not listed, or when a listed path stops diverging. Run
 [MAINTENANCE.md](MAINTENANCE.md) for the full procedure and for why `upstreamMissing` is the bucket that
 silently breaks syncs.
 
-**BYOK / local AI** — `newIDE/app/src/AI/CustomAIClient.js` (fork-only; ~4900 lines: config in
-localStorage under `gd-custom-ai-config` / `gd-custom-ai-requests` / `gd-custom-ai-model-overrides`,
+**BYOK / local AI** — `newIDE/app/src/AI/CustomAIClient.js` (fork-only; ~5900 lines: config in
+localStorage under `gd-custom-ai-config` / `gd-custom-ai-requests` / `gd-custom-ai-model-overrides` /
+`gd-custom-ai-token-totals` / `gd-custom-ai-subagent-requests`,
 the `GDEVELOP_OPENAI_TOOLS` schema, `transformGDevelopMessagesToOpenAi`, `parseAssistantMessage`,
 `sendChatCompletion` (SSE with a non-streaming fallback), and `custom*` local implementations of the
 Generation API). Plus branch points in `AiGeneration/{AiConfiguration,AskAiEditorContainer,AskAiStandAloneForm,Use*}.js`,
@@ -372,34 +376,69 @@ Generation API). Plus branch points in `AiGeneration/{AiConfiguration,AskAiEdito
 tab is a fork addition), `Utils/GDevelopServices/{Generation,Authentication,Usage}.js`.
 
 The local AI studio (`AiGeneration/Studio/**`) is entirely fork-authored: `Roles.js` (role → tool subset),
-`LoopGuard.js` (circuit breaker), `PlanStore.js`, `SpawnSubAgents.js`, `FinalizeSubAgents.js`,
-`RequestWriteGate.js`, `UseStudioRuntime.js`, plus the leaf modules below.
+`LoopGuard.js` (circuit breaker — repeated calls, error storm, turn limit, **and a no-progress trip**),
+`PlanStore.js`, `SpawnSubAgents.js`, `FinalizeSubAgents.js`, `RequestWriteGate.js`, `UseStudioRuntime.js`,
+`NudgePolicy.js`/`UseStudioNudge.js` (resume a manager that plans then stops), plus the leaf modules below.
+
+**Studio runtime invariants worth knowing before editing it** (each is pinned by a spec):
+
+- **Roles apply to the top level too.** `Roles.resolveStudioRoleId(roleId, mode)` maps an `orchestrator`-mode
+  request with no stored role to the `manager` role (prompt + tool subset); a present-but-unknown role id
+  **fails closed** to the read-only subset. Both top-level turn paths (`customCreateAiRequest`,
+  `customAddMessageToAiRequest`) use it — without it the "manager" got every tool and edited directly.
+- **A live request keeps processing when deselected.** `AiRequestUtils.getUnselectedActiveRequests` adds a
+  fresh (<3 min) local request that still has pending calls to the dispatcher's list; `onSendMessage` falls
+  back to `customGetAiRequest` for one not yet in React state.
+- **Provider resilience is layered.** `runTurnWithProviderRetry` retries 408/429/502/503/504 twice with
+  backoff (a bare 500 and 4xx are left to the caller), then makes one attempt with `config.fallbackModel`
+  (the AI Settings "Fallback model (optional)" field).
+- **Sub-agents finalize on error/turn-cap** and their report is written back to the parent; a stalled manager
+  is nudged once per plan state.
+- **A spawn is linked to its plan task.** `Utils.js` stamps `functionCall.taskId` and lifts the task to
+  `in_progress` + `agentCallId`, so `ChatMessages` renders it under the `OrchestratorPlan` row.
+- **The tester is the QA agent.** Its only mutating tools are `run_gameplay_test` / `change_gameplay_tests`
+  (spec-pinned in `Roles.spec.js`); its headless runtime path is tracked by issue #167.
+
+**Tool schema ↔ implementation drift is a real trap** (issue #165). `GDEVELOP_OPENAI_TOOLS` must advertise
+every top-level array/object argument a tool's implementation reads: `change_behavior_property` once
+advertised flat `property_name`/`new_value` while reading `changed_properties`, so every schema-conformant
+call was a silent no-op. When a tool "does nothing", compare its schema against its `EditorFunction` and its
+sibling tools first.
 
 **Leaf modules exist for a reason — keep them leaves.** `Studio/SafeTruncation.js`,
-`Studio/RoleToolPolicy.js` and `MainFrame/Preferences/PreferencesStorage.js` were each extracted so a pure
-helper could be unit-tested: their host files import React, Electron, three.js or the GDevelop core, which
-a Jest spec cannot load. Extend the leaf rather than re-inlining the logic.
+`Studio/RoleToolPolicy.js`, `Studio/NudgePolicy.js` and `MainFrame/Preferences/PreferencesStorage.js` were
+each extracted so a pure helper could be unit-tested: their host files import React, Electron, three.js or the
+GDevelop core, which a Jest spec cannot load. Extend the leaf rather than re-inlining the logic.
 
 **Testing the fork's AI surface:**
 
-- **Use `npm test`, never a bare `npx jest`.** Bare jest cannot transform the repo's `.ts` files
-  (e.g. `Utils/UseForceUpdate.ts`) and reports a `SyntaxError` that looks like an environmental failure;
-  it also skips the CRA config that `react-app-rewired` supplies.
+- **Use `npm test`, never a bare `npx jest`.** The script is `react-app-rewired test --env=node`; bare
+  jest cannot transform the repo's `.ts` files (e.g. `Utils/UseForceUpdate.ts`) and reports a `SyntaxError`
+  that looks like an environmental failure. Invoking `react-app-rewired` **without** `--env=node` also makes
+  ~21 `CustomAIClient` streaming specs fail with `TextEncoder is not defined` — an invocation error, not a
+  regression.
 - Run the fork surface with
   `CI=true npm test -- --watchAll=false --ci --testPathPattern='src/(AI|AiGeneration|MainFrame/Preferences|EditorFunctions)'`.
-- 17 spec files cover the BYOK surface — `AI/CustomAIClient.spec.js`; `AiGeneration/`
+- ≈23 spec files cover the BYOK surface — `AI/CustomAIClient.spec.js`; `AiGeneration/`
   (`AiConfiguration`, `AiRequestContext`, `AiRequestContext.selectionLoad`, `AiRequestUtils`,
   `ExtensionsOutsideEditorChangesAccumulator`, `PrepareAiUserContent`) with
-  `AiRequestChat/{CanPayForAiRequest,RunScriptOutput}` and
-  `Studio/{FinalizeSubAgents,LoopGuard,PlanStore,RequestWriteGate,Roles,RoleToolPolicy,SpawnSubAgents}`;
-  and `MainFrame/Preferences/PreferencesStorage`. `Studio/SafeTruncation.js` has no spec of its own —
-  it is covered through `FinalizeSubAgents.spec.js`, its caller.
+  `AiRequestChat/{CanPayForAiRequest,RunScriptOutput}` and **every** pure Studio leaf
+  (`Studio/{EditApprovalLabel,FinalizeSubAgents,LoopGuard,NudgePolicy,PlanStore,RequestWriteGate,Roles,RoleToolPolicy,SafeTruncation,SpawnSubAgents}`)
+  plus the hooks `Studio/{UseStudioNudge,UseStudioRuntime}`; and `MainFrame/Preferences/PreferencesStorage`.
+  Extract new studio logic into a leaf or a hook so it stays testable — `Utils.js` and
+  `AskAiEditorContainer.js` (the dispatcher and container) still have no direct specs (issue #150).
 - **Mutation-check every fix.** Temporarily revert the guard and confirm the new test fails — several
   tests written for this fork passed against the *unfixed* code (a lock test that acquired the lock
   after the throw rather than during it; a helper test that skipped the real caller). Assert the
   substitution actually matched, and never combine the revert and the restore in one shell command.
 - `GDJS`-dependent specs (`SpawnSubAgents`, `AiRequestContext`) need the libGD test artifact, which
   `npm run postinstall` installs as `node_modules/libGD.js-for-tests-only`; CI supplies it via `build-libgd`.
+- **Local offline harness** — `scripts/dev/mock-ai-provider.js` is a committed OpenAI-compatible mock
+  (`MOCK_SCRIPT`, `MOCK_CHILD_SCRIPTS` per role, `MOCK_STREAM_DELAY_MS`; it emits `x-omniroute-*` telemetry
+  headers and CORS). Point the editor's Base URL at it (`http://localhost:11435/v1`) to drive the whole
+  multi-agent loop deterministically; examples in `mock-script*.json` / `mock-child-scripts.example.json`.
+  It classifies a sub-agent by a detected studio **role**, not the shared "small game studio" phrase (the
+  manager prompt contains that too). The end-to-end `@feedback-loop` skill lives outside the repo.
 
 **Unlocked client features** — the master switch is `hasValidSubscriptionPlan()` returning `true` in
 `newIDE/app/src/Utils/GDevelopServices/Usage.js`, with `UNLOCKED_HERETEK_SUBSCRIPTION` /
