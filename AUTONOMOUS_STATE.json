@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 193,
+  "last_cycle": 194,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1132,6 +1132,12 @@
       "target": "Surface the per-request provider telemetry in the chat (Tier 2 consumer)",
       "metric_delta": "The cycle-192 telemetry registry had no consumer. Added formatProviderTelemetryNote (pure, in AiRequestChat/Utils.js) and a small 'Provider response: <model> · <ms> · ~in/out tokens · cache' line in ChatMessages' status block (fork-modified), reading customGetAiRequestProviderTelemetry. +3 tests (full format, missing token half, null cases) mutation-checked (dropping the cache part fails the full-format test). Note is only shown when the endpoint reports x-omniroute-* headers, so it stays silent for Ollama (which sends none) - verified live that Ollama emits none; the format itself is pinned by tests. 1633/1633 across 81 suites, eslint+prettier clean, production build exit 0, dev watcher compiled, divergence clean.",
       "commit": "feat(ai): show provider response telemetry in the chat"
+    },
+    {
+      "cycle": 194,
+      "target": "Phase 5 adversarial diff inspection over the whole session (no change)",
+      "metric_delta": "No code change. Audited the 40-commit range (0b5179e09..HEAD, 36 files, +3434/-160): (1) no secrets - the only apiKey occurrences added are empty-string test fixtures; no bearer tokens, no added provider hostnames (openrouter/openai/anthropic/deepseek/generativelanguage all absent from added lines); (2) no provider locks - nothing switches behavior on a hardcoded provider; (3) local-first proven live in cycle 189; (4) invariant 4 held - zero files under Core/, GDCore/, Extensions/, GDevelop.js/ or GDJS/ touched; the only paywall-related edit is the Usage.spec.js test (no gate logic changed); (5) revertibility - linear history (0 merges), the tip reverts cleanly and a 2-commit reverse range reverts cleanly (my first reverse-check was flawed: git apply -R checks against the current tree, so out-of-order checks always conflict). Scope is confined to newIDE/app/src AI/Preferences paths plus the state/log/manifest. Recorded as a verification cycle.",
+      "commit": "docs(autonomous): record the adversarial diff inspection"
     }
   ],
   "backlog": [
@@ -1323,6 +1329,7 @@
     "A local OpenAI-compatible server's CORS preflight only allows a fixed header set; sending optional attribution headers (HTTP-Referer/X-Title) blocks the whole request in the browser build before it reaches the model. Keep the outbound header set minimal (Content-Type) for local-first, and verify new headers against a real Ollama preflight, not just axios mocks - mocks do not model CORS.",
     "Driving the Ask AI new-chat form via Chrome DevTools MCP is unreliable here: the drawer re-renders back to the history list between fill and send. For the multi-turn benchmark, use the @feedback-loop skill / interactive session rather than synthetic DOM driving; a single-turn live BYOK check is enough to validate the transport.",
     "Ollama's OpenAI-compatible SSE sends `delta.reasoning` (not `reasoning_content`) and streams it for many chunks before any `delta.content`; any UI signal derived from partial content (the cold-start hint, the streaming tail) must account for reasoning-only progress or it reports 'waiting for the first token' while the model is clearly working.",
-    "Telemetry the console already prints should also be stored in a registry keyed by request id: 'inspectable' in this objective means readable from React state, not just visible in devtools. Thread a callback (onProviderTelemetry) through the client like onStreamDelta rather than having the client guess the request id."
+    "Telemetry the console already prints should also be stored in a registry keyed by request id: 'inspectable' in this objective means readable from React state, not just visible in devtools. Thread a callback (onProviderTelemetry) through the client like onStreamDelta rather than having the client guess the request id.",
+    "Auditing revertibility with `git show <sha> | git apply --reverse --check` is wrong for a commit older than HEAD: git apply checks against the working tree, so any later commit touching the same lines makes it conflict regardless of true revertibility. Verify with `git revert --no-commit` on the tip or a newest-first range instead, and confirm the history is linear (no merges) first."
   ]
 }
