@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 166,
+  "last_cycle": 167,
   "completed_targets": [
     {
       "cycle": 75,
@@ -963,6 +963,12 @@
       "target": "Grapheme-safe truncation via Intl.Segmenter (ecosystem over reinvention)",
       "metric_delta": "Phase-2 OSINT reasoning applied: the hand-rolled surrogate step-back covered only astral pairs while cuts can also split ZWJ families, flag pairs, and combining marks (all realistic in scene/object names and sub-agent reports). No library needed - the platform API Intl.Segmenter (Chrome 87+, present everywhere the editor runs) segments graphemes correctly, verified empirically in node before adopting. SafeTruncation now walks graphemes (drop-wholly-if-overflowing so length stays within maxLength) with the old step-back kept verbatim as the no-Intl fallback. New SafeTruncation.spec.js: surrogate sweep parity, ZWJ/flag/combining integrity, reference-identity, fallback under removed Intl. Mutation-checked (old body fails exactly the 3 grapheme tests). 1584/1584 across 80 suites (was 1578/79), eslint+prettier clean, Flow zero in touched files, divergence +1 forkOnly surgical. Note: sliceToTokenBudget keeps its own quarter-token slicer deliberately - different unit (tokens vs characters), not duplicated logic.",
       "commit": "perf(ai): segment graphemes when truncating studio text"
+    },
+    {
+      "cycle": 167,
+      "target": "Classification tripwire: every registry tool classified or explicitly exempt",
+      "metric_delta": "Computed audit: 39 registry tools vs MUTATING/READ_ONLY lists found 3 unclassified - spawn_agent + create_or_update_plan (orchestrator-only by design) and get_game_starter_summary (backend-resolved, always fails locally, so correctly unoffered). Verified the sandbox derives from editor-map flags (not these lists), so drift mode is silent capability loss, not a leak. New Roles.spec tripwire pins the exact exempt set; mutation-checked (dropping put_3d_instances flags it by name). Source untouched. 1585/1585 across 80 suites (was 1584), eslint+prettier clean, divergence clean. Note: get_game_starter_summary has no local implementation while sibling server-side tools (search_docs) do - if a local template-summary ever lands, this test forces its classification.",
+      "commit": "test(ai): pin the tool classification taxonomy"
     }
   ],
   "backlog": [

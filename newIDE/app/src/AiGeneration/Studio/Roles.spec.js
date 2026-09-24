@@ -171,4 +171,26 @@ describe('Studio roles', () => {
       expect(STUDIO_ROLES.tester.allowedToolNames).not.toContain(name);
     });
   });
+
+  it('classifies every registry tool, or exempts it explicitly', () => {
+    // A tool in neither MUTATING_TOOL_NAMES nor READ_ONLY_TOOL_NAMES falls
+    // through every subset built from them: the developer is silently never
+    // offered it, and the taxonomy rots. The only unclassified tools are
+    // exempt by design: spawn_agent/create_or_update_plan are
+    // orchestrator-only (a sub-agent must never spawn or replan), and
+    // get_game_starter_summary is backend-resolved (its local launchFunction
+    // always fails), so no studio role may offer it.
+    const classified = new Set([
+      ...MUTATING_TOOL_NAMES,
+      ...READ_ONLY_TOOL_NAMES,
+    ]);
+    const unclassified = allToolNames.filter(name => !classified.has(name));
+    expect(unclassified.sort()).toEqual(
+      [
+        'create_or_update_plan',
+        'get_game_starter_summary',
+        'spawn_agent',
+      ].sort()
+    );
+  });
 });
