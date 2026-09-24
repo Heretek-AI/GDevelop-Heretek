@@ -98,6 +98,15 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Adversarial-invariant audit, clean (cycle 261): repo-wide scan for hardcoded
+  secrets (`sk-…`, `Bearer …`, long `api_key` literals), provider locks
+  (openrouter/openai/deepseek/anthropic hostnames) in the fork AI surface, and
+  key references in the committed dev scripts - none found (the mock only names
+  the `authorization` header for its CORS allowlist). Confirms invariant 1
+  (BYOK/local-first, no provider lock) and the no-secrets rule hold at the tree
+  level. Also ran the **full** editor suite (not just the AI surface): 187
+  suites, 2437 passed, 1 skipped, 114 snapshots - green, so the session's many
+  AI-surface edits did not break the wider app.
 - Resilience: transient provider 503 is retried (cycle 260): feedback-loop Run 6's
   developer sub-agent died on a provider 503 ("endpoint unavailable; reset after
   6s") - a transient error that failed the whole turn. `sendChatCompletion` now
