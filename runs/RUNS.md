@@ -34,7 +34,7 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 181 | Cover the security-relevant role resolution and role predicates (Tier 1) | `test(ai): cover role resolution and role predicates` | green (gates) |
 | 182 | Cover spawnSubAgent, the untested delegation glue (Tier 1) | `test(ai): cover spawnSubAgent delegation glue` | green (gates) |
 | 183 | Execute the Phase 5 WebUI audit (dev server + Chrome DevTools MCP) | `chore(autonomous): execute the Phase 5 WebUI audit` | green (WebUI audit) |
-| 184 | WebUI-verify the studio transcript rendering (reasoning + tool flow) | `chore(autonomous): verify the studio transcript rendering` | green (WebUI audit) |
+| 184 | WebUI-verify the studio transcript rendering (reasoning + tool flow) | `chore(autonomous): verify the studio transcript rendering` | green (gates) |
 | 185 | Harden the function-call-output builder (null entry + non-object spread) | `fix(ai): harden the function-call-output builder` | green (gates) |
 | 186 | Cover the prompt builder and per-chat config resolver (Tier 1) | `test(ai): cover the prompt builder and config resolver` | green (gates) |
 | 187 | Unit-test the preferences backfill by extracting it to the tested leaf | `refactor(preferences): extract the stored-preferences merge to the tested leaf` | green (gates) |
@@ -47,7 +47,7 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 194 | Phase 5 adversarial diff inspection over the whole session (no change) | `docs(autonomous): record the adversarial diff inspection` | green (gates) |
 | 195 | Run the entire editor Jest suite (broadest regression gate) | `chore(autonomous): record the full suite run` | green (gates) |
 | 196 | Live multi-turn studio run against local Ollama (Phase 5) | `chore(autonomous): record the live multi-turn studio run` | green (live multi-turn run) |
-| 197 | Dispatch the canonical city-builder benchmark live against local Ollama | `chore(autonomous): record the live city-builder benchmark dispatch` | green (live benchmark dispatched; no delegation) |
+| 197 | Dispatch the canonical city-builder benchmark live against local Ollama | `chore(autonomous): record the live city-builder benchmark dispatch` | green (benchmark dispatched; no delegation) |
 | 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (prompt hardened) |
 | 199 | Cover the backend-tool filter on the continue and sub-agent paths (Tier 4) | `test(ai): cover the backend-tool filter on continue and sub-agent paths` | green (gates) |
 | 200 | Recover a context-overflow turn with one retry at a smaller budget (Tier 2) | `feat(ai): retry a context-overflow turn at a smaller budget` | green (gates) |
@@ -61,7 +61,7 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 208 | OSINT assessment: maintained library vs the bespoke tool-argument validator | `docs(autonomous): assess ajv vs the bespoke tool-argument validator` | green (gates) |
 | 209 | Attempt the full-loop run with a project created in-script | `chore(autonomous): record the in-script project-creation attempt` | green (gates) |
 | 210 | Full-project scripted loop reveals the plan task never flips to done | `docs(autonomous): record the plan-flip clobber found by the harness` | defect found (plan never flipped) |
-| 211 | Fix the plan-flip clobber: cache wins for pre-existing messages on write-back | `fix(ai): stop a turn from clobbering a concurrent in-place rewrite` | FIXED + live-verified (plan flips to done) |
+| 211 | Fix the plan-flip clobber: cache wins for pre-existing messages on write-back | `fix(ai): stop a turn from clobbering a concurrent in-place rewrite` | FIXED + live-verified |
 | 212 | Script the parent while sub-agents reply plainly (mock routing) + multi-task example | `feat(scripts): route mock scripts to parent requests and add a multi-agent example` | green (gates) |
 | 213 | Deterministic multi-task studio lifecycle proven end-to-end | `chore(autonomous): deterministic multi-task studio lifecycle proof` | green (3-task lifecycle proof) |
 | 214 | Post-fix full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
@@ -70,22 +70,29 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 217 | Count distinct sub-agents in the audit summary (dedupe by call_id) | `fix(ai): count distinct sub-agents in the audit summary` | green (gates) |
 | 218 | Role breakdown in the multi-agent audit summary (Tier 2) | `feat(ai): break the multi-agent audit summary down by role` | green (role breakdown live) |
 | 219 | Full-suite regression after the multi-agent UI additions (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
+| 220 | Per-agent token accounting, surfaced in the audit line (Tier 2) | `feat(ai): bill sub-agent tokens to the sub-agent and show them` | green (per-agent tokens live) |
+| 221 | Clear a request's provider telemetry on delete (registry consistency) | `fix(ai): clear a request's provider telemetry when deleted` | green (gates) |
+| 222 | Stop sub-agent children from evicting real chats from persistence | `fix(ai): keep sub-agent children out of persisted chats` | persistence bug fixed |
+| 223 | Full-suite regression after the persistence + telemetry fixes (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
 
-## Latest full-suite result (after cycle 219)
+## Latest full-suite result (after cycle 223)
 
-- `newIDE/app` full Jest: **185 suites, 2363 passed, 1 skipped, 114 snapshots, 0 failures**.
-- AI-surface subset: 1645 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
+- `newIDE/app` full Jest: **185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures**.
+- AI-surface subset: 1648 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
 
-## Harness findings (cycles 155-219)
+## Fixed defects (cycles 155-223)
+- Local-first CORS block (attribution headers rejected by Ollama preflight).
+- Plan-flip clobber: a turn overwrote a concurrent in-place plan rewrite.
+- Context-overflow recovery now on create/continue/sub-agent paths.
+- Streamed tool-call fragments corrupted when a chunk sent an object.
+- Reasoning-only streams reported no progress.
+- Provider telemetry not cleared on delete; sub-agent children evicting real chats
+  from persistence.
 
-- Local Ollama `:11434` works; hosted `llm.heretek.one` 401 without `config.local.json`.
-- `scripts/dev/mock-ai-provider.js` (:11435): scripted parent turns, sub-agents reply plainly.
-- **Fixed**: attribution-header CORS block; reasoning-stream progress; context-overflow recovery
-  on all turn paths; the plan-flip clobber (messageId reconciliation); streamed tool-call
-  fragment coercion.
-- **Proven**: deterministic 3-task lifecycle (cycle 213); real-model 4-task benchmark with
-  2 sub-agents and correct plan tracking (cycle 215); multi-agent audit line with roles
-  (cycles 216-218).
+## Proven workflows
+- Deterministic 3-task lifecycle offline (cycle 213); real-model 4-task benchmark with
+  2 sub-agents and correct plan tracking (cycle 215); per-agent audit line with roles and
+  tokens (cycles 216-220).
 
 ## Gate definitions
 

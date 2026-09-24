@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 222,
+  "last_cycle": 223,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1306,6 +1306,12 @@
       "target": "Stop sub-agent children from evicting real chats from persistence",
       "metric_delta": "REAL persistence bug: saveLocalAiRequests kept the 20 most-recently-updated entries WITHOUT excluding sub-agent children, so a multi-agent run's children consumed the recency budget and real chats vanished on reload (children are already excluded from history, so they never needed persisting). saveLocalAiRequests now filters out entries with parentAiRequestId before selecting the 20. +1 test that reads the PERSISTED JSON directly (the loader merges storage into the in-memory cache, which still holds children, so asserting on loadLocalAiRequests masked the bug - caught in this cycle): 20 real chats + 5 newer children -> only the 20 real chats persist; mutation-checked. This also answers the cycle-221 orphan question: children are never persisted, so no orphan leaks across reloads. 1648/1648 across 81 suites, eslint+prettier clean, divergence clean. Client-only change; build last verified at 220.",
       "commit": "fix(ai): keep sub-agent children out of persisted chats"
+    },
+    {
+      "cycle": 223,
+      "target": "Full-suite regression after the persistence + telemetry fixes (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 220-222 (per-agent tokens, telemetry delete cleanup, sub-agent persistence exclusion): 185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 222.",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [
