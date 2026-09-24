@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 194,
+  "last_cycle": 195,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1138,6 +1138,12 @@
       "target": "Phase 5 adversarial diff inspection over the whole session (no change)",
       "metric_delta": "No code change. Audited the 40-commit range (0b5179e09..HEAD, 36 files, +3434/-160): (1) no secrets - the only apiKey occurrences added are empty-string test fixtures; no bearer tokens, no added provider hostnames (openrouter/openai/anthropic/deepseek/generativelanguage all absent from added lines); (2) no provider locks - nothing switches behavior on a hardcoded provider; (3) local-first proven live in cycle 189; (4) invariant 4 held - zero files under Core/, GDCore/, Extensions/, GDevelop.js/ or GDJS/ touched; the only paywall-related edit is the Usage.spec.js test (no gate logic changed); (5) revertibility - linear history (0 merges), the tip reverts cleanly and a 2-commit reverse range reverts cleanly (my first reverse-check was flawed: git apply -R checks against the current tree, so out-of-order checks always conflict). Scope is confined to newIDE/app/src AI/Preferences paths plus the state/log/manifest. Recorded as a verification cycle.",
       "commit": "docs(autonomous): record the adversarial diff inspection"
+    },
+    {
+      "cycle": 195,
+      "target": "Run the entire editor Jest suite (broadest regression gate)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app suite (no path filter): 185 suites, 2351 passed, 1 skipped, 114 snapshots, 0 failures (~11s). This is stronger evidence than the per-cycle AI-surface pattern: it confirms the session's edits to shared files (ChatMessages, AiRequestChat/index, AiRequestContext, PreferencesProvider, EditorFunctions/index, ScriptExecution/CapScriptOutput) did not regress any upstream editor test. Noted: UseStudioRuntime.spec's createRoot render logs a React 'act environment' warning (a console warning, not a failure); harmless.",
+      "commit": "chore(autonomous): record the full suite run"
     }
   ],
   "backlog": [
