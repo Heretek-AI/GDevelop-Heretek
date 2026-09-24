@@ -7,6 +7,8 @@ import {
   validatePlanTasks,
   mergePlanTasks,
   patchPlanTask,
+  mergePlanResultOutput,
+  isStudioPlanTaskStatus,
 } from './PlanStore';
 import { getLatestActivePlan } from '../AiRequestUtils';
 
@@ -256,6 +258,75 @@ describe('PlanStore', () => {
       );
       expect(merged).toHaveLength(1);
       expect(merged[0].id).toBe('b');
+    });
+  });
+
+  describe('mergePlanResultOutput', () => {
+    const finishedResult = (tasks: any) => ({
+      status: 'finished',
+      success: true,
+      output: { success: true, plan: { tasks } },
+    });
+
+    it('folds the result plan over the existing tasks', () => {
+      const existing: any = [
+        makeTask({ id: 'a', agentCallId: 'call-1', status: 'pending' }),
+      ];
+      const result = finishedResult([makeTask({ id: 'a', status: 'done' })]);
+
+      const merged: any = mergePlanResultOutput(result, existing);
+      const tasks = merged.output.plan.tasks;
+      expect(tasks).toHaveLength(1);
+      // The incoming status wins; the field it did not mention survives.
+      expect(tasks[0].status).toBe('done');
+      expect(tasks[0].agentCallId).toBe('call-1');
+    });
+
+    it('passes the result through untouched unless it is a finished success', () => {
+      const existing: any = [makeTask({ id: 'a' })];
+      for (const result of [
+        { status: 'working', success: true, output: { plan: { tasks: [] } } },
+        { status: 'finished', success: false, output: { plan: { tasks: [] } } },
+      ]) {
+        expect(mergePlanResultOutput((result: any), existing)).toBe(result);
+      }
+    });
+
+    it('passes through a result with no plan, no existing tasks, or malformed tasks', () => {
+      const existing: any = [makeTask({ id: 'a' })];
+      const noOutput = { status: 'finished', success: true };
+      expect(mergePlanResultOutput((noOutput: any), existing)).toBe(noOutput);
+
+      const noPlan = {
+        status: 'finished',
+        success: true,
+        output: { success: true },
+      };
+      expect(mergePlanResultOutput((noPlan: any), existing)).toBe(noPlan);
+
+      const badTasks = {
+        status: 'finished',
+        success: true,
+        output: { plan: { tasks: { not: 'an array' } } },
+      };
+      expect(mergePlanResultOutput((badTasks: any), existing)).toBe(badTasks);
+
+      const result = finishedResult([makeTask({ id: 'a' })]);
+      expect(mergePlanResultOutput(result, null)).toBe(result);
+    });
+  });
+
+  describe('isStudioPlanTaskStatus', () => {
+    it('accepts exactly the four declared statuses', () => {
+      for (const ok of ['pending', 'in_progress', 'done', 'voided']) {
+        expect(isStudioPlanTaskStatus(ok)).toBe(true);
+      }
+    });
+
+    it('rejects anything else', () => {
+      for (const bad of ['', 'PENDING', 'cancelled', null, undefined, 1, {}]) {
+        expect(isStudioPlanTaskStatus(bad)).toBe(false);
+      }
     });
   });
 
