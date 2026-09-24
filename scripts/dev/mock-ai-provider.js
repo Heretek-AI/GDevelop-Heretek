@@ -70,6 +70,52 @@ const nextTurn = () => {
   return turn;
 };
 
+/**
+ * Optional PER-ROLE child scripts: MOCK_CHILD_SCRIPTS points at a JSON object
+ * { "designer": [turns...], "developer": [...], "tester": [...] }. A sub-agent
+ * request (its system prompt names a studio role) is matched to its role and
+ * gets that role's turns, consumed per role; a role with no script gets a plain
+ * reply. This lets a deterministic run script what each SPECIALIST does (e.g. a
+ * tool call) instead of one shared sequence.
+ */
+const loadChildScripts = () => {
+  const path = process.env.MOCK_CHILD_SCRIPTS;
+  if (!path) return null;
+  try {
+    const parsed = JSON.parse(require('fs').readFileSync(path, 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch (error) {
+    console.error('MOCK_CHILD_SCRIPTS could not be read:', error.message);
+    return null;
+  }
+};
+
+const childScripts = loadChildScripts();
+const childCounters = {};
+
+const detectRole = messages => {
+  const system = messages.find(
+    m => m && m.role === 'system' && typeof m.content === 'string'
+  );
+  const prompt = system ? system.content.toLowerCase() : '';
+  if (prompt.includes('the designer')) return 'designer';
+  if (prompt.includes('the developer')) return 'developer';
+  if (prompt.includes('the qa tester')) return 'tester';
+  return null;
+};
+
+const nextChildTurn = messages => {
+  if (!childScripts) return null;
+  const role = detectRole(messages);
+  const turns = role ? childScripts[role] : null;
+  if (!Array.isArray(turns) || turns.length === 0) return null;
+  const index = childCounters[role] || 0;
+  childCounters[role] = index + 1;
+  return turns[Math.min(index, turns.length - 1)];
+};
+
 const json = (res, status, body, extraHeaders) => {
   res.writeHead(
     status,
@@ -139,7 +185,7 @@ const server = http.createServer((req, res) => {
       }
       const messages = Array.isArray(payload.messages) ? payload.messages : [];
       const isChild = isSubAgentRequest(messages);
-      const turn = isChild ? null : nextTurn();
+      const turn = isChild ? nextChildTurn(messages) : nextTurn();
       const reply =
         turn && typeof turn.content === 'string'
           ? turn.content

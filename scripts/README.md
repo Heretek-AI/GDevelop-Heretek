@@ -46,6 +46,11 @@ See [MAINTENANCE.md](../MAINTENANCE.md) for how these fit together.
     The script applies to PARENT requests only; a sub-agent request (its system
     prompt names a studio role) gets a plain reply, so the interleaved
     parent/child request order cannot consume the script out of sequence.
+    Set `MOCK_CHILD_SCRIPTS=<file>` to script each SPECIALIST separately: a JSON
+    object `{ "designer": [turns], "developer": [...], "tester": [...] }` keyed
+    by the role named in the sub-agent's system prompt, consumed per role - see
+    `dev/mock-child-scripts.example.json`. This lets a deterministic run script
+    what each role does (e.g. a tool call) instead of one shared sequence.
 
 ## Documentation and translations
 

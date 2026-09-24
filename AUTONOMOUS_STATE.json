@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 234,
+  "last_cycle": 235,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1378,6 +1378,12 @@
       "target": "Reuse the tested finalization check in AiRequestContext (fix a duplicated unguarded read)",
       "metric_delta": "Found the cycle-160 class again in a DUPLICATED copy: AiRequestContext.removeSubAgentIfDone had its own `parentOutput.some(message => message.type === 'function_call_output' ...)` over the unvalidated parent output, so a null hole threw inside the watch loop (sub-agent retirement breaks). It now calls the tested, null-tolerant parentHasOutputForCall (FinalizeSubAgents) - one contract instead of two copies. AiRequestContext already imported CustomAIClient, so adding this import (FinalizeSubAgents) introduces no new load path and no cycle; the module still loads (AiRequestContext.spec 29/29). 1652/1652 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. No new unit test: removeSubAgentIfDone is a component-internal useCallback; its behaviour now rests on the helper's tests (cycle 160, mutation-checked).",
       "commit": "fix(ai): reuse the null-tolerant finalization check in AiRequestContext"
+    },
+    {
+      "cycle": 235,
+      "target": "Per-role child scripting in the mock (Tier 4)",
+      "metric_delta": "The mock's parent/child routing gave every sub-agent the same plain reply, so a deterministic run could not script what each SPECIALIST does. Added MOCK_CHILD_SCRIPTS: a JSON object keyed by role (detected from the sub-agent's system prompt) with a per-role turn sequence, consumed per role; scripts/dev/mock-child-scripts.example.json shows a designer that calls read_game_project_json then reports, plus developer/tester reports. Verified deterministically by direct requests: designer#1 -> read_game_project_json tool call, designer#2 -> its report, developer -> its report, tester -> its report. This is the harness capability needed to script a full specialist flow offline. Divergence +1 forkOnly (the example).",
+      "commit": "feat(scripts): script each sub-agent role separately in the mock"
     }
   ],
   "backlog": [
