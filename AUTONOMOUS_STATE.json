@@ -1,6 +1,13 @@
 {
-  "engine_version": "1.0.0",
-  "last_cycle": 175,
+  "engine_version": "2.0.0",
+  "active_agents": [
+    "orchestrator",
+    "scene-architect",
+    "logic-engineer",
+    "asset-curator",
+    "qa-playtester"
+  ],
+  "last_cycle": 176,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1017,6 +1024,12 @@
       "target": "Guard the last latent crash: output.some over a persisted hole during a racy failed turn",
       "metric_delta": "The failure path's cache-only filter compared each cache message against `output` (which carries the persisted hole) via output.some(own => own.messageId) - a crash that my cycle-174 test could NOT reach because the existingIds check short-circuits whenever every cache message is already in `existing`. Built the discriminating case: an axios.post mock that performs a concurrent cache write during the failed turn, so the cache message is absent from the entry snapshot and the `.some` runs over the hole. Red pre-fix (Cannot read messageId), mutation-checked. ESLint no-throw-literal flagged the mock's `throw undefined`; fixed with a variable. 1597/1597 across 80 suites (was 1596), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): guard the racy turn-merge comparison against a hole"
+    },
+    {
+      "cycle": 176,
+      "target": "Bring AUTONOMOUS_STATE.json to the required schema and create runs/RUNS.md",
+      "metric_delta": "The objective's explicit schema was unmet: engine_version read 1.0.0 (required 2.0.0) and active_agents was absent; runs/RUNS.md (required append target for model/endpoint/turns-per-phase/token-efficiency/harness-verdict) did not exist. Set engine_version 2.0.0, added active_agents [orchestrator, scene-architect, logic-engineer, asset-curator, qa-playtester], and created runs/RUNS.md logging cycles 155-176 with the required fields - the harness verdict is recorded as blocked (no dev server, credentials, or reachable endpoint), not waived. State JSON validated; divergence +1 forkOnly (runs/RUNS.md) via surgical --update. No code change.",
+      "commit": "chore(autonomous): complete the state schema and run log"
     }
   ],
   "backlog": [

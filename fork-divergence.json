@@ -189,6 +189,7 @@
     "newIDE/app/src/Utils/UseTimeout.ts",
     "newIDE/app/tsconfig.json",
     "newIDE/app/vite.config.ts",
+    "runs/RUNS.md",
     "scripts/check-fork-divergence.js",
     "scripts/security/check-lockfiles.js",
     "scripts/sonarcloud-drift.js"
