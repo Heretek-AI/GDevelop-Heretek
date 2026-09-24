@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 223,
+  "last_cycle": 224,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1312,6 +1312,12 @@
       "target": "Full-suite regression after the persistence + telemetry fixes (no change)",
       "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 220-222 (per-agent tokens, telemetry delete cleanup, sub-agent persistence exclusion): 185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 222.",
       "commit": "chore(autonomous): full-suite regression and run-log refresh"
+    },
+    {
+      "cycle": 224,
+      "target": "Re-verify invariant 1 (no paywall) after the session's changes (no change)",
+      "metric_delta": "No code change. Confirmed the fork's client-side unlock is intact after 70 cycles of AI-surface edits: hasValidSubscriptionPlan still returns true unconditionally; the Usage.spec BYOK-unlock tests (grant for any shape incl. none, seed identity, capability gates) pass; the AI surface references only the fork's BYOK-aware session/affordance helpers (canSendAiRequestForSession, canAffordAiRequest, canStartAiRequestCreate, canUseEditorAiTools, canRetryAiRequestForSession, canSendFeedbackForSession), not reintroduced paywalls. Also swept the AI surface for unguarded output reads: no unguarded .output.map/filter/forEach/indexed reads remain.",
+      "commit": "docs(autonomous): re-verify the no-paywall invariant"
     }
   ],
   "backlog": [
