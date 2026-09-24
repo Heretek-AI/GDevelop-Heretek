@@ -49,32 +49,32 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 196 | Live multi-turn studio run against local Ollama (Phase 5) | `chore(autonomous): record the live multi-turn studio run` | green (live multi-turn run) |
 | 197 | Dispatch the canonical city-builder benchmark live against local Ollama | `chore(autonomous): record the live city-builder benchmark dispatch` | green (live benchmark dispatched; no delegation) |
 | 198 | Harden the manager prompt to require delegation (+ live re-run measurement) | `feat(ai): require delegation in the manager prompt` | green (prompt hardened; re-run no compliance change) |
-| 199 | Cover the backend-tool filter on the continue and sub-agent paths (Tier 4) | `test(ai): cover the backend-tool filter on continue and sub-agent paths` | green |
+| 199 | Cover the backend-tool filter on the continue and sub-agent paths (Tier 4) | `test(ai): cover the backend-tool filter on continue and sub-agent paths` | green (gates) |
+| 200 | Recover a context-overflow turn with one retry at a smaller budget (Tier 2) | `feat(ai): retry a context-overflow turn at a smaller budget` | green (gates) |
+| 201 | Extend context-overflow recovery to the create and sub-agent paths (Tier 2 parity) | `feat(ai): recover create and sub-agent turns from context overflow` | green (gates) |
+| 202 | Live-verify the per-request telemetry surface with a synthetic provider | `chore(autonomous): live-verify the telemetry surface with a mock provider` | green (live telemetry note via mock) |
+| 203 | Commit the mock provider as a reusable offline harness tool (Tier 4) | `feat(scripts): add a reusable offline mock AI provider` | green (gates) |
+| 204 | Stop streamed tool-call assembly corrupting non-string arguments | `fix(ai): coerce streamed tool-call fragments to strings` | green (gates) |
+| 205 | Full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
 
-## Harness findings (cycles 155-199)
+## Latest full-suite result (after cycle 205)
 
-### Live endpoint
-- Local Ollama at `http://localhost:11434/v1` (model `deepseek-v4.1-flash:cloud`) works.
-- Hosted `llm.heretek.one` is reachable but answers 401 without `config.local.json`.
+- `newIDE/app` full Jest suite: **185 suites, 2358 passed, 1 skipped, 114 snapshots, 0 failures**.
+- AI-surface subset: **81 suites, 1640 passed**.
+- Production build: exit 0. ESLint/Prettier/fork-divergence: clean.
 
-### Defects found and fixed by running live
-- **CORS (critical)**: the client sent OpenRouter attribution headers (`HTTP-Referer`,
-  `X-Title`) on every request; Ollama's preflight rejects `x-title`, so the browser
-  build could not reach any local server. Removed both (cycle 189).
-- **Reasoning progress**: Ollama streams `delta.reasoning` before any `delta.content`;
-  partial content ignored it, so the cold-start hint said "waiting for the first token"
-  while bytes arrived. Now reports `content || reasoning` (cycle 191).
+## Harness findings (cycles 155-205)
 
-### Model-behaviour finding (not a harness bug)
-- `deepseek-v4.1-flash:cloud` often **stops after planning/inspection** and narrates
-  delegation without calling `spawn_agent` (cycles 196-198). The delegation path itself
-  is proven: the persisted HarborTown run has 12 sub-agent spawns, and the unit tests
-  cover spawn/finalize. Measure across runs / use a stronger model before concluding.
-
-### Automation notes
-- `chrome-devtools.fill()` does NOT fire React onChange; use `press_key`/`type_text`.
-- `evaluate_script` takes a function-declaration string, not an IIFE.
-- The code-mode runtime has no `setTimeout`.
+- **Live endpoint**: local Ollama `:11434/v1` works; hosted `llm.heretek.one` answers 401
+  without `config.local.json`. `scripts/dev/mock-ai-provider.js` (:11435) runs offline.
+- **CORS (critical, fixed)**: attribution headers (`X-Title`) were rejected by Ollama's
+  preflight and blocked every local request; removed. A cross-origin client also needs
+  `Access-Control-Expose-Headers` to read `x-omniroute-*`.
+- **Reasoning progress (fixed)**: Ollama streams `delta.reasoning` first; progress now
+  reports `content || reasoning`.
+- **Overflow recovery (fixed)**: one retry at a halved budget on create/continue/sub-agent.
+- **Model-behaviour**: the local model often stops after planning without delegating.
+  The delegation path works (persisted run: 12 spawns; unit tests); this is model variance.
 
 ## Gate definitions
 

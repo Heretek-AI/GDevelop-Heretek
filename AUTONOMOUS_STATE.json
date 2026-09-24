@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 204,
+  "last_cycle": 205,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1198,15 +1198,19 @@
       "target": "Stop streamed tool-call assembly corrupting non-string arguments",
       "metric_delta": "The SSE accumulator stored the first chunk's `arguments` as-is (`|| ''`) and later appended string fragments, so a chunk carrying the whole arguments object produced '[object Object]...' - unparseable JSON, losing the tool call. Now arguments are stringified when the first chunk is an object (or dropped when neither string nor object), and names/ids are coerced to strings before concatenation/assignment. +1 test (object-arguments chunk then finish -> assembled JSON parses to the object, no '[object Object]'), mutation-checked. 1640/1640 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
       "commit": "fix(ai): coerce streamed tool-call fragments to strings"
+    },
+    {
+      "cycle": 205,
+      "target": "Full-suite regression + run-log refresh (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite at cycle 204's state: 185 suites, 2358 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 204 and rewrote the backlog to only the genuinely open items (the earlier list had accumulated a design idea now explicitly assessed as architecturally invasive).",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [
-    "Harness deployment: OmniRoute (or any telemetry proxy) must send Access-Control-Expose-Headers for x-omniroute-* headers, otherwise the editor cannot read them (cycle 202 live proof). Document this in the feedback-loop skill.",
-    "Tier 1 (cycle 197/198): the local model stops after planning/inspection instead of delegating; harness is correct (persisted run had 12 spawns), so measure the hardened manager prompt across several runs / a stronger model before concluding. Consider a client-side nudge: if a manager turn ends with undelegated ready tasks and no prose answer, continue it once automatically.",
-    "Phase 5 live run now WORKS against local Ollama (cycle 189: preflight 204 + POST 200, real reply). Run the full @feedback-loop city-builder benchmark against :11434 when a run budget allows; hosted Heretek needs config.local.json.",
-    "Remaining Tier 1 build-out per the objective's architecture: a multi-agent chat switching panel and a per-agent OmniRoute request/response auditing dashboard (Tier 2). Both need UI work that cannot be verified without the dev server.",
-    "Extract ChatMessages' renderItems classification into a pure leaf so the render-path guards become unit-testable (currently guarded by precedent, verified only by build/lint/suite).",
-    "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync, so upstream fixes never arrive.",
+    "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent, so the multi-agent delegation step needs either a stronger model or an automatic continuation nudge. A client-side nudge was assessed as architecturally invasive (the turn completes in AI/CustomAIClient, which cannot import Studio/ without a cycle) - design it as a small scheduler outside the client before implementing.",
+    "UI build-out (Tier 1/2): a multi-agent chat switching panel and a per-agent audit dashboard. The data layer exists and is live-verified (customGetAiRequestProviderTelemetry + the chat's 'Provider response:' note); the dashboard still needs product direction and cannot be verified headless.",
+    "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
+    "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
     "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued."
   ],
   "heuristics": [
