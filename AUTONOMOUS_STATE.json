@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 233,
+  "last_cycle": 234,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1372,6 +1372,12 @@
       "target": "Prototype-safe role aggregation in the audit summary",
       "metric_delta": "summarizeSubAgentActivity aggregated roles into a plain object, and the role string is model-authored: a role named '__proto__' would be an assignment to the prototype (dropped, so the key silently vanished) and 'constructor' would shadow, not aggregate, a key. The map is now Object.create(null), so any role name becomes a normal key and Object.prototype is never touched; the chat's Object.keys(roles) reads it unchanged. +1 test ('__proto__' role -> Object.keys ['__proto__'], null prototype, Object.prototype untouched), mutation-checked (plain {} makes the key vanish). 1652/1652 across 81 suites, eslint+prettier clean, divergence clean. Library+test only (ChatMessages already computed the token sum once from cycle 232); no build needed.",
       "commit": "fix(ai): make the audit summary's role map prototype-safe"
+    },
+    {
+      "cycle": 234,
+      "target": "Reuse the tested finalization check in AiRequestContext (fix a duplicated unguarded read)",
+      "metric_delta": "Found the cycle-160 class again in a DUPLICATED copy: AiRequestContext.removeSubAgentIfDone had its own `parentOutput.some(message => message.type === 'function_call_output' ...)` over the unvalidated parent output, so a null hole threw inside the watch loop (sub-agent retirement breaks). It now calls the tested, null-tolerant parentHasOutputForCall (FinalizeSubAgents) - one contract instead of two copies. AiRequestContext already imported CustomAIClient, so adding this import (FinalizeSubAgents) introduces no new load path and no cycle; the module still loads (AiRequestContext.spec 29/29). 1652/1652 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. No new unit test: removeSubAgentIfDone is a component-internal useCallback; its behaviour now rests on the helper's tests (cycle 160, mutation-checked).",
+      "commit": "fix(ai): reuse the null-tolerant finalization check in AiRequestContext"
     }
   ],
   "backlog": [
@@ -1576,6 +1582,7 @@
     "Adding a field to a summarizer's return breaks exact-equality tests: update the callers' expectations (here three tests) in the same change, or the suite goes red for a correct improvement.",
     "loadLocalAiRequests MERGES persisted entries into the in-memory cache and never clears it, so a test asserting on its return value can pass/fail on in-memory state rather than what was persisted - assert on the storage JSON when testing persistence.",
     "Run scripts/check-fork-divergence.js BEFORE committing any edit to a file you have not confirmed is in the manifest: a correct fix in an upstream-identical file still creates new divergence (two paths here), and the policy is to revert it when production reachability is theoretical and the fix belongs upstream.",
-    "The client normalizes a non-Error rejection to a generic 'AI request failed' Error (cycle 172), which drops axios-style `.code` - so any error-CLASSIFYING predicate (network vs provider) must be fed an Error instance in tests, and must not rely on `.code` for a non-Error rejection (message patterns are the fallback)."
+    "The client normalizes a non-Error rejection to a generic 'AI request failed' Error (cycle 172), which drops axios-style `.code` - so any error-CLASSIFYING predicate (network vs provider) must be fed an Error instance in tests, and must not rely on `.code` for a non-Error rejection (message patterns are the fallback).",
+    "When a defensive helper is extracted (cycle 160's parentHasOutputForCall), grep for DUPLICATED copies of the same check: AiRequestContext's watch loop kept its own unguarded version for 74 cycles. Extraction only closes the class if every copy is routed through it."
   ]
 }

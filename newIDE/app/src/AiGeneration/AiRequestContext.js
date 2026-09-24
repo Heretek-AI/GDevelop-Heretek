@@ -40,6 +40,7 @@ import {
   isCustomEndpointEnabled,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
+import { parentHasOutputForCall } from './Studio/FinalizeSubAgents';
 
 type EditorFunctionCallResultsStorage = {|
   getEditorFunctionCallResults: (
@@ -1193,11 +1194,12 @@ export const AiRequestProvider = ({
       const parentRequest = aiRequests[subAgentInfo.parentAiRequestId];
       if (!parentRequest) return;
 
-      const parentOutput = parentRequest.output || [];
-      const hasOutputForSubAgent = parentOutput.some(
-        message =>
-          message.type === 'function_call_output' &&
-          message.call_id === subAgentInfo.callId
+      // The same resolution the studio runtime uses (tested, null-tolerant):
+      // the parent output is not shape-validated, so a hole must not throw in
+      // the watch loop.
+      const hasOutputForSubAgent = parentHasOutputForCall(
+        parentRequest,
+        subAgentInfo.callId
       );
 
       if (hasOutputForSubAgent) {
