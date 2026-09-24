@@ -4577,7 +4577,11 @@ export const customForkAiRequest = (
 
   if (original && original.output) {
     if (upToMessageId) {
-      const idx = original.output.findIndex(m => m.messageId === upToMessageId);
+      // Persisted output is not shape-validated: a null hole would throw on
+      // the read below, losing the fork entirely.
+      const idx = original.output.findIndex(
+        m => m && m.messageId === upToMessageId
+      );
       output =
         idx >= 0 ? original.output.slice(0, idx + 1) : [...original.output];
     } else {

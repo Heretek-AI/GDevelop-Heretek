@@ -3631,6 +3631,38 @@ describe('CustomAIClient', () => {
       expect(forked.output.length).toBe(aiRequest.output.length);
     });
 
+    it('actually slices at the given message id (and tolerates a null hole)', async () => {
+      // The branch this test name promises was never exercised: the sibling
+      // test passes no id, so findIndex-with-an-id (and the null hole a
+      // persisted output can carry) was untested - a null entry threw
+      // 'Cannot read properties of null (reading messageId)' on fork.
+      const makeMessage = id => ({
+        type: 'message',
+        status: 'completed',
+        role: 'user',
+        content: [{ type: 'user_request', status: 'completed', text: id }],
+        messageId: id,
+      });
+      customUpdateAiRequest(
+        ({
+          id: 'local-ai-fork-src',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          userId: LOCAL_BYOK_USER_ID,
+          status: 'ready',
+          error: null,
+          output: [makeMessage('m1'), null, makeMessage('m3')],
+        }: any)
+      );
+
+      const forked = customForkAiRequest('local-ai-fork-src', 'm3');
+      expect(forked.output).toHaveLength(3);
+
+      const sliced = customForkAiRequest('local-ai-fork-src', 'm1');
+      expect(sliced.output).toHaveLength(1);
+      expect(sliced.output[0].messageId).toBe('m1');
+    });
+
     it('clears the source error and copies the model override on fork', async () => {
       // $FlowFixMe
       axios.post.mockResolvedValueOnce({

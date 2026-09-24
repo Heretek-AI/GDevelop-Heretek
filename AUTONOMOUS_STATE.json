@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 172,
+  "last_cycle": 173,
   "completed_targets": [
     {
       "cycle": 75,
@@ -999,6 +999,12 @@
       "target": "Normalize a non-Error rejection in sendChatCompletion (undefined crash)",
       "metric_delta": "A rejected promise with no reason (undefined/null) made sendChatCompletion's catch read `error.response` and throw 'Cannot read properties of undefined (reading response)' - masking the real failure and (via testConnection) reporting that TypeError as the connection-failure reason. Two changes: guard `if (error && error.response)`, and normalize non-Errors to an explanatory 'AI request failed' Error (including the raw reason when present). 2 tests; the first is the true repro, the second discriminates only after strengthening from the unhelpful raw TypeError (found by running it pre-fix and seeing it pass). Mutation-checked (reverting the guard reproduces the TypeError in both). 1594/1594 across 80 suites (was 1592), eslint+prettier clean, divergence clean.",
       "commit": "fix(ai): normalize a non-Error rejection in sendChatCompletion"
+    },
+    {
+      "cycle": 173,
+      "target": "Guard the untested fork-at-message-id slice against a null hole",
+      "metric_delta": "customForkAiRequest's upToMessageId branch read m.messageId with no guard over persisted output - a null hole threw 'Cannot read properties of null (reading messageId)' and lost the fork. Found alongside a coverage gap: the sibling test named 'forks an AI request up to a message id' passes NO id, so the slicing path was never exercised. New test drives it (3-message output with a null hole; slice at m3 keeps all, at m1 keeps one) and is red pre-fix; mutation-checked. 1595/1595 across 80 suites (was 1594), eslint+prettier clean, divergence clean.",
+      "commit": "fix(ai): guard the fork-at-message-id slice against a null hole"
     }
   ],
   "backlog": [
