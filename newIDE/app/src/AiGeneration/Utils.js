@@ -1100,9 +1100,18 @@ export const useProcessFunctionCalls = ({
           mergePlanResultOutput(result, existingTasks)
         );
 
+        // Send EVERY outcome recorded for this batch, not just the editor
+        // calls: a mixed batch (some allowed calls plus a role denial, a
+        // loop-guard warning, or a spawn failure) must surface all of them, or
+        // the model never learns those calls failed.
         const sent = await onSendEditorFunctionCallResults(
           aiRequest.id,
-          [...loopGuardResults, ...mergedResults],
+          [
+            ...studioDeniedResults,
+            ...loopGuardResults,
+            ...spawnFailureResults,
+            ...mergedResults,
+          ],
           {
             createdSceneNames,
             createdExternalLayoutNames,

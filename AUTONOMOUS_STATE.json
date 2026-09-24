@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 240,
+  "last_cycle": 241,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1414,6 +1414,12 @@
       "target": "Deliver the loop-guard warning to the model (same recorded-but-unsent class)",
       "metric_delta": "Applying the cycle-239 heuristic to the sibling branch: the loop guard's 'steer' warning was recorded via addEditorFunctionCallResults but never passed to onSendEditorFunctionCallResults, so the model never learned to change approach (in BOTH the denied-only early-return and the normal final send). Fixed by collecting loopGuardResults and including them in the early-return outcomeResults (with the denials/spawn failures) and in the final merged send. 1652/1652 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. Verification note: the fix routes the warning through the exact send calls cycle 239 LIVE-verified for role denials (same outcomeResults array + the same final onSendEditorFunctionCallResults); a dedicated live reproduction of a 'steer' (needs a multi-turn identical-call loop hitting the steer threshold) was attempted but not obtained cheaply, so the steer content itself is not live-proven - stated honestly.",
       "commit": "fix(ai): deliver the loop-guard warning to the model"
+    },
+    {
+      "cycle": 241,
+      "target": "Deliver role denials, loop-guard warnings and spawn failures on MIXED batches too",
+      "metric_delta": "Applying the cycle-239/240 class to MIXED batches: the final send passed only loopGuardResults + editor results, so a batch with editor calls AND a role denial / spawn failure recorded those outcomes but never sent them (the early-return only covers the empty-editor-case). The final send now includes studioDeniedResults + loopGuardResults + spawnFailureResults + mergedResults. LIVE-VERIFIED: a tester child scripted to emit BOTH a denied call (create_scene) and an allowed call (describe_instances) in one batch produced function_call_outputs for both - the denial ('The tool create_scene is not available for the QA tester role.') and the allowed result ('No project opened.') - so the model receives every outcome. (The stored transcript shows the denial twice; the transform dedupes tool outputs by call_id before the model, so the model sees it once.) 1652/1652 across 81 suites, eslint+prettier clean, divergence clean; client-only.",
+      "commit": "fix(ai): deliver all batch outcomes to the model on mixed batches"
     }
   ],
   "backlog": [
