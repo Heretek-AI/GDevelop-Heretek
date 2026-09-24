@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 218,
+  "last_cycle": 219,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1282,6 +1282,12 @@
       "target": "Role breakdown in the multi-agent audit summary (Tier 2)",
       "metric_delta": "Extended summarizeSubAgentActivity to count sub-agents by role (parsed from each spawn call's arguments; malformed arguments count with no role) and rendered it in the chat: LIVE-OBSERVED '3 sub-agents (1 designer, 1 developer, 1 tester): 3 finished' with the scripted 3-spawn mock. This is a real per-agent audit surface (which roles ran and how many) built purely from the request output - the kind of data a dashboard would consume. +1 test (roles {designer:1, developer:2} with a malformed call excluded); role counting mutation-checked; existing summary tests updated for the added `roles` field. 1645/1645 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
       "commit": "feat(ai): break the multi-agent audit summary down by role"
+    },
+    {
+      "cycle": 219,
+      "target": "Full-suite regression after the multi-agent UI additions (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 216-218 (multi-agent audit summary + role breakdown in ChatMessages): 185 suites, 2363 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md through cycle 218.",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [

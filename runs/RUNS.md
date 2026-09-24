@@ -65,26 +65,27 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 | 212 | Script the parent while sub-agents reply plainly (mock routing) + multi-task example | `feat(scripts): route mock scripts to parent requests and add a multi-agent example` | green (gates) |
 | 213 | Deterministic multi-task studio lifecycle proven end-to-end | `chore(autonomous): deterministic multi-task studio lifecycle proof` | green (3-task lifecycle proof) |
 | 214 | Post-fix full-suite regression + run-log refresh (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
+| 215 | Real-model city-builder benchmark against local Ollama (Phase 5) | `chore(autonomous): record the real-model city-builder benchmark run` | green (real-model benchmark) |
+| 216 | Multi-agent audit summary in the chat (Tier 1 UI + Tier 2 audit) | `feat(ai): show a multi-agent audit summary in the chat` | green (audit line live) |
+| 217 | Count distinct sub-agents in the audit summary (dedupe by call_id) | `fix(ai): count distinct sub-agents in the audit summary` | green (gates) |
+| 218 | Role breakdown in the multi-agent audit summary (Tier 2) | `feat(ai): break the multi-agent audit summary down by role` | green (role breakdown live) |
+| 219 | Full-suite regression after the multi-agent UI additions (no change) | `chore(autonomous): full-suite regression and run-log refresh` | green (gates) |
 
-## Latest full-suite result (after cycle 214)
+## Latest full-suite result (after cycle 219)
 
-- `newIDE/app` full Jest: **185 suites, 2359 passed, 1 skipped, 114 snapshots, 0 failures**.
-- AI-surface subset: 1641 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
+- `newIDE/app` full Jest: **185 suites, 2363 passed, 1 skipped, 114 snapshots, 0 failures**.
+- AI-surface subset: 1645 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
 
-## Harness findings (cycles 155-214)
+## Harness findings (cycles 155-219)
 
 - Local Ollama `:11434` works; hosted `llm.heretek.one` 401 without `config.local.json`.
-- `scripts/dev/mock-ai-provider.js` (:11435) runs offline; `MOCK_SCRIPT` serves scripted
-  parent turns while sub-agents reply plainly.
-- **Fixed**: attribution-header CORS block; reasoning-stream progress; context-overflow
-  recovery on all turn paths; the plan-flip clobber (messageId reconciliation).
-- **Real-model benchmark succeeded (cycle 215)**: prompt-city.md against local Ollama
-  with a project open -> 4-task plan, 2 sub-agents (designer wrote GDD_ variables;
-  developer ran create_scene/objects/effects), plan tracked task_1 `done`, task_2
-  `in_progress`. Offline, no credentials.
-- **Deterministically proven (cycle 213)**: 3-task plan -> 3 sequential spawns -> reports ->
-  all tasks `done`, with no model or credentials.
-- **Model-behaviour**: the local model often stops after planning without delegating.
+- `scripts/dev/mock-ai-provider.js` (:11435): scripted parent turns, sub-agents reply plainly.
+- **Fixed**: attribution-header CORS block; reasoning-stream progress; context-overflow recovery
+  on all turn paths; the plan-flip clobber (messageId reconciliation); streamed tool-call
+  fragment coercion.
+- **Proven**: deterministic 3-task lifecycle (cycle 213); real-model 4-task benchmark with
+  2 sub-agents and correct plan tracking (cycle 215); multi-agent audit line with roles
+  (cycles 216-218).
 
 ## Gate definitions
 
