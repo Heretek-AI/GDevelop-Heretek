@@ -98,6 +98,15 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Per-agent report on demand (cycle 249): a finished row in the per-agent
+  dashboard is now clickable and reveals that sub-agent's own report (read by the
+  pure, tested `extractFunctionCallReport`, handling the studio `{message}`
+  object and JSON-string payloads, and rejecting machine payloads with no
+  message). This surfaces "what each agent did" without persisting child
+  transcripts. Verified live: the real benchmark chat's finished designer row
+  expanded to its report (`Report from the Designer: GDD written to project
+  variables …`); the still-working developer row stayed non-clickable;
+  screenshot /tmp/opencode/cycle249-agent-report.png.
 - Per-agent token totals survive a reload (cycle 248): the token meters are
   persisted under `gd-custom-ai-token-totals` (bounded, corrupt-entry safe) and
   reloaded at startup, so the per-agent audit dashboard keeps its figures after

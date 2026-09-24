@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 248,
+  "last_cycle": 249,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1462,14 +1462,20 @@
       "target": "Tier 2 observability: persist per-agent token totals so the audit dashboard survives a reload",
       "metric_delta": "Per-request token totals (sub-agent children included) were in-memory only, so a reloaded chat lost every figure the cycle-247 dashboard sums. Added a bounded, corrupt-entry-safe persisted map gd-custom-ai-token-totals (save on each turn via addTokenUsage, load at startup, pruned on delete, capped at 500 oldest-dropped), with loadLocalAiRequestTokenTotalsForTesting/recordLocalAiRequestTokenUsageForTesting exposed for tests. +4 specs (negative/string/null/bool rejected, corrupt payload tolerated, accumulation, cap at 500). Live-verified: seeded the real benchmark's two child totals, reloaded, and the expanded panel rendered 'designer ... ~1,234 tokens' and 'developer ... ~567 tokens' (summary '~1,801 sub-agent tokens'). Tests 1662 AI-surface (up from 1658); build green; ESLint/Prettier/divergence clean.",
       "commit": "feat(ai): persist per-agent token totals across reloads"
+    },
+    {
+      "cycle": 249,
+      "target": "Tier 1/2 multi-agent UI: reveal each finished sub-agent's report inline from the dashboard",
+      "metric_delta": "A finished row in the per-agent dashboard is now clickable and expands to that sub-agent's own report - the 'what did each agent do' half of a multi-agent panel, using data already in the parent transcript (no child persistence). Added the pure, tested extractFunctionCallReport (reads the studio {message} object, a JSON-string payload's message/report, and a plain-text report; returns null for empty values and for machine JSON/scalar payloads with no message - so a generic tool blob is never shown as prose), added `report` to SubAgentActivityRow/listSubAgentActivity (first-output-wins, matching call de-duplication), and made the panel render a truncated (<4000 chars) report. +8 specs (report shapes, still-working null, extract edge cases). Live-verified: the real benchmark chat's finished designer row expanded to its report text; the working developer row stayed non-clickable. Tests 1670 AI-surface (up from 1662); build green; ESLint/Prettier/divergence clean.",
+      "commit": "feat(ai): reveal each finished sub-agent's report inline in the dashboard"
     }
   ],
   "backlog": [
     "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent; a stronger model or an automatic continuation nudge (design as a small scheduler outside AI/CustomAIClient, which cannot import Studio/) would improve real-model completion.",
-    "Tier 1 UI (remaining): a multi-agent chat *switching* panel - open a sub-agent's own transcript. Blocked by design: sub-agent children are not persisted (saveLocalAiRequests excludes parentAiRequestId), so there is no stored transcript to switch to; would need child persistence + a retention policy. The per-agent *audit* dashboard shipped in cycle 247.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
     "Watch for the ubuntu-latest -> Ubuntu 26 runner migration notice (dated 2026-10-19); workflows are restored from local master by upstream-sync.",
-    "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued."
+    "Upstream community 3D PRs (#8343-#8349): cherry-pick only if upstream stalls (roadmap direction B). Strategic, not queued.",
+    "Tier 1 UI (remaining): true multi-agent chat switching (open a sub-agent's full transcript). The audit dashboard now shows per-agent role/status/tokens/report (cycles 247-249); a full transcript view still needs child-request persistence plus a retention policy, deliberately avoided so far. Reassess only if a user asks for the verbatim sub-agent conversation."
   ],
   "heuristics": [
     {
@@ -1670,6 +1676,7 @@
     "A recorded-but-unsent result is a loop: when a branch records an outcome with addEditorFunctionCallResults but the batch has no editor calls, it must also SEND it via onSendEditorFunctionCallResults, or the model never advances and the batch reprocesses until the loop guard trips. The harness caught this only through a role-denied-only batch (a case no spec covered).",
     "The agent loop's client guard (LoopGuard, repeatedToolLimit 8) and the harness's thrash signature (>=3 identical probes) are different things by design: the guard must avoid constraining legitimate long tasks, the audit flags early for human review. Do not 'align' them by lowering the guard.",
     "The sub-agent audit line is now an expandable dashboard; keep listSubAgentActivity the single source of truth for per-agent rows and derive summarizeSubAgentActivity/sumSubAgentTokens from it rather than re-walking the output.",
-    "Run Jest through `npm test` only: the package's test script is `react-app-rewired test --env=node`, and invoking `npx react-app-rewired test` without `--env=node` makes 21 CustomAIClient streaming specs fail with 'TextEncoder is not defined'. A bare-invocation failure is environmental, not a regression."
+    "Run Jest through `npm test` only: the package's test script is `react-app-rewired test --env=node`, and invoking `npx react-app-rewired test` without `--env=node` makes 21 CustomAIClient streaming specs fail with 'TextEncoder is not defined'. A bare-invocation failure is environmental, not a regression.",
+    "For a multi-agent UI, the sub-agent's report is already in the parent's output as a function_call_output (written by useStudioRuntime); surface that instead of persisting child transcripts. extractFunctionCallReport handles both the {message} object and JSON-string shapes."
   ]
 }

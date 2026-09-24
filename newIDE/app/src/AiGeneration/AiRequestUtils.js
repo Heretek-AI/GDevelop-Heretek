@@ -329,12 +329,49 @@ export type SubAgentActivityRow = {|
   relatedTaskId: string | null,
   status: 'working' | 'finished',
   tokens: number,
+  /** The sub-agent's report, when it has finished and the output is readable. */
+  report: string | null,
 |};
 
 /**
+ * The human-readable report carried by a finished sub-agent's
+ * `function_call_output`.
+ *
+ * The output is network-/model-adjacent data and is only type-asserted, and the
+ * report is written by two different paths: `useStudioRuntime` posts
+ * `{ message: 'Report from the …' }`, while a hosted server may post a JSON
+ * string. Read both, and fall back to the raw string so a report is never
+ * silently dropped. `null` when there is nothing readable.
+ */
+export const extractFunctionCallReport = (output: any): string | null => {
+  if (typeof output === 'string') {
+    const trimmed = output.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return extractFunctionCallReport(parsed);
+      }
+      // Parsed to a scalar/array: a machine payload, not a readable report.
+      return null;
+    } catch (ignored) {
+      // Not JSON: the string itself is the report.
+      return trimmed;
+    }
+  }
+  if (output && typeof output === 'object' && !Array.isArray(output)) {
+    if (typeof output.message === 'string' && output.message.trim())
+      return output.message;
+    if (typeof output.report === 'string' && output.report.trim())
+      return output.report;
+  }
+  return null;
+};
+
+/**
  * Per-agent rows for the audit dashboard: one row per spawned sub-agent, in
- * launch order, with its role, task link, live/finished status and its own
- * token meter.
+ * launch order, with its role, task link, live/finished status, its own token
+ * meter and its report once finished.
  *
  * `summarizeSubAgentActivity` answers "how many"; this answers "which ones" and
  * is the data layer the dashboard (and any future multi-agent panel) reads.
@@ -349,7 +386,7 @@ export const listSubAgentActivity = (
   getTokenTotal: string => number
 ): Array<SubAgentActivityRow> => {
   const output = (aiRequest && aiRequest.output) || [];
-  const answeredCallIds = new Set<string>();
+  const outputByCallId = new Map<string, any>();
   const firstCallByCallId = new Map<string, any>();
 
   for (const message of output) {
@@ -358,7 +395,10 @@ export const listSubAgentActivity = (
       message.type === 'function_call_output' &&
       typeof message.call_id === 'string'
     ) {
-      answeredCallIds.add(message.call_id);
+      // First output wins, matching the call de-duplication below.
+      if (!outputByCallId.has(message.call_id)) {
+        outputByCallId.set(message.call_id, message);
+      }
       continue;
     }
     if (
@@ -416,14 +456,18 @@ export const listSubAgentActivity = (
       if (typeof candidate === 'number' && Number.isFinite(candidate))
         tokens = candidate;
     }
+    const outputMessage = outputByCallId.get(callId);
     rows.push({
       callId,
       childId,
       role,
       shortTitle,
       relatedTaskId,
-      status: answeredCallIds.has(callId) ? 'finished' : 'working',
+      status: outputMessage ? 'finished' : 'working',
       tokens,
+      report: outputMessage
+        ? extractFunctionCallReport(outputMessage.output)
+        : null,
     });
   });
 

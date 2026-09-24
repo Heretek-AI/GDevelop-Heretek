@@ -13,10 +13,21 @@ type Props = {|
   rows: Array<SubAgentActivityRow>,
 |};
 
+/** Cap the inline report so one verbose agent cannot fill the whole chat. */
+const MAX_REPORT_LENGTH = 4000;
+const truncateReport = (report: string): string =>
+  report.length > MAX_REPORT_LENGTH
+    ? `${report.slice(0, MAX_REPORT_LENGTH)}\n…(truncated)`
+    : report;
+
 /**
  * The per-agent audit dashboard: the chat's one-line sub-agent summary, made
  * expandable into one row per spawned agent (role, task link, live/finished and
  * its own token meter).
+ *
+ * A finished row whose report is readable is itself clickable, revealing what
+ * the agent did - the sub-agent's own outcome, without having to persist (or
+ * navigate to) its transcript.
  *
  * `rows` comes from `listSubAgentActivity` (pure, tested); this component only
  * presents it, so the multi-agent activity is inspectable in the WebUI without
@@ -24,6 +35,9 @@ type Props = {|
  */
 export const SubAgentActivityPanel = ({ rows }: Props): React.Node => {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [expandedCallId, setExpandedCallId] = React.useState<string | null>(
+    null
+  );
   const gdevelopTheme = React.useContext(GDevelopThemeContext);
 
   if (rows.length === 0) return null;
@@ -85,34 +99,75 @@ export const SubAgentActivityPanel = ({ rows }: Props): React.Node => {
       </Line>
       {isExpanded && (
         <Column noMargin>
-          {rows.map(row => (
-            <Line noMargin key={row.callId}>
-              <div className={classes.statusIconFixed}>
-                {row.status === 'finished' ? (
-                  <Check
-                    fontSize="small"
-                    htmlColor={gdevelopTheme.message.valid}
-                  />
-                ) : (
-                  <div className={classes.filledCircle} />
+          {rows.map(row => {
+            const hasReport = row.status === 'finished' && !!row.report;
+            const isReportExpanded = expandedCallId === row.callId;
+            return (
+              <Column noMargin key={row.callId}>
+                <Line noMargin>
+                  <div className={classes.statusIconFixed}>
+                    {row.status === 'finished' ? (
+                      <Check
+                        fontSize="small"
+                        htmlColor={gdevelopTheme.message.valid}
+                      />
+                    ) : (
+                      <div className={classes.filledCircle} />
+                    )}
+                  </div>
+                  <div
+                    className={
+                      hasReport ? classes.rowClickable : classes.rowStatic
+                    }
+                    onClick={
+                      hasReport
+                        ? () =>
+                            setExpandedCallId(current =>
+                              current === row.callId ? null : row.callId
+                            )
+                        : undefined
+                    }
+                    role={hasReport ? 'button' : undefined}
+                    tabIndex={hasReport ? 0 : undefined}
+                    onKeyDown={
+                      hasReport
+                        ? e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setExpandedCallId(current =>
+                                current === row.callId ? null : row.callId
+                              );
+                            }
+                          }
+                        : undefined
+                    }
+                  >
+                    <Text
+                      noMargin
+                      displayInlineAsSpan
+                      size="body-small"
+                      color="secondary"
+                    >
+                      {`${row.role || 'agent'}${
+                        row.shortTitle ? `: ${row.shortTitle}` : ''
+                      }`}
+                      {row.relatedTaskId ? ` · ${row.relatedTaskId}` : ''}
+                      {row.tokens > 0
+                        ? ` · ≈${row.tokens.toLocaleString()} tokens`
+                        : ''}
+                    </Text>
+                  </div>
+                </Line>
+                {isReportExpanded && row.report && (
+                  <div className={classes.reportContainer}>
+                    <Text noMargin size="body-small" color="secondary">
+                      {truncateReport(row.report)}
+                    </Text>
+                  </div>
                 )}
-              </div>
-              <Text
-                noMargin
-                displayInlineAsSpan
-                size="body-small"
-                color="secondary"
-              >
-                {`${row.role || 'agent'}${
-                  row.shortTitle ? `: ${row.shortTitle}` : ''
-                }`}
-                {row.relatedTaskId ? ` · ${row.relatedTaskId}` : ''}
-                {row.tokens > 0
-                  ? ` · ≈${row.tokens.toLocaleString()} tokens`
-                  : ''}
-              </Text>
-            </Line>
-          ))}
+              </Column>
+            );
+          })}
         </Column>
       )}
     </Column>

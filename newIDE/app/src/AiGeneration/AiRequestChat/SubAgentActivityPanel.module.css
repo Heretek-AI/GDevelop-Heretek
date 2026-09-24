@@ -34,3 +34,24 @@
   border-radius: 50%;
   opacity: 0.7;
 }
+
+.rowStatic {
+  display: flex;
+  align-items: baseline;
+}
+
+.rowClickable {
+  display: flex;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.rowClickable:hover {
+  opacity: 0.8;
+}
+
+.reportContainer {
+  margin: 2px 0 4px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

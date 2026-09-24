@@ -29,6 +29,7 @@ import {
   summarizeSubAgentActivity,
   sumSubAgentTokens,
   listSubAgentActivity,
+  extractFunctionCallReport,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -1123,6 +1124,7 @@ describe('listSubAgentActivity', () => {
       relatedTaskId: 'task_1',
       status: 'finished',
       tokens: 0,
+      report: null,
     });
     expect(rows[1].status).toBe('working');
     expect(rows[1].role).toBe('developer');
@@ -1181,6 +1183,70 @@ describe('listSubAgentActivity', () => {
     expect(
       listSubAgentActivity((request: any), () => (NaN: any))[0].tokens
     ).toBe(0);
+  });
+
+  it('carries the finished report, reading the studio and JSON-string shapes', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+        makeSubAgentFunctionCall('c2', 'spawn_agent', 'sub-2'),
+      ]),
+      {
+        type: 'function_call_output',
+        call_id: 'c1',
+        output: { message: 'Report from the Designer:\n\nWrote the GDD.' },
+      },
+      {
+        type: 'function_call_output',
+        call_id: 'c2',
+        output: '{"message":"done"}',
+      },
+    ]);
+    const rows = listSubAgentActivity((request: any), () => 0);
+    expect(rows[0].report).toBe('Report from the Designer:\n\nWrote the GDD.');
+    expect(rows[1].report).toBe('done');
+  });
+
+  it('leaves the report null while a sub-agent is still working', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        makeSubAgentFunctionCall('c1', 'spawn_agent', 'sub-1'),
+      ]),
+    ]);
+    expect(listSubAgentActivity((request: any), () => 0)[0].report).toBeNull();
+  });
+});
+
+describe('extractFunctionCallReport', () => {
+  it('reads a studio message object', () => {
+    expect(extractFunctionCallReport({ message: 'hello' })).toBe('hello');
+  });
+
+  it('reads a nested JSON string', () => {
+    expect(extractFunctionCallReport('{"message":"hi"}')).toBe('hi');
+  });
+
+  it('reads a report field', () => {
+    expect(extractFunctionCallReport({ report: 'r' })).toBe('r');
+  });
+
+  it('falls back to the raw non-JSON string', () => {
+    expect(extractFunctionCallReport('plain report')).toBe('plain report');
+  });
+
+  it('does not surface a machine JSON payload as a report', () => {
+    expect(extractFunctionCallReport('{"success":true}')).toBeNull();
+    expect(extractFunctionCallReport('42')).toBeNull();
+    expect(extractFunctionCallReport('[1,2]')).toBeNull();
+  });
+
+  it('is null for empty / unsupported values', () => {
+    expect(extractFunctionCallReport('')).toBeNull();
+    expect(extractFunctionCallReport('   ')).toBeNull();
+    expect(extractFunctionCallReport(null)).toBeNull();
+    expect(extractFunctionCallReport(42)).toBeNull();
+    expect(extractFunctionCallReport([])).toBeNull();
+    expect(extractFunctionCallReport({ message: '   ' })).toBeNull();
   });
 });
 
