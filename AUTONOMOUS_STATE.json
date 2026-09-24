@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 209,
+  "last_cycle": 210,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1228,9 +1228,16 @@
       "target": "Attempt the full-loop run with a project created in-script",
       "metric_delta": "No code change. Extended the scripted-mock run to create a project first (initialize_project {template_slug:'empty'}) so project-requiring tools could run: initialize_project DID succeed live ('Initialized empty project (1 scene).'), proving the scripted path reaches and executes project-creation tools. create_or_update_plan still failed because the standalone Ask AI form does not host a project for the editor function map (the same 'No project opened.' gate), and the turn ended after that call, so the spawn turn was never reached. Conclusion recorded: exercising create_or_update_plan / the plan-task flip needs a PROJECT OPEN in the full editor container, not the standalone form; the orchestration core (dispatch -> child -> report write-back) is already deterministically proven (cycle 207). Config restored; mock stopped.",
       "commit": "chore(autonomous): record the in-script project-creation attempt"
+    },
+    {
+      "cycle": 210,
+      "target": "Full-project scripted loop reveals the plan task never flips to done",
+      "metric_delta": "REAL DEFECT FOUND by the deterministic harness. With a project open (HarnessTown) the scripted mock drove the full loop: create_or_update_plan SUCCEEDED (plan output, task 'design' pending), spawn_agent was stamped, a real child ran, and the child's report was written back to the spawn call ('Report from the Designer: ... The design task is complete.'). BUT the plan output still reads 'pending': the studio plan flip (buildPlanStatusUpdateOutput -> done) did not persist. Console shows '[studio] finalizing sub-agent ... for call call_spawn' and NO deferred/superseded log, so the gated write ran and was then CLOBBERED - the report send starts the parent's next model turn, and customAddMessageToAiRequest writes output built from the turn-start snapshot (still pending), overwriting the flipped plan message (same messageId, so the cache-only merge does not re-insert it). The gate serializes gated writes only; the model turn writes the cache directly and bypasses it. This explains why live runs never showed completed plan tasks. Recorded as the top Tier 1 defect with root cause; the fix (merge by messageId, cache wins for pre-existing messages) is broad and needs its own cycle. Also proven: a project must be opened BEFORE the chat starts, else the container unmounts mid-loop and stalls it.",
+      "commit": "docs(autonomous): record the plan-flip clobber found by the harness"
     }
   ],
   "backlog": [
+    "Tier 1 DEFECT (cycle 210): the studio plan task is never marked done. buildPlanStatusUpdateOutput is correct and its write runs, but the parent's next model turn rebuilds the request from the pre-flip snapshot and overwrites the flipped plan message; the cache-only merge cannot help because the messageId is unchanged. Fix by merging the turn's write with the latest cache by messageId (cache wins for messages that existed before the turn; the turn wins for messages it produced), with a regression test reproducing flip-then-stale-turn-write.",
     "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent, so the multi-agent delegation step needs either a stronger model or an automatic continuation nudge. A client-side nudge was assessed as architecturally invasive (the turn completes in AI/CustomAIClient, which cannot import Studio/ without a cycle) - design it as a small scheduler outside the client before implementing.",
     "UI build-out (Tier 1/2): a multi-agent chat switching panel and a per-agent audit dashboard. The data layer exists and is live-verified (customGetAiRequestProviderTelemetry + the chat's 'Provider response:' note); the dashboard still needs product direction and cannot be verified headless.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
@@ -1425,6 +1432,7 @@
     "A find-based python splice is unsafe when the same anchor text appears in more than one turn path (three near-identical send blocks here): the restore matched the wrong occurrence and spliced a function body into another. After such an edit, run eslint immediately; if it reports variables 'not defined' in a region you did not touch, the splice is wrong - revert the file to HEAD and re-apply each edit with its own unique anchor + lint check.",
     "A browser client can only read custom response headers from a cross-origin endpoint if the server lists them in Access-Control-Expose-Headers; a proxy advertising x-omniroute-* must expose them or the telemetry is invisible to the editor (proven live in cycle 202).",
     "Invariant-2 OSINT must be a real assessment, not a reflex swap: ajv is the maintained validator, but adopting it as a direct dependency for a hot-path per-tool-call check in the editor bundle costs more than the small, schema-driven, test-pinned bespoke validator it would replace. Record the reasoning so it is not re-opened each session.",
-    "In this build the standalone Ask AI form does not host a project for the editor function map, so project-requiring tools (create_or_update_plan, create_scene, ...) fail there even after initialize_project creates one; the editor container with a project open is required for those. initialize_project itself works standalone (EditorFunctionWithoutProject)."
+    "In this build the standalone Ask AI form does not host a project for the editor function map, so project-requiring tools (create_or_update_plan, create_scene, ...) fail there even after initialize_project creates one; the editor container with a project open is required for those. initialize_project itself works standalone (EditorFunctionWithoutProject).",
+    "Deterministic harness > model: scripted MOCK_SCRIPT turns exposed a studio defect (plan never flips to done) that model-dependent runs had hidden as 'model variance'. The write gate only serializes gated writes; the model turn writes the cache directly, so a gated write can still be clobbered by a turn's snapshot-based write."
   ]
 }
