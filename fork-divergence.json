@@ -194,6 +194,7 @@
     "scripts/dev/mock-ai-provider.js",
     "scripts/dev/mock-child-scripts.example.json",
     "scripts/dev/mock-script-multi.json",
+    "scripts/dev/mock-script-specialists.json",
     "scripts/dev/mock-script.example.json",
     "scripts/security/check-lockfiles.js",
     "scripts/sonarcloud-drift.js"

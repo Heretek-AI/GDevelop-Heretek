@@ -1,0 +1,24 @@
+[
+  {
+    "content": "Planning design and build.",
+    "toolCalls": [
+      { "id": "c_plan", "name": "create_or_update_plan", "arguments": { "tasks": [
+        { "id": "design", "title": "Design", "description": "Write GDD_Overview.", "status": "pending", "dependsOn": [] },
+        { "id": "build", "title": "Build", "description": "Build the scene.", "status": "pending", "dependsOn": ["design"] }
+      ] } }
+    ]
+  },
+  {
+    "content": "Delegating design.",
+    "toolCalls": [
+      { "id": "c_design", "name": "spawn_agent", "arguments": { "role": "designer", "short_title": "Design", "task": "Write GDD_Overview.", "related_task_id": "design" } }
+    ]
+  },
+  {
+    "content": "Delegating build.",
+    "toolCalls": [
+      { "id": "c_build", "name": "spawn_agent", "arguments": { "role": "developer", "short_title": "Build", "task": "Build the scene.", "related_task_id": "build" } }
+    ]
+  },
+  { "content": "Both tasks delegated and reported." }
+]

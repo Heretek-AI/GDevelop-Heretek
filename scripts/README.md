@@ -51,6 +51,9 @@ See [MAINTENANCE.md](../MAINTENANCE.md) for how these fit together.
     by the role named in the sub-agent's system prompt, consumed per role - see
     `dev/mock-child-scripts.example.json`. This lets a deterministic run script
     what each role does (e.g. a tool call) instead of one shared sequence.
+    `dev/mock-script-specialists.json` pairs with it: a 2-task plan (design ->
+    build) that spawns the designer then the developer; with a project open it
+    drives a full per-role specialist run offline (verified end-to-end, cycle 236).
 
 ## Documentation and translations
 

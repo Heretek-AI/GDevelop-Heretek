@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 236,
+  "last_cycle": 237,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1390,6 +1390,12 @@
       "target": "Deterministic per-role specialist flow with a project open (Tier 1/Tier 4)",
       "metric_delta": "MAJOR EVIDENCE. Using the cycle-235 per-role child scripts with a project open (HarnessTown), the mock drove a full specialist run offline: the manager planned design->build with a dependency, spawned the DESIGNER (whose per-role script first CALLED a tool - read_game_project_json, executed in the child - then reported) and the DEVELOPER (its own report), and the plan ended with BOTH tasks 'done'. Parent output confirms the reports written back verbatim: 'Report from the Designer: GDD_Overview written: a small harbor town.' and 'Report from the Developer: Implementation done: HarborTown scene and objects built.'. This is the first deterministic proof of PER-ROLE specialist behaviour (including a child tool execution) plus the plan lifecycle, with no model and no credentials. (Children are not persisted per cycle 222, so the evidence is the parent's stamped spawn calls + written-back reports.) Config restored, mock stopped.",
       "commit": "chore(autonomous): deterministic per-role specialist flow with a project open"
+    },
+    {
+      "cycle": 237,
+      "target": "Commit the reproducible specialist-flow scripts (Tier 4)",
+      "metric_delta": "The cycle-236 specialist flow used /tmp scripts that would be lost. Committed scripts/dev/mock-script-specialists.json (a 2-task design->build plan that spawns the designer then the developer) alongside the existing per-role child scripts, so the full offline per-role specialist run is reproducible from the repo: MOCK_SCRIPT=scripts/dev/mock-script-specialists.json MOCK_CHILD_SCRIPTS=scripts/dev/mock-child-scripts.example.json. Documented the pairing in scripts/README.md. Divergence +1 forkOnly (the example).",
+      "commit": "chore(scripts): commit the reproducible specialist-flow script"
     }
   ],
   "backlog": [
