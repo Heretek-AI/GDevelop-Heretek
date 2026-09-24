@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 220,
+  "last_cycle": 221,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1294,9 +1294,16 @@
       "target": "Per-agent token accounting, surfaced in the audit line (Tier 2)",
       "metric_delta": "Sub-agent turns billed tokens only to the parent chat, so per-agent usage was not auditable. Each sub-agent turn now ALSO records its tokens under its own id (customGetAiRequestTokenTotal(childId)), with the parent attribution unchanged, and the chat's audit line shows the summed sub-agent tokens. LIVE-OBSERVED: '3 sub-agents (1 designer, 1 developer, 1 tester): 3 finished . ~11,359 sub-agent tokens' with the scripted mock. This completes the objective's per-agent audit data model (which roles, how many, finished/running, and now per-agent tokens) and surfaces it. +1 test (child AND parent totals > 0 after a sub-agent turn), mutation-checked (removing the child attribution yields 0). 1646/1646 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean.",
       "commit": "feat(ai): bill sub-agent tokens to the sub-agent and show them"
+    },
+    {
+      "cycle": 221,
+      "target": "Clear a request's provider telemetry on delete (registry consistency)",
+      "metric_delta": "customDeleteAiRequest cleared every per-request registry except localAiRequestProviderTelemetry (added in cycle 192), so a deleted chat left its telemetry entry behind. Now cleared like its siblings. +1 test (create with a telemetry header -> delete -> customGetAiRequestProviderTelemetry(id) is null), mutation-checked (the entry persisted without the delete). 1647/1647 across 81 suites, eslint+prettier clean, divergence clean. Noted for a future cycle: deleting a PARENT request does not delete its sub-agent child requests from the cache; assess whether that leaks orphans into history.",
+      "commit": "fix(ai): clear a request's provider telemetry when deleted"
     }
   ],
   "backlog": [
+    "Assess whether customDeleteAiRequest should also delete a request's sub-agent child requests (they stay in localAiRequestsCache after the parent is deleted). Confirm whether customGetAiRequests/history filters them out before treating it as a leak.",
     "Tier 1/2 UI build-out remains: a multi-agent chat switching panel and a per-agent audit dashboard (the telemetry data layer + chat note are live-verified). Needs product direction.",
     "Model-compliance (Tier 1): the local deepseek-v4.1-flash:cloud often plans/inspects then stops without calling spawn_agent, so the multi-agent delegation step needs either a stronger model or an automatic continuation nudge. A client-side nudge was assessed as architecturally invasive (the turn completes in AI/CustomAIClient, which cannot import Studio/ without a cycle) - design it as a small scheduler outside the client before implementing.",
     "UI build-out (Tier 1/2): a multi-agent chat switching panel and a per-agent audit dashboard. The data layer exists and is live-verified (customGetAiRequestProviderTelemetry + the chat's 'Provider response:' note); the dashboard still needs product direction and cannot be verified headless.",

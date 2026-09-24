@@ -4736,6 +4736,7 @@ export const customDeleteAiRequest = (aiRequestId: string): void => {
   delete localAiRequestContextTokens[aiRequestId];
   delete localAiRequestModelOverrides[aiRequestId];
   delete localAiRequestPartialContent[aiRequestId];
+  delete localAiRequestProviderTelemetry[aiRequestId];
   delete localAiTurnTails[aiRequestId];
   saveLocalAiRequests();
 };

@@ -1433,6 +1433,34 @@ describe('CustomAIClient', () => {
       }
     });
 
+    it("clears a request's telemetry when it is deleted", async () => {
+      // Every other per-request registry is cleared on delete; telemetry was
+      // missed, so a deleted chat left its entry behind forever.
+      setCustomEndpointConfig({
+        enabled: true,
+        baseUrl: 'http://localhost:11434/v1',
+        apiKey: '',
+        model: 'llama3.2',
+        temperature: 0.7,
+      });
+      // $FlowFixMe
+      axios.post.mockResolvedValueOnce({
+        status: 200,
+        headers: { 'x-omniroute-latency-ms': '55' },
+        data: { choices: [{ message: { role: 'assistant', content: 'ok' } }] },
+      });
+      const created = await customCreateAiRequest({
+        userRequest: 'telemetry cleanup',
+        mode: 'chat',
+      });
+      expect(customGetAiRequestProviderTelemetry(created.id)).toEqual(
+        expect.objectContaining({ latencyMs: 55 })
+      );
+
+      customDeleteAiRequest(created.id);
+      expect(customGetAiRequestProviderTelemetry(created.id)).toBeNull();
+    });
+
     it('parses telemetry into numbers and stores it per request', async () => {
       // The auditing data layer: the console line existed but nothing was
       // inspectable from React state. parseProviderTelemetry is stored against
