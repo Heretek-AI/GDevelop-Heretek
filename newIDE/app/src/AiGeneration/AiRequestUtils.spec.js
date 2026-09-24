@@ -1043,6 +1043,30 @@ describe('summarizeSubAgentActivity', () => {
     expect(summary.roles).toEqual({ designer: 1, developer: 2 });
   });
 
+  it('keeps a prototype-named role as a normal key (no pollution)', () => {
+    const request = makeAiRequest([
+      makeAssistantMessage([
+        {
+          type: 'function_call',
+          status: 'completed',
+          call_id: 'c1',
+          name: 'spawn_agent',
+          arguments: JSON.stringify({
+            role: '__proto__',
+            short_title: 'T',
+            task: 'D.',
+          }),
+          subAgentAiRequestId: 'sub-1',
+        },
+      ]),
+    ]);
+    const summary = summarizeSubAgentActivity((request: any));
+    expect(Object.keys(summary.roles)).toEqual(['__proto__']);
+    expect(Object.getPrototypeOf(summary.roles)).toBe(null);
+    // Object.prototype was not touched.
+    expect(({}: any).__proto__).toBe(Object.prototype);
+  });
+
   it('is all zero for a request with no sub-agents', () => {
     const request = makeAiRequest([
       makeAssistantMessage([makeFunctionCall('c1', 'create_scene')]),

@@ -296,7 +296,9 @@ export const summarizeSubAgentActivity = (aiRequest: {
   }
   // Role breakdown for the audit summary, read from the spawn arguments. A
   // malformed call simply counts as no role.
-  const roles = {};
+  // Null-prototype so a model-authored role string like '__proto__' or
+  // 'constructor' becomes a normal key instead of touching Object.prototype.
+  const roles = Object.create(null);
   firstCallByCallId.forEach(call => {
     let role = null;
     try {

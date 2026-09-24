@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 232,
+  "last_cycle": 233,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1366,6 +1366,12 @@
       "target": "Extract the per-agent token sum into the tested leaf",
       "metric_delta": "The audit line's per-agent token total was an inline IIFE in ChatMessages (component, untestable). Extracted sumSubAgentTokens(aiRequest, getTokenTotal) into AiRequestUtils - pure, dedupes by child id, ignores missing/non-finite totals, and takes the registry read as an injected getter so the module stays spec-loadable. ChatMessages now calls it. +2 tests (multi-child with a duplicate -> 150; NaN/absent -> 0), dedupe mutation-checked (250 vs 150). 1651/1651 across 81 suites (was 1649), eslint+prettier clean, production build exit 0, divergence clean.",
       "commit": "refactor(ai): extract the per-agent token sum to the tested leaf"
+    },
+    {
+      "cycle": 233,
+      "target": "Prototype-safe role aggregation in the audit summary",
+      "metric_delta": "summarizeSubAgentActivity aggregated roles into a plain object, and the role string is model-authored: a role named '__proto__' would be an assignment to the prototype (dropped, so the key silently vanished) and 'constructor' would shadow, not aggregate, a key. The map is now Object.create(null), so any role name becomes a normal key and Object.prototype is never touched; the chat's Object.keys(roles) reads it unchanged. +1 test ('__proto__' role -> Object.keys ['__proto__'], null prototype, Object.prototype untouched), mutation-checked (plain {} makes the key vanish). 1652/1652 across 81 suites, eslint+prettier clean, divergence clean. Library+test only (ChatMessages already computed the token sum once from cycle 232); no build needed.",
+      "commit": "fix(ai): make the audit summary's role map prototype-safe"
     }
   ],
   "backlog": [
