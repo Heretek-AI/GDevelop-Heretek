@@ -83,8 +83,8 @@ work; `endpoint` is the AI endpoint under test for that cycle.
 
 ## Latest full-suite result (after cycle 229)
 
-- `newIDE/app` full Jest: **185 suites, 2366 passed, 1 skipped, 114 snapshots, 0 failures**.
-- AI-surface subset: 1648 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
+- `newIDE/app` full Jest: **185 suites, 2370 passed, 1 skipped, 114 snapshots, 0 failures**.
+- AI-surface subset: 1652 passed. Production build: exit 0. Lint/Prettier/divergence: clean.
 
 ## Fixed defects (cycles 155-229)
 - Local-first CORS block (attribution headers rejected by Ollama preflight).

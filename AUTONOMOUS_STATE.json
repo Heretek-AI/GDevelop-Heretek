@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 237,
+  "last_cycle": 238,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1396,6 +1396,12 @@
       "target": "Commit the reproducible specialist-flow scripts (Tier 4)",
       "metric_delta": "The cycle-236 specialist flow used /tmp scripts that would be lost. Committed scripts/dev/mock-script-specialists.json (a 2-task design->build plan that spawns the designer then the developer) alongside the existing per-role child scripts, so the full offline per-role specialist run is reproducible from the repo: MOCK_SCRIPT=scripts/dev/mock-script-specialists.json MOCK_CHILD_SCRIPTS=scripts/dev/mock-child-scripts.example.json. Documented the pairing in scripts/README.md. Divergence +1 forkOnly (the example).",
       "commit": "chore(scripts): commit the reproducible specialist-flow script"
+    },
+    {
+      "cycle": 238,
+      "target": "Full-suite regression after the 230-237 changes (no change)",
+      "metric_delta": "No code change. Ran the FULL newIDE/app Jest suite after cycles 230-237 (network retry, token-sum extraction, prototype-safe roles, reused finalization check, harness scripts): 185 suites, 2370 passed, 1 skipped, 114 snapshots, 0 failures. Refreshed runs/RUNS.md latest-result line.",
+      "commit": "chore(autonomous): full-suite regression and run-log refresh"
     }
   ],
   "backlog": [
