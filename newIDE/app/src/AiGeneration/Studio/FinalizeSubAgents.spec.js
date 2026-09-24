@@ -704,3 +704,30 @@ describe('parentHasOutputForCall', () => {
     ).toBe(false);
   });
 });
+
+describe('null holes in the sub-agent output', () => {
+  // buildSubAgentReport and the tail of isSubAgentFinished read message.type
+  // over the child output with no null guard: a persisted hole threw while
+  // finalizing, so the parent never got the report.
+  it('isSubAgentFinished skips null messages', () => {
+    expect(
+      isSubAgentFinished({
+        subAgentRequest: makeSubAgent({
+          output: [assistantMessage('Done.'), null],
+        }),
+        editorFunctionCallResults: null,
+      })
+    ).toBe(true);
+  });
+
+  it('buildSubAgentReport skips null messages and still reports', () => {
+    expect(
+      buildSubAgentReport(
+        makeSubAgent({ output: [null, assistantMessage('All built.')] })
+      )
+    ).toContain('All built.');
+    expect(buildSubAgentReport(makeSubAgent({ output: [null] }))).toBe(
+      '(no report)'
+    );
+  });
+});

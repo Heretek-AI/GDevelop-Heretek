@@ -135,7 +135,7 @@ export const isSubAgentFinished = ({
   // transcript yet: finalizing now would drop the child's real wrap-up forever.
   const writtenBackCallIds = new Set(
     (subAgentRequest.output || [])
-      .filter(message => message.type === 'function_call_output')
+      .filter(message => message && message.type === 'function_call_output')
       .map(message => (message: any).call_id)
   );
   if (
@@ -199,6 +199,7 @@ export const buildSubAgentReport = (
   let core = '(no report)';
   for (let i = output.length - 1; i >= 0; i--) {
     const message = output[i];
+    if (!message || typeof message !== 'object') continue;
     if (message.type !== 'message' || message.role !== 'assistant') continue;
     // A sub-agent message from the server may lack its content array; the
     // report falls back to the message's own `text` field below.
@@ -227,6 +228,7 @@ export const buildSubAgentReport = (
   const failedMessages = output
     .filter(
       message =>
+        message &&
         message.type === 'function_call_output' &&
         (message: any).success === false
     )
