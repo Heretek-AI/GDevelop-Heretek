@@ -1,6 +1,6 @@
 {
   "engine_version": "1.0.0",
-  "last_cycle": 158,
+  "last_cycle": 159,
   "completed_targets": [
     {
       "cycle": 75,
@@ -915,6 +915,12 @@
       "target": "Fan-out cap counts live children, not lifetime spawns (studio delegation)",
       "metric_delta": "Backlog #150 Tier-1 defect: existingChildCount counted every stored child with the parent id, but finished sub-agents stay in storage (removeSubAgent only clears the watch list) - so the 'live children' cap was a lifetime cap: after 8 spawns ever, no later task could delegate. Failed spawns also consumed budget though spawnSubAgent creates no child on error (verified: error return precedes onStamped). Fixed: pure countLiveSubAgentsForParent in SpawnSubAgents.js (launched+stamped, unanswered, still stored; null-tolerant) wired into the dispatcher, and spawnedThisBatch++ moved to the success branch. 4 new tests, both filter guards mutation-checked individually (revert answered-check: finished counted; revert existence-check: pruned counted). 1504/1504 across 68 suites (was 1500), eslint clean, Flow 870 with-changes vs 870 stashed-HEAD (847 baseline drift is pre-existing), divergence clean. The increment move is contract-verified (error implies no child per spawnSubAgent 175-210), not unit-covered: the dispatcher lives in a hook whose module imports three.js.",
       "commit": "fix(ai): count live sub-agents against the spawn fan-out cap"
+    },
+    {
+      "cycle": 159,
+      "target": "Pin the BYOK unlock net: hasValidSubscriptionPlan + UNLOCKED seeds spec",
+      "metric_delta": "Backlog #150 invariant-1 gap: zero spec coverage on the fork's existential unlock - an upstream sync restoring a real check in hasValidSubscriptionPlan would silently re-paywall everything with no test signal. Added a BYOK-unlock describe to the existing Usage.spec.js (restored after a write-tool clobber of the canBenefitFromSocialRole suite - appended instead): unconditional grant across 6 subscription shapes incl. the no-arg call, seed identity (local-byok-user/gdevelop_startup/HERETEK_UNLOCKED), and the boolean/enum capability gates downstream reads. Mutation-checked: upstream-style `!!subscription && !!subscription.planId` fails the grant test; source restored byte-identical. 1565/1565 across 77 suites (was 1504/68-pattern; +3 net new here, +61 from widened GDevelopServices pattern), eslint+prettier clean, divergence +1 modified (Usage.spec.js, surgical --update, baseline unchanged). Context wiring (seeds as initial+logged-out defaults, 999999 credits) verified by inspection - that file imports React and cannot load in a spec.",
+      "commit": "test(paywall): pin the BYOK unlock grant and seeds"
     }
   ],
   "backlog": [
@@ -1096,6 +1102,7 @@
     "EditorFunctionCallRunner strips meta from the model-visible output (only didModifyProject/newSceneNames are consumed) - anything the model must read (e.g. run_script guidance) must ride top-level on the return, not in meta. Caught pre-commit: guidance was computed but dropped.",
     "A guard on the container does not guard the elements: Array.isArray(msg.content) plus a msg null-check still throws when an ELEMENT is null (item.type, fc.id, fco.callId). normalizePersistedMessages passes inner entries through, so every inner loop over persisted/network arrays needs its own skip-non-object - and each guard needs its own mutation check, because one combined test stops at the first throw and proves only that guard.",
     "When a search runs backward (getLatestActivePlan from the end), a null-hole test only discriminates if the hole is visited before the match - null-last, not null-first. More generally: place the poison where the code actually walks, or the test passes on broken code.",
-    "A cap over stored entities must define live vs dead explicitly: finished sub-agents stay in storage (history) while the watch list is what actually retires - counting the storage map bounds lifetime, not concurrency. Match the retirement condition (function_call_output for the call) when computing liveness."
+    "A cap over stored entities must define live vs dead explicitly: finished sub-agents stay in storage (history) while the watch list is what actually retires - counting the storage map bounds lifetime, not concurrency. Match the retirement condition (function_call_output for the call) when computing liveness.",
+    "The write tool overwrites: it clobbered an existing Usage.spec.js (canBenefitFromSocialRole suite) that a name-grep had suggested did not exist - the grep only proved no spec MENTIONED the unlock strings. Always `git status`/read before writing a 'new' spec file; when burned, restore from git and append via edit."
   ]
 }

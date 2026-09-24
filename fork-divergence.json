@@ -111,6 +111,7 @@
     "newIDE/app/src/Utils/GDevelopServices/Authentication.js",
     "newIDE/app/src/Utils/GDevelopServices/Generation.js",
     "newIDE/app/src/Utils/GDevelopServices/Usage.js",
+    "newIDE/app/src/Utils/GDevelopServices/Usage.spec.js",
     "newIDE/electron-app/app/main.js",
     "newIDE/electron-app/app/package-lock.json",
     "newIDE/electron-app/app/package.json",
