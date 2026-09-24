@@ -35,7 +35,10 @@ import {
   PERIODIC_APP_UPDATES_TIMEOUT,
 } from '../../Utils/GlobalFetchTimeouts';
 import { setCustomEndpointConfig } from '../../AI/CustomAIClient';
-import { getPersistablePreferences } from './PreferencesStorage';
+import {
+  getPersistablePreferences,
+  mergeStoredPreferencesWithDefaults,
+} from './PreferencesStorage';
 const electron = optionalRequire('electron');
 const ipcRenderer = electron ? electron.ipcRenderer : null;
 
@@ -53,35 +56,13 @@ export const loadPreferencesFromLocalStorage = (): ?PreferencesValues => {
     const persistedState = localStorage.getItem(localStorageItem);
     if (!persistedState) return null;
 
-    const values = JSON.parse(persistedState);
-
-    // "Migrate" non existing properties to their default values
-    // (useful when upgrading the preferences to a new version where
-    // a new preference was added).
-    for (const key in initialPreferences.values) {
-      if (
-        initialPreferences.values.hasOwnProperty(key) &&
-        typeof values[key] === 'undefined'
-      ) {
-        // $FlowFixMe[invalid-computed-prop]
-        values[key] = initialPreferences.values[key];
-      }
-    }
-
-    // Migrate renamed themes.
-    if (values.themeName === 'GDevelop default') {
-      values.themeName = 'GDevelop default Light';
-    } else if (values.themeName === 'Dark') {
-      values.themeName = 'Blue Dark';
-    }
-
-    if (typeof values.showDeprecatedInstructionWarning === 'boolean') {
-      values.showDeprecatedInstructionWarning = values.showDeprecatedInstructionWarning
-        ? 'icon'
-        : 'no';
-    }
-
-    return values;
+    // Backfill missing keys with defaults and apply the stored-value
+    // migrations. The merge lives in PreferencesStorage so its contract
+    // (backfill undefined only; never clobber a present value) is unit-tested.
+    return mergeStoredPreferencesWithDefaults(
+      JSON.parse(persistedState),
+      initialPreferences.values
+    );
   } catch (e) {
     return null;
   }

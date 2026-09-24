@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 186,
+  "last_cycle": 187,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1090,6 +1090,12 @@
       "target": "Cover the prompt builder and per-chat config resolver (Tier 1)",
       "metric_delta": "The export scan found buildSystemPrompt (shapes every turn's prompt, including the role header) and getEffectiveConfigForRequest (merges the per-chat model override over the global config) had no direct tests. +4 tests: shared vs role prompt; unrecognized persisted role falls back instead of throwing; project structure/extensions/spawn context appended; config resolution global -> override -> another chat unaffected -> cleared. Role-fallback mutation-checked (naive getStudioRole throws 'Unknown studio role: legacy-role'). 1617/1617 across 80 suites (was 1613), eslint+prettier clean, divergence clean.",
       "commit": "test(ai): cover the prompt builder and config resolver"
+    },
+    {
+      "cycle": 187,
+      "target": "Unit-test the preferences backfill by extracting it to the tested leaf",
+      "metric_delta": "loadPreferencesFromLocalStorage's merge (backfill missing keys from defaults, theme renames, deprecated-warning tri-state) lived in the untestable PreferencesProvider (React/Electron/core). Extracted to the existing PreferencesStorage leaf as mergeStoredPreferencesWithDefaults and wired the provider to it; +6 tests pin the contract earlier cycles relied on - a MISSING key is backfilled, a PRESENT key is kept even when falsy/wrong-typed (the app validates at point of use), unknown keys survive, input not mutated, both theme renames, the tri-state mapping, and null for a non-object stored value. Backfill rule and theme migration each mutation-checked. Provider change verified live by the dev-server watcher (compiled successfully, no issues) plus the 81-suite run. 1626/1626 across 81 suites (was 1617), eslint+prettier clean, divergence clean.",
+      "commit": "refactor(preferences): extract the stored-preferences merge to the tested leaf"
     }
   ],
   "backlog": [
