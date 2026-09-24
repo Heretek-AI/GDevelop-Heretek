@@ -98,6 +98,16 @@ work; `endpoint` is the AI endpoint under test for that cycle.
   looping until the guard tripped (cycles 239-241)..
 
 ## Proven workflows
+- Harness fix: live requests keep processing after losing selection (cycle 255):
+  the dispatcher only processed `[selectedRequest, ...activeSubAgents]`, so a
+  request deselected mid-run (e.g. by `initialize_project`; feedback-loop Run 4)
+  had its pending calls stall. It now also processes a fresh (<3 min) local
+  top-level request that still has pending calls, via the pure, tested
+  `getUnselectedActiveRequests`; `onSendMessage` falls back to the client cache
+  for a local request not yet in React state. Verified with a seeded unselected
+  request: it was processed (`Automatically processing… local-ai-deselect-test`),
+  planned, spawned a sub-agent, and reached 8 messages without being selected;
+  screenshot /tmp/opencode/cycle255-deselect-fix.png.
 - `@feedback-loop` end-to-end against the hosted proxy (cycle 254): ran the
   actual skill with `config.local.json` (key read by a localhost-only helper the
   page fetched, so it never entered an agent command/log; Preferences form

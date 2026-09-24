@@ -543,7 +543,70 @@ export const summarizeSubAgentTranscript = (
 };
 
 export const isUserMessage = (message: any): boolean =>
-  !!message && message.type === 'message' && message.role === 'user';
+  !!message &&
+  typeof message === 'object' &&
+  message.type === 'message' &&
+  message.role === 'user';
+
+/** How recently an unselected request must have changed to keep being processed. */
+export const UNSELECTED_ACTIVE_WINDOW_MS = 3 * 60 * 1000;
+
+/** Cap on extra requests processed per render, so a busy cache cannot stall the loop. */
+export const MAX_UNSELECTED_ACTIVE_REQUESTS = 4;
+
+/**
+ * Local, top-level requests that must keep being processed even though they are
+ * not the selected chat.
+ *
+ * The dispatcher only processes `[selectedRequest, ...activeSubAgents]`, so a
+ * request that a user switches away from - or that a mid-run `initialize_project`
+ * deselects - has its pending function calls stall forever (see feedback-loop
+ * Run 4). This returns the ones that are unambiguously still live: changed
+ * within `freshnessWindowMs` (so an old abandoned chat is never resumed), local
+ * (never the hosted backend), not suspended/errored, and with a call still to
+ * process. Pure and injectable for a spec.
+ */
+export const getUnselectedActiveRequests = ({
+  aiRequests,
+  excludeIds,
+  getEditorFunctionCallResults,
+  now,
+  freshnessWindowMs,
+  maxCount,
+}: {|
+  aiRequests: { [string]: AiRequest },
+  excludeIds: Set<string>,
+  getEditorFunctionCallResults: (
+    aiRequestId: string
+  ) => Array<EditorFunctionCallResult> | null,
+  now: number,
+  freshnessWindowMs: number,
+  maxCount: number,
+|}): Array<AiRequest> => {
+  const result: Array<AiRequest> = [];
+  const requests = aiRequests || {};
+  for (const id of Object.keys(requests)) {
+    if (result.length >= maxCount) break;
+    if (excludeIds.has(id)) continue;
+    const request = requests[id];
+    if (!request || request.parentAiRequestId) continue;
+    if (typeof id !== 'string' || !id.startsWith('local-ai-')) continue;
+    if (request.status === 'suspended' || request.status === 'error') continue;
+    const updatedAt = Date.parse(request.updatedAt || '');
+    if (!Number.isFinite(updatedAt) || now - updatedAt > freshnessWindowMs) {
+      continue;
+    }
+    const hasPendingCall =
+      getFunctionCallsToProcess({
+        aiRequest: request,
+        editorFunctionCallResults: getEditorFunctionCallResults(id),
+      }).length > 0 ||
+      getPendingSubAgentFunctionCalls({ aiRequest: request }).length > 0;
+    if (!hasPendingCall) continue;
+    result.push(request);
+  }
+  return result;
+};
 
 export const getFunctionCallToFunctionCallOutputMap = ({
   aiRequest,

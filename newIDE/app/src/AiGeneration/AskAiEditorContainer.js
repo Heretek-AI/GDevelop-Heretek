@@ -49,6 +49,8 @@ import {
 import {
   isCustomEndpointEnabled,
   customAbortPendingCreateAiRequests,
+  loadLocalAiRequests,
+  customGetAiRequest,
   LOCAL_BYOK_USER_ID,
 } from '../AI/CustomAIClient';
 import { retryIfFailed } from '../Utils/RetryIfFailed';
@@ -62,6 +64,9 @@ import {
   canStartAiRequestCreate,
   getFunctionCallOutputsFromEditorFunctionCallResults,
   getFunctionCallsToProcess,
+  getUnselectedActiveRequests,
+  UNSELECTED_ACTIVE_WINDOW_MS,
+  MAX_UNSELECTED_ACTIVE_REQUESTS,
   shouldFetchAiRequestOnTabOpen,
 } from './AiRequestUtils';
 import { type EditorFunctionCallResult } from '../EditorFunctions';
@@ -840,7 +845,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
 
           const activeUserId = profile ? profile.id : LOCAL_BYOK_USER_ID;
 
-          const aiRequestForMessage = aiRequests[aiRequestId];
+          const aiRequestForMessage =
+            aiRequests[aiRequestId] ||
+            // A local request that is being processed from the background (it
+            // lost selection but still had pending calls) may not be in the
+            // React state yet; the client cache is its source of truth.
+            (aiRequestId.startsWith('local-ai-')
+              ? customGetAiRequest(aiRequestId)
+              : null);
           if (!aiRequestForMessage) return;
 
           if (isSendingAiRequest(aiRequestId)) {
@@ -1137,24 +1149,48 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
       );
 
       /**
-       * Collect all AI requests to process: the selected request, and all sub-agent requests.
+       * Collect all AI requests to process: the selected request, all sub-agent
+       * requests, plus any just-active local request that lost selection.
        */
       const aiRequestsToProcess = React.useMemo(
         () => {
           const result = [];
+          const includedIds = new Set();
           if (selectedAiRequest) {
             result.push(selectedAiRequest);
+            includedIds.add(selectedAiRequest.id);
           }
           const subAgentIds = Object.keys(activeSubAgents);
           for (const subAgentId of subAgentIds) {
             const subAgentRequest = aiRequests[subAgentId];
-            if (subAgentRequest) {
+            if (subAgentRequest && !includedIds.has(subAgentId)) {
               result.push(subAgentRequest);
+              includedIds.add(subAgentId);
             }
           }
-          return result;
+          // Keep a just-active local request moving even when it is no longer
+          // the selected chat: otherwise its pending function calls stall (see
+          // feedback-loop Run 4 - a mid-run initialize_project deselected the
+          // chat). The candidate set is the client cache, not the React state:
+          // an unselected request is not in `aiRequests` until it is fetched,
+          // but its live pending call is exactly the one that must run.
+          // Freshness-bounded so an old abandoned chat is never resumed.
+          const extraRequests = getUnselectedActiveRequests({
+            aiRequests: { ...loadLocalAiRequests(), ...aiRequests },
+            excludeIds: includedIds,
+            getEditorFunctionCallResults,
+            now: Date.now(),
+            freshnessWindowMs: UNSELECTED_ACTIVE_WINDOW_MS,
+            maxCount: MAX_UNSELECTED_ACTIVE_REQUESTS,
+          });
+          return result.concat(extraRequests);
         },
-        [selectedAiRequest, activeSubAgents, aiRequests]
+        [
+          selectedAiRequest,
+          activeSubAgents,
+          aiRequests,
+          getEditorFunctionCallResults,
+        ]
       );
 
       const {

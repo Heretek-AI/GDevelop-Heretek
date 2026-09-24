@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 254,
+  "last_cycle": 255,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1498,10 +1498,15 @@
       "target": "Phase 5: run the actual @feedback-loop skill end-to-end against the hosted endpoint",
       "metric_delta": "Ran the real skill (config.local.json found in the skill dir, not the repo root): key read by a localhost-only helper the page fetched so it never entered an agent command/log; Preferences form filled (Base URL + model + key), Test Connection OK, footer 'BYOK: opencode-zen/deepseek-v4.1-flash'. Sent prompt-city.md verbatim. Model progress: recon 2 -> plan 4 tasks -> design (spawn task_1, designer 20 msgs) -> build (spawn task_2, developer 79 msgs / 44 calls). Provider 45 completions, 44x200, 0x5xx. The fork's plan/delegation-taskId/child-transcript/token-meter all correct and visible; nudgeCount 0 (no stall). Two harness causes: (a) initialize_project mid-run re-created the project and dropped chat selection, stalling the pending create_or_update_plan until re-selected (selected-request-only processing); (b) change_behavior_property reports 'nothing changed' for every name variant. Wrote Run 4 + verdict to the skill's runs/RUNS.md and added the 'keep the running chat selected' workaround to the skill's SKILL.md. No repo code change this cycle.",
       "commit": "docs(autonomous): run @feedback-loop end-to-end against the hosted proxy"
+    },
+    {
+      "cycle": 255,
+      "target": "Tier 4 harness fix: keep a live local request processing after it loses selection",
+      "metric_delta": "Fixed the stall found by feedback-loop Run 4: the dispatcher only processes [selectedRequest, ...activeSubAgents], so a request deselected mid-run (a mid-run initialize_project re-creates the project and drops the selection) had its pending function calls stall forever. Added the pure, tested getUnselectedActiveRequests (fresh <3min, local top-level, not suspended/error, with a pending call; capped at 4) and wired it into AskAiEditorContainer's aiRequestsToProcess from the client cache (an unselected request is not in React state). onSendMessage now falls back to customGetAiRequest for a local request not yet in state (it previously returned early, so results were 'not sent' and the loop guard tripped an error storm). +9 specs (1709 AI-surface / 83 suites, up from 1697). Verified live with a seeded UNselected request carrying a pending call: the console showed 'Automatically processing AI function calls for request local-ai-deselect-test', it planned, spawned a sub-agent (finalized), and reached 8 messages - all while a different chat was selected. Build green; ESLint/Prettier/divergence clean. Updated the skill's SKILL.md workaround to note the self-recovery.",
+      "commit": "fix(ai): keep a live local request processing after it loses selection"
     }
   ],
   "backlog": [
-    "Harness fix (from feedback-loop Run 4): a live local request's pending function calls are processed only while it is the selected chat, so switching chats (or a mid-run initialize_project) stalls it. Options: keep processing a request that is actively watched/has pending calls even when not selected (guard against unrelated stale chats), or auto-re-select after initialize_project. Needs a spec + mutation check.",
     "Harness fix candidate (from feedback-loop Run 4): change_behavior_property reports 'nothing changed' for every property-name variant the developer tried; make the accepted property names discoverable (tool description / aliases / an error that lists valid names) + a spec.",
     "Tier 1 orchestration (follow-up to cycle 250): the nudge resumes a stalled manager, but the manager prompt itself could be tightened and a stronger local model still delegates more reliably; consider measuring the nudge's real-model effect with the prompt-city benchmark.",
     "Harness: the committed scripts/dev/mock-ai-provider.js lets @feedback-loop run offline; use it to script deterministic tool-call sequences and assert the studio loop without a real model.",
@@ -1714,6 +1719,7 @@
     "The BYOK studio must stamp what the hosted server stamps on function calls/plan tasks (functionCall.taskId, planTask.agentCallId, planTask.status): the UI reads those fields and silently shows nothing when they are absent. Check the UI reader before assuming the studio writes a linkage field.",
     "Sub-agent children need their own bounded persistence store: giving them the parent chat budget evicts real chats, but excluding them entirely makes the per-agent transcript unavailable after a reload. Keep the two budgets separate.",
     "A real-model run stalls at the first non-read-only sub-agent call when auto-edit is off (the edit-approval prompt suspends the request); this is the designed gate, not a stall, and the nudge correctly stays silent while the sub-agent is live. Enable auto-edit for unattended real-model runs.",
-    "The fork's studio roles (manager/designer/developer/tester) map onto the objective's agents as: manager ~ orchestrator, designer ~ asset-curator/design, developer ~ scene-architect + logic-engineer, tester ~ qa-playtester. Splitting developer into the objective's three roles was deliberately not done (a weak local model routes better to fewer, broader roles)."
+    "The fork's studio roles (manager/designer/developer/tester) map onto the objective's agents as: manager ~ orchestrator, designer ~ asset-curator/design, developer ~ scene-architect + logic-engineer, tester ~ qa-playtester. Splitting developer into the objective's three roles was deliberately not done (a weak local model routes better to fewer, broader roles).",
+    "Background processing for a request requires BOTH the dispatcher to include it in aiRequestsToProcess AND onSendMessage to find it: onSendMessage read aiRequests[state] and returned early for a request never fetched, silently failing the send ('results were not sent') and tripping the loop guard. Fall back to the client cache for local requests."
   ]
 }

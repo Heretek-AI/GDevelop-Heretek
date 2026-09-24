@@ -31,6 +31,9 @@ import {
   listSubAgentActivity,
   extractFunctionCallReport,
   summarizeSubAgentTranscript,
+  getUnselectedActiveRequests,
+  UNSELECTED_ACTIVE_WINDOW_MS,
+  MAX_UNSELECTED_ACTIVE_REQUESTS,
   isUserMessage,
 } from './AiRequestUtils';
 import { type AiRequest } from '../Utils/GDevelopServices/Generation';
@@ -1215,6 +1218,136 @@ describe('listSubAgentActivity', () => {
       ]),
     ]);
     expect(listSubAgentActivity((request: any), () => 0)[0].report).toBeNull();
+  });
+});
+
+describe('getUnselectedActiveRequests', () => {
+  const NOW = 1700000000000;
+  const fresh = new Date(NOW - 60 * 1000).toISOString();
+  const stale = new Date(NOW - 60 * 60 * 1000).toISOString();
+
+  const pendingCallRequest = (id: string, overrides: Object = {}) => ({
+    id,
+    createdAt: fresh,
+    updatedAt: fresh,
+    userId: 'local-byok-user',
+    status: 'ready',
+    error: null,
+    output: [
+      {
+        type: 'message',
+        role: 'assistant',
+        content: [
+          {
+            type: 'function_call',
+            status: 'completed',
+            call_id: `c-${id}`,
+            name: 'create_or_update_plan',
+            arguments: '{}',
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  });
+
+  const call = (aiRequests: Object, overrides: Object = {}) =>
+    getUnselectedActiveRequests({
+      aiRequests,
+      excludeIds: new Set(),
+      getEditorFunctionCallResults: () => null,
+      now: NOW,
+      freshnessWindowMs: UNSELECTED_ACTIVE_WINDOW_MS,
+      maxCount: MAX_UNSELECTED_ACTIVE_REQUESTS,
+      ...overrides,
+    });
+
+  it('includes a fresh local top-level request that still has a call to process', () => {
+    const result = call({ 'local-ai-1': pendingCallRequest('local-ai-1') });
+    expect(result.map(r => r.id)).toEqual(['local-ai-1']);
+  });
+
+  it('excludes the selected request, stale ones, sub-agents and non-local ids', () => {
+    const result = call(
+      {
+        'local-ai-sel': pendingCallRequest('local-ai-sel'),
+        'local-ai-stale': pendingCallRequest('local-ai-stale', {
+          updatedAt: stale,
+        }),
+        'local-ai-child': pendingCallRequest('local-ai-child', {
+          parentAiRequestId: 'local-ai-parent',
+        }),
+        'hosted-1': pendingCallRequest('hosted-1'),
+      },
+      { excludeIds: new Set(['local-ai-sel']) }
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('leaves suspended/errored requests and requests with no pending call alone', () => {
+    const result = call({
+      'local-ai-susp': pendingCallRequest('local-ai-susp', {
+        status: 'suspended',
+      }),
+      'local-ai-err': pendingCallRequest('local-ai-err', { status: 'error' }),
+      'local-ai-done': {
+        ...pendingCallRequest('local-ai-done'),
+        output: [
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [
+              {
+                type: 'function_call',
+                status: 'completed',
+                call_id: 'c1',
+                name: 'create_scene',
+                arguments: '{}',
+              },
+            ],
+          },
+          { type: 'function_call_output', call_id: 'c1', output: '{}' },
+        ],
+      },
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('includes a request whose only pending work is an unanswered spawn call', () => {
+    const result = call({
+      'local-ai-spawn': {
+        ...pendingCallRequest('local-ai-spawn'),
+        output: [
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [
+              {
+                type: 'function_call',
+                status: 'completed',
+                call_id: 'spawn-1',
+                name: 'spawn_agent',
+                arguments: '{}',
+                subAgentAiRequestId: 'child-1',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(result.map(r => r.id)).toEqual(['local-ai-spawn']);
+  });
+
+  it('respects the maxCount cap', () => {
+    const result = call(
+      {
+        'local-ai-1': pendingCallRequest('local-ai-1'),
+        'local-ai-2': pendingCallRequest('local-ai-2'),
+        'local-ai-3': pendingCallRequest('local-ai-3'),
+      },
+      { maxCount: 2 }
+    );
+    expect(result).toHaveLength(2);
   });
 });
 
