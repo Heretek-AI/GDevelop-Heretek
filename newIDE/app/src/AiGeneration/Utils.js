@@ -654,6 +654,9 @@ export const useProcessFunctionCalls = ({
       // One guard per request (persisted across passes) so its counters
       // accumulate; reset on a new user message.
       const loopGuardHandledCallIds = new Set<string>();
+      // The loop-guard warning must reach the model like any other result:
+      // recording it without sending it means the model never learns to stop.
+      const loopGuardResults: Array<EditorFunctionCallResult> = [];
       const guard = isCustomEndpointEnabled()
         ? loopGuardsRef.current.get(aiRequest.id) || createLoopGuard()
         : null;
@@ -695,14 +698,14 @@ export const useProcessFunctionCalls = ({
           // `function_call_output` (a call the model never made) is rejected by
           // OpenAI-compatible APIs.
           const guardedCall = functionCallsToProcess[0];
-          addEditorFunctionCallResults(aiRequest.id, [
-            {
-              status: 'finished',
-              call_id: guardedCall.call_id,
-              success: false,
-              output: { message: loopGuardMessage },
-            },
-          ]);
+          const guardResult = {
+            status: 'finished',
+            call_id: guardedCall.call_id,
+            success: false,
+            output: { message: loopGuardMessage },
+          };
+          loopGuardResults.push(guardResult);
+          addEditorFunctionCallResults(aiRequest.id, [guardResult]);
           loopGuardHandledCallIds.add(guardedCall.call_id);
         }
         if (decision.action === 'constrain') {
@@ -864,7 +867,11 @@ export const useProcessFunctionCalls = ({
         // Nothing left for the editor: surface the role denials and any spawn
         // failures to the model (they are already recorded but not yet sent),
         // then release the locks. Without this a denied-only batch loops.
-        const outcomeResults = [...studioDeniedResults, ...spawnFailureResults];
+        const outcomeResults = [
+          ...studioDeniedResults,
+          ...loopGuardResults,
+          ...spawnFailureResults,
+        ];
         if (outcomeResults.length > 0) {
           await onSendEditorFunctionCallResults(
             aiRequest.id,
@@ -1095,7 +1102,7 @@ export const useProcessFunctionCalls = ({
 
         const sent = await onSendEditorFunctionCallResults(
           aiRequest.id,
-          mergedResults,
+          [...loopGuardResults, ...mergedResults],
           {
             createdSceneNames,
             createdExternalLayoutNames,

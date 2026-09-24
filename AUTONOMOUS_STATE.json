@@ -7,7 +7,7 @@
     "asset-curator",
     "qa-playtester"
   ],
-  "last_cycle": 239,
+  "last_cycle": 240,
   "completed_targets": [
     {
       "cycle": 75,
@@ -1408,6 +1408,12 @@
       "target": "Surface role-denied tool calls to the model instead of looping (Tier 1, found by the harness)",
       "metric_delta": "REAL DEFECT found and fixed via a deterministic role-security test. A batch where EVERY call is role-denied has no editor call, and the dispatcher recorded the denials client-side but never SENT them: the model got no function_call_output, the batch was reprocessed, and the request looped until the loop guard tripped ('9 identical calls to create_scene'). Fixed: the denial results are collected and sent with any spawn failures when there are no editor calls. LIVE-VERIFIED with a seeded top-level 'tester' request and a scripted create_scene call: the request now ends 'ready' with the denial delivered to the model ('The tool create_scene is not available for the QA tester role.') and NO loop-guard warning - proving both the read-only security boundary and that the model is correctly informed. 1652/1652 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. (No unit test: the dispatcher is inline in the untestable Utils.js; the live proof is the evidence.)",
       "commit": "fix(ai): send role-denied calls to the model instead of looping"
+    },
+    {
+      "cycle": 240,
+      "target": "Deliver the loop-guard warning to the model (same recorded-but-unsent class)",
+      "metric_delta": "Applying the cycle-239 heuristic to the sibling branch: the loop guard's 'steer' warning was recorded via addEditorFunctionCallResults but never passed to onSendEditorFunctionCallResults, so the model never learned to change approach (in BOTH the denied-only early-return and the normal final send). Fixed by collecting loopGuardResults and including them in the early-return outcomeResults (with the denials/spawn failures) and in the final merged send. 1652/1652 across 81 suites, eslint+prettier clean, production build exit 0, divergence clean. Verification note: the fix routes the warning through the exact send calls cycle 239 LIVE-verified for role denials (same outcomeResults array + the same final onSendEditorFunctionCallResults); a dedicated live reproduction of a 'steer' (needs a multi-turn identical-call loop hitting the steer threshold) was attempted but not obtained cheaply, so the steer content itself is not live-proven - stated honestly.",
+      "commit": "fix(ai): deliver the loop-guard warning to the model"
     }
   ],
   "backlog": [
