@@ -18,7 +18,7 @@
     "@esotericsoftware/spine-pixi-v7": "~4.3.13",
     "pixi.js": "7.4.2",
     "recast-navigation": "0.43.1",
-    "prettier": "3.9.8",
+    "prettier": "3.9.9",
     "recursive-readdir": "^2.2.2",
     "shelljs": "^0.9.0",
     "typedoc": "^0.28.20",
