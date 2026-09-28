@@ -52,7 +52,7 @@
   "dependencies": {
     "@blueprintjs/core": "file:src/Utils/BlueprintJsPlaceholder",
     "@blueprintjs/icons": "file:src/Utils/BlueprintJsPlaceholder",
-    "@esotericsoftware/spine-pixi-v7": "~4.2.116",
+    "@esotericsoftware/spine-pixi-v7": "~4.3.13",
     "@lingui/react": "github:4ian/lingui-react#master",
     "@material-ui/core": "4.12.4",
     "@material-ui/icons": "4.11.3",
