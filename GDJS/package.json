@@ -9,7 +9,7 @@
     "@types/expect.js": "^0.3.29",
     "@types/mocha": "^5.2.7",
     "@types/node": "^26.6.2",
-    "@types/sinon": "^10.0.13",
+    "@types/sinon": "^22.0.0",
     "@types/three": "0.186.0",
     "esbuild": "^0.25.0",
     "lebab": "^3.1.0",
