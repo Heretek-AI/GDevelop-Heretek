@@ -139,7 +139,7 @@
     "diff": "^5.2.0",
     "debug": "^2.6.9",
     "node-fetch": "^2.6.7",
-    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/grpc-js": "^1.14.6",
     "protobufjs": "^7.6.5",
     "websocket-driver": "^0.7.5",
     "semver": "^7.5.2",
